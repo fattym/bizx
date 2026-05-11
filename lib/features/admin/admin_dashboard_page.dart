@@ -13,6 +13,7 @@ import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'users_list_page.dart';
 import 'assign_books_page.dart';
+import 'admin_geofence_map_screen.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -48,11 +49,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       debugPrint('Error fetching route plans: $e');
     }
 
+    List<Map<String, dynamic>> geofencesData = [];
+    try {
+      final resGeo = await Supabase.instance.client.from('geofences').select();
+      geofencesData = List<Map<String, dynamic>>.from(
+        (resGeo as List).map((x) => Map<String, dynamic>.from(x as Map)),
+      );
+    } catch (e) {
+      debugPrint('Error fetching geofences: $e');
+    }
+
     return _AdminDashboardData(
       users: users,
       schools: schools,
       tasks: tasks,
       routePlans: routePlansData,
+      geofences: geofencesData,
     );
   }
 
@@ -279,6 +291,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       schools: <SchoolModel>[],
                       tasks: <TaskModel>[],
                       routePlans: <Map<String, dynamic>>[],
+                      geofences: <Map<String, dynamic>>[],
                     );
 
                 return RefreshIndicator(
@@ -293,6 +306,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         data.schools,
                         data.users,
                         data.routePlans,
+                        data.geofences,
                       ),
                       const SizedBox(height: 20),
                       _buildSectionHeader(
@@ -580,6 +594,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     List<SchoolModel> schools,
     List<UserModel> users,
     List<Map<String, dynamic>> routePlans,
+    List<Map<String, dynamic>> geofences,
   ) {
     List<SchoolModel> mapSchools =
         schools
@@ -589,6 +604,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             .toList();
 
     List<Map<String, dynamic>> userRoutePlans = [];
+    List<Map<String, dynamic>> userGeofences = geofences;
+
     if (_selectedUserIdForMap != null) {
       userRoutePlans =
           routePlans
@@ -603,16 +620,45 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       }
       mapSchools =
           mapSchools.where((s) => routeSchoolIds.contains(s.id)).toList();
+
+      userGeofences =
+          geofences
+              .where((g) => g['assigned_to'] == _selectedUserIdForMap)
+              .toList();
     }
 
     final polylines = _buildRoutePolylines(userRoutePlans, schools);
+    final polygons = _buildGeofencePolygons(userGeofences);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(
-          "School GPS Map",
-          subtitle: "Dots represent schools with saved latitude and longitude.",
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildSectionHeader(
+                "Field Operations Map",
+                subtitle:
+                    "View school locations, route plans, and assigned geofences.",
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminGeofenceMapScreen(),
+                    ),
+                  ),
+              icon: const Icon(Icons.add_location_alt, size: 18),
+              label: const Text('Manage Geofences'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.longhornMaroon,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
 
@@ -674,7 +720,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       child: Text(
                         _selectedUserIdForMap == null
                             ? 'No school GPS coordinates found yet.\nSave a school profile to see dots here.'
-                            : 'No schools found for this user\'s route plans.',
+                            : 'No mapped schools or areas found for this user.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey[700]),
                       ),
@@ -694,6 +740,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'dehus.longhorn.publishers',
                       ),
+                      PolygonLayer(polygons: polygons),
                       PolylineLayer(polylines: polylines),
                       MarkerLayer(markers: _schoolMarkers(context, mapSchools)),
                     ],
@@ -717,6 +764,51 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final avgLat = latitudes.reduce((a, b) => a + b) / latitudes.length;
     final avgLng = longitudes.reduce((a, b) => a + b) / longitudes.length;
     return LatLng(avgLat, avgLng);
+  }
+
+  List<Polygon> _buildGeofencePolygons(List<Map<String, dynamic>> geofences) {
+    final polygons = <Polygon>[];
+    final colors = [
+      Colors.red,
+      Colors.purple,
+      Colors.teal,
+      Colors.blueGrey,
+      Colors.indigo,
+    ];
+    int colorIndex = 0;
+
+    for (final geo in geofences) {
+      final rawPoints = geo['points'] ?? geo['coordinates'] ?? geo['polygon'];
+      if (rawPoints is List) {
+        final points = <LatLng>[];
+        for (final pt in rawPoints) {
+          if (pt is Map) {
+            final lat = (pt['lat'] ?? pt['latitude']) as num?;
+            final lng = (pt['lng'] ?? pt['longitude']) as num?;
+            if (lat != null && lng != null) {
+              points.add(LatLng(lat.toDouble(), lng.toDouble()));
+            }
+          } else if (pt is List && pt.length >= 2) {
+            points.add(
+              LatLng((pt[0] as num).toDouble(), (pt[1] as num).toDouble()),
+            );
+          }
+        }
+        if (points.length >= 3) {
+          final baseColor = colors[colorIndex % colors.length];
+          polygons.add(
+            Polygon(
+              points: points,
+              color: baseColor.withValues(alpha: 0.2),
+              borderColor: baseColor,
+              borderStrokeWidth: 2,
+            ),
+          );
+          colorIndex++;
+        }
+      }
+    }
+    return polygons;
   }
 
   List<Polyline> _buildRoutePolylines(
@@ -1058,12 +1150,14 @@ class _AdminDashboardData {
     required this.schools,
     required this.tasks,
     required this.routePlans,
+    required this.geofences,
   });
 
   final List<UserModel> users;
   final List<SchoolModel> schools;
   final List<TaskModel> tasks;
   final List<Map<String, dynamic>> routePlans;
+  final List<Map<String, dynamic>> geofences;
 }
 
 class _TaskCard extends StatelessWidget {
