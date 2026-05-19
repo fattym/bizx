@@ -1,12 +1,5 @@
 {
   "framework": null,
-  "outputDirectory": "build/web",
-  "installCommand": "flutter pub get",
-  "buildCommand": "flutter build web --release",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "mkdir -p build/web && cp web/data-page.html build/web/index.html",
+  "outputDirectory": "build/web"
 }
