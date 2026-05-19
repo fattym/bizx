@@ -19,6 +19,7 @@ class _MessagesPageState extends State<MessagesPage> {
   final TextEditingController _bodyController = TextEditingController();
 
   List<UserModel> _users = [];
+  Map<String, String> _userDisplayById = {};
   List<MessageModel> _messages = [];
   String? _selectedRecipientId;
   bool _isLoading = true;
@@ -46,6 +47,13 @@ class _MessagesPageState extends State<MessagesPage> {
 
       if (!mounted) return;
       setState(() {
+        final userDisplayById = <String, String>{};
+        for (final u in users) {
+          userDisplayById[u.id] =
+              (u.fullName?.trim().isNotEmpty == true)
+                  ? u.fullName!.trim()
+                  : u.email;
+        }
         _users =
             users.where((user) => user.id != currentUser?.id).toList()
               ..sort((a, b) {
@@ -55,6 +63,7 @@ class _MessagesPageState extends State<MessagesPage> {
                     (b.fullName ?? b.email).toLowerCase();
                 return left.compareTo(right);
               });
+        _userDisplayById = userDisplayById;
         _messages = messages;
         _selectedRecipientId =
             _selectedRecipientId ??
@@ -124,12 +133,15 @@ class _MessagesPageState extends State<MessagesPage> {
       await _loadData();
     }
 
-    UserModel? sender;
-    UserModel? recipient;
-    for (final user in _users) {
-      if (user.id == message.senderId) sender = user;
-      if (user.id == message.recipientId) recipient = user;
-    }
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final senderLabel =
+        message.senderId == currentUserId
+            ? 'You'
+            : (_userDisplayById[message.senderId] ?? 'Unknown Sender');
+    final recipientLabel =
+        message.recipientId == currentUserId
+            ? 'You'
+            : (_userDisplayById[message.recipientId] ?? 'Unknown Recipient');
 
     if (!mounted) return;
     showDialog<void>(
@@ -142,10 +154,16 @@ class _MessagesPageState extends State<MessagesPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('From: ${sender?.fullName ?? sender?.email ?? message.senderId}'),
+                Text(
+                  'From: $senderLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
                 Text(
-                  'To: ${recipient?.fullName ?? recipient?.email ?? message.recipientId}',
+                  'To: $recipientLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const Divider(height: 24),
                 Text(message.body),
@@ -153,6 +171,14 @@ class _MessagesPageState extends State<MessagesPage> {
             ),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deleteMessage(message);
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Close'),
@@ -161,6 +187,41 @@ class _MessagesPageState extends State<MessagesPage> {
         );
       },
     );
+  }
+
+  Future<void> _deleteMessage(MessageModel message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Delete this message from your inbox?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    try {
+      await _dbService.deleteMessage(message.id);
+      await _loadData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete message: $e')));
+    }
   }
 
   @override
@@ -289,6 +350,11 @@ class _MessagesPageState extends State<MessagesPage> {
               final isIncoming =
                   message.recipientId ==
                   Supabase.instance.client.auth.currentUser?.id;
+              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+              final senderLabel =
+                  message.senderId == currentUserId
+                      ? 'You'
+                      : (_userDisplayById[message.senderId] ?? 'Unknown Sender');
               return Card(
                 elevation: 0,
                 color: message.isRead ? Colors.white : Colors.green.shade50,
@@ -309,16 +375,28 @@ class _MessagesPageState extends State<MessagesPage> {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    message.body,
+                    'From: $senderLabel\n${message.body}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: Text(
-                    message.createdAt == null
-                        ? ''
-                        : '${message.createdAt!.year}-${message.createdAt!.month.toString().padLeft(2, '0')}-${message.createdAt!.day.toString().padLeft(2, '0')}',
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        message.createdAt == null
+                            ? ''
+                            : '${message.createdAt!.year}-${message.createdAt!.month.toString().padLeft(2, '0')}-${message.createdAt!.day.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        tooltip: 'Delete message',
+                        onPressed: () => _deleteMessage(message),
+                      ),
+                    ],
                   ),
                   onTap: () => _openMessage(message),
+                  onLongPress: () => _deleteMessage(message),
                 ),
               );
             }),

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,6 +30,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   final TextEditingController _contactTitleController = TextEditingController();
   final TextEditingController _feedbackController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _schoolOwnershipOtherController =
+      TextEditingController();
+  final TextEditingController _schoolPopulationController =
+      TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
 
   String? _dealerType;
@@ -38,12 +44,17 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   String? _selectedSampleBook;
   String? _partnerSubtype;
   String? _selectedCounty;
+  String? _schoolOwnership;
+  String? _schoolLifecycleStatus;
+  String? _engagementType;
   List<String> _sampleBookOptions = <String>[];
   XFile? _capturedPhoto;
   Uint8List? _capturedPhotoBytes;
   Position? _currentPosition;
   String? _captureStatus;
   bool isOffline = true;
+  bool _isSubmitting = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   static const List<String> _bookOptions = [
     "Grade 1 Reader Pack",
@@ -68,12 +79,15 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _shopNameController.dispose();
     _contactNameController.dispose();
     _contactPhoneController.dispose();
     _contactTitleController.dispose();
     _feedbackController.dispose();
     _notesController.dispose();
+    _schoolOwnershipOtherController.dispose();
+    _schoolPopulationController.dispose();
     super.dispose();
   }
 
@@ -81,13 +95,26 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _watchConnectivity();
       _fetchCurrentLocation();
       _loadSampleBooks();
     });
   }
 
+  Future<void> _watchConnectivity() async {
+    final initial = await Connectivity().checkConnectivity();
+    if (!mounted) return;
+    setState(() => isOffline = initial.contains(ConnectivityResult.none));
+
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      if (!mounted) return;
+      setState(() => isOffline = results.contains(ConnectivityResult.none));
+    });
+  }
+
   // --- SUBMISSION LOGIC ---
   Future<void> _submitForm() async {
+    if (_isSubmitting) return;
     final schoolName = _shopNameController.text.trim();
     final phone = _contactPhoneController.text.trim();
     final county = _selectedCounty?.trim() ?? '';
@@ -112,6 +139,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       focusAreas.add('General');
     }
 
+    setState(() => _isSubmitting = true);
     final uploadedPhoto = await _uploadSchoolPhoto();
 
     final school = SchoolModel(
@@ -125,6 +153,29 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       photoUrl: uploadedPhoto['photoUrl'],
       photoPath: uploadedPhoto['photoPath'],
       captureStatus: _captureStatus,
+      contactName: _contactNameController.text.trim().isEmpty
+          ? null
+          : _contactNameController.text.trim(),
+      contactPhone: _contactPhoneController.text.trim(),
+      contactTitle: _contactTitleController.text.trim().isEmpty
+          ? null
+          : _contactTitleController.text.trim(),
+      feedback: _feedbackController.text.trim().isEmpty
+          ? null
+          : _feedbackController.text.trim(),
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+      samplesLeft: _samplesLeft,
+      sampleBook: _selectedSampleBook,
+      schoolOwnership: _schoolOwnership,
+      schoolOwnershipOther:
+          _schoolOwnership == 'Others'
+              ? _schoolOwnershipOtherController.text.trim()
+              : null,
+      schoolPopulation: int.tryParse(_schoolPopulationController.text.trim()),
+      schoolLifecycleStatus: _schoolLifecycleStatus,
+      engagementType: _engagementType,
       capturedBy: _dbService.getCurrentUserId(),
       capturedAt: DateTime.now(),
     );
@@ -141,7 +192,13 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
     debugPrint('Onboarding payload: $payload');
 
-    await _dbService.saveSchoolProfile(school);
+    try {
+      await _dbService.saveSchoolProfile(school);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
 
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
@@ -252,6 +309,16 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               type: stepperType,
               currentStep: _currentStep,
               onStepContinue: () {
+                final validationError = _validateCurrentStep();
+                if (validationError != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(validationError),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
                 if (_currentStep < 3) {
                   setState(() => _currentStep += 1);
                 } else {
@@ -372,19 +439,19 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             _buildDropdown("School Category", [
               "Primary",
               "Secondary",
-            ], (val) => setState(() => _shopCategory = val))
+            ], (val) => setState(() => _shopCategory = val), value: _shopCategory)
           else if (_dealerType == "Bookshop")
             _buildDropdown("Bookshop Category", [
               "Retail",
               "Chain",
               "Independent",
-            ], (val) => setState(() => _partnerSubtype = val))
+            ], (val) => setState(() => _partnerSubtype = val), value: _partnerSubtype)
           else if (_dealerType == "Distributor")
             _buildDropdown("Distributor Category", [
               "Regional",
               "National",
               "Specialist",
-            ], (val) => setState(() => _partnerSubtype = val))
+            ], (val) => setState(() => _partnerSubtype = val), value: _partnerSubtype)
           else
             const SizedBox.shrink(),
           const SizedBox(height: 24),
@@ -401,6 +468,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               "Book Program",
               ["Book List", "Book Fund"],
               (val) => setState(() => _selectedBookProgram = val),
+              value: _selectedBookProgram,
             ),
           ] else if (_dealerType == "Bookshop") ...[
             _buildSectionHeader("Bookshop Services"),
@@ -415,6 +483,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               "Book Program",
               ["Book List", "Book Fund"],
               (val) => setState(() => _selectedBookProgram = val),
+              value: _selectedBookProgram,
             ),
           ] else if (_dealerType == "Distributor") ...[
             _buildSectionHeader("Distribution Coverage"),
@@ -424,6 +493,54 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               "Book Program",
               ["Book List", "Book Fund"],
               (val) => setState(() => _selectedBookProgram = val),
+              value: _selectedBookProgram,
+            ),
+          ],
+          if (_dealerType == "School") ...[
+            const SizedBox(height: 16),
+            _buildDropdown(
+              "School Ownership",
+              ["Private", "Public", "Others"],
+              (val) => setState(() {
+                _schoolOwnership = val;
+                if (val != 'Others') {
+                  _schoolOwnershipOtherController.clear();
+                }
+              }),
+              value: _schoolOwnership,
+            ),
+            if (_schoolOwnership == 'Others') ...[
+              const SizedBox(height: 16),
+              _buildTextField(
+                "Specify Ownership",
+                controller: _schoolOwnershipOtherController,
+              ),
+            ],
+            const SizedBox(height: 16),
+            _buildTextField(
+              "School Population",
+              controller: _schoolPopulationController,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            _buildDropdown(
+              "School Status",
+              ["Existing", "New"],
+              (val) => setState(() => _schoolLifecycleStatus = val),
+              value: _schoolLifecycleStatus,
+            ),
+            const SizedBox(height: 16),
+            _buildDropdown(
+              "Engagement Type",
+              [
+                "Cold Lead",
+                "Warm Lead",
+                "Follow-up",
+                "Existing Relationship",
+                "New Prospect",
+              ],
+              (val) => setState(() => _engagementType = val),
+              value: _engagementType,
             ),
           ],
         ],
@@ -467,6 +584,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                 _selectedSampleBook = null;
               }
             }),
+            value: _samplesLeft,
           ),
           if (_samplesLeft == "Yes") ...[
             const SizedBox(height: 16),
@@ -474,6 +592,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               _sampleBookLabel,
               _sampleBookOptions.isNotEmpty ? _sampleBookOptions : _bookOptions,
               (val) => setState(() => _selectedSampleBook = val),
+              value: _selectedSampleBook,
             ),
           ],
         ],
@@ -646,10 +765,11 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     String label,
     List<String> items,
     ValueChanged<String?> onChanged,
+    {String? value}
   ) {
     return DropdownButtonFormField<String>(
       isExpanded: true,
-      value: null,
+      value: value,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -691,10 +811,12 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     String label, {
     TextEditingController? controller,
     int maxLines = 1,
+    TextInputType? keyboardType,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(
@@ -865,6 +987,11 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       'contactName': _contactNameController.text,
       'samplesLeft': _samplesLeft,
       'selectedSampleBook': _selectedSampleBook,
+      'schoolOwnership': _schoolOwnership,
+      'schoolOwnershipOther': _schoolOwnershipOtherController.text,
+      'schoolPopulation': _schoolPopulationController.text,
+      'schoolLifecycleStatus': _schoolLifecycleStatus,
+      'engagementType': _engagementType,
       'photoPath': _capturedPhoto?.path,
       'photoCaptured': _capturedPhoto != null,
       'gpsLatitude': _currentPosition?.latitude,
@@ -932,18 +1059,79 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }
 
   Widget _buildStepControls(ControlsDetails details) {
-    return Row(
-      children: [
-        ElevatedButton(
-          onPressed: details.onStepContinue,
-          child: const Text('Continue'),
-        ),
-        const SizedBox(width: 12),
-        TextButton(
-          onPressed: details.onStepCancel,
-          child: const Text('Back'),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 340;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            SizedBox(
+              width: isNarrow ? constraints.maxWidth : null,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : details.onStepContinue,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Continue'),
+              ),
+            ),
+            SizedBox(
+              width: isNarrow ? constraints.maxWidth : null,
+              child: TextButton(
+                onPressed: details.onStepCancel,
+                child: const Text('Back'),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  String? _validateCurrentStep() {
+    if (_currentStep == 1) {
+      if (_shopNameController.text.trim().isEmpty) {
+        return 'School name is required.';
+      }
+      if ((_selectedCounty ?? '').trim().isEmpty) {
+        return 'County is required.';
+      }
+      if (_dealerType == null) {
+        return 'School type is required.';
+      }
+      if (_dealerType == 'School') {
+        if ((_schoolOwnership ?? '').trim().isEmpty) {
+          return 'School ownership is required.';
+        }
+        if (_schoolOwnership == 'Others' &&
+            _schoolOwnershipOtherController.text.trim().isEmpty) {
+          return 'Please specify school ownership.';
+        }
+        final population = _schoolPopulationController.text.trim();
+        final parsedPopulation = int.tryParse(population);
+        if (population.isEmpty || parsedPopulation == null || parsedPopulation < 0) {
+          return 'Enter a valid school population.';
+        }
+        if ((_schoolLifecycleStatus ?? '').trim().isEmpty) {
+          return 'School status is required.';
+        }
+        if ((_engagementType ?? '').trim().isEmpty) {
+          return 'Engagement type is required.';
+        }
+      }
+    }
+
+    if (_currentStep == 2) {
+      final phone = _contactPhoneController.text.trim();
+      if (phone.isEmpty) return 'Phone number is required.';
+      final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+      if (digits.length < 10) return 'Enter a valid phone number.';
+    }
+
+    return null;
   }
 }

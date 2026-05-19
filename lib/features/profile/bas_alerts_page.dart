@@ -12,8 +12,6 @@ class BasAlertsPage extends StatefulWidget {
 
 class _BasAlertsPageState extends State<BasAlertsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  static const String _demoFieldAgentId =
-      '11111111-1111-1111-1111-111111111111';
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -39,13 +37,6 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
     }
 
     try {
-      final userResponse = await _supabase
-          .from('users')
-          .select('id, role, region')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-      final currentRole = (userResponse?['role'] as num?)?.toInt() ?? 5;
-
       Future<_AlertsData> fetchAlertsFor(String userId) async {
         final routePlansResponse = await _supabase
             .from('route_plans')
@@ -92,16 +83,7 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
         );
       }
 
-      var alertsData = await fetchAlertsFor(currentUser.id);
-      final shouldUseDemoFallback =
-          currentRole == 5 &&
-          alertsData.routePlans.isEmpty &&
-          alertsData.geofences.isEmpty &&
-          alertsData.tasks.isEmpty;
-
-      if (shouldUseDemoFallback) {
-        alertsData = await fetchAlertsFor(_demoFieldAgentId);
-      }
+      final alertsData = await fetchAlertsFor(currentUser.id);
 
       if (!mounted) return;
       setState(() {

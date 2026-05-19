@@ -15,6 +15,10 @@ import 'users_list_page.dart';
 import 'assign_books_page.dart';
 import 'admin_geofence_map_screen.dart';
 import 'admin_pipeline_data_page.dart';
+import 'admin_assign_task_screen.dart';
+import 'user_school_onboarding_page.dart';
+import 'sample_receipts_page.dart';
+import 'admin_crm_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -109,143 +113,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Future<void> _createTask() async {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final roleController = TextEditingController(text: '2');
-    DateTime? dueDate;
-
-    try {
-      if (!mounted) return;
-      final created = await showDialog<bool>(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              Future<void> pickDate() async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: dueDate ?? DateTime.now(),
-                  firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                );
-                if (picked != null) {
-                  setDialogState(() => dueDate = picked);
-                }
-              }
-
-              return AlertDialog(
-                title: const Text('Create Task'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: titleController,
-                        decoration: const InputDecoration(
-                          labelText: 'Task title',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: descriptionController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: roleController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Target role',
-                          helperText: 'Use 0 for all users, or 1, 2, 3, 4...',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              dueDate == null
-                                  ? 'Due date: optional'
-                                  : 'Due date: ${dueDate!.year}-${dueDate!.month.toString().padLeft(2, '0')}-${dueDate!.day.toString().padLeft(2, '0')}',
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: pickDate,
-                            child: const Text('Pick date'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Save'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-
-      if (created != true) return;
-
-      final title = titleController.text.trim();
-      final description = descriptionController.text.trim();
-      final targetRole = int.tryParse(roleController.text.trim()) ?? 2;
-
-      if (title.isEmpty || description.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Title and description are required.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      await _dbService.createTask(
-        TaskModel(
-          title: title,
-          description: description,
-          targetRole: targetRole,
-          dueAt: dueDate,
-          createdBy: currentUser?.id,
-        ),
-      );
-
-      _refreshDashboard();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Task created successfully.'),
-          backgroundColor: AppColors.primaryGreen,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to create task: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      titleController.dispose();
-      descriptionController.dispose();
-      roleController.dispose();
-    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminAssignTaskScreen()),
+    );
+    _refreshDashboard();
   }
 
   @override
@@ -679,6 +551,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
                 _buildSidebarItem(
                   context,
+                  Icons.school_outlined,
+                  'User Schools',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => const UserSchoolOnboardingPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildSidebarItem(
+                  context,
                   Icons.local_shipping_outlined,
                   'Assign Delivery',
                   () {
@@ -689,6 +578,38 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const AssignBooksPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.receipt_long_outlined,
+                  'Sample Receipts',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SampleReceiptsPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.table_chart_outlined,
+                  'CRM Workspace',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminCrmPage(),
                       ),
                     );
                   },

@@ -182,6 +182,9 @@ create table if not exists public.schools (
   name text not null,
   phone text not null,
   county text not null,
+  source text not null default 'manual',
+  external_place_id text,
+  external_vicinity text,
   "focusAreas" jsonb not null default '[]'::jsonb,
   book_category text,
   latitude double precision,
@@ -191,6 +194,18 @@ create table if not exists public.schools (
   captured_by uuid references public.users (id) on delete set null,
   captured_at timestamptz,
   capture_status text,
+  contact_name text,
+  contact_phone text,
+  contact_title text,
+  feedback text,
+  notes text,
+  samples_left text,
+  sample_book text,
+  school_ownership text,
+  school_ownership_other text,
+  school_population integer,
+  school_lifecycle_status text,
+  engagement_type text,
   "isSynced" boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -199,6 +214,15 @@ create table if not exists public.schools (
 -- Ensure isSynced column exists in schools
 do $$
 begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'source') then
+    alter table public.schools add column source text not null default 'manual';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'external_place_id') then
+    alter table public.schools add column external_place_id text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'external_vicinity') then
+    alter table public.schools add column external_vicinity text;
+  end if;
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'isSynced') then
     alter table public.schools add column "isSynced" boolean not null default false;
   end if;
@@ -220,7 +244,47 @@ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'capture_status') then
     alter table public.schools add column capture_status text;
   end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'contact_name') then
+    alter table public.schools add column contact_name text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'contact_phone') then
+    alter table public.schools add column contact_phone text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'contact_title') then
+    alter table public.schools add column contact_title text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'feedback') then
+    alter table public.schools add column feedback text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'notes') then
+    alter table public.schools add column notes text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'samples_left') then
+    alter table public.schools add column samples_left text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'sample_book') then
+    alter table public.schools add column sample_book text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'school_ownership') then
+    alter table public.schools add column school_ownership text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'school_ownership_other') then
+    alter table public.schools add column school_ownership_other text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'school_population') then
+    alter table public.schools add column school_population integer;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'school_lifecycle_status') then
+    alter table public.schools add column school_lifecycle_status text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'engagement_type') then
+    alter table public.schools add column engagement_type text;
+  end if;
 end $$;
+
+create unique index if not exists idx_schools_external_place_id
+  on public.schools (external_place_id)
+  where external_place_id is not null;
 
 create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
@@ -248,12 +312,26 @@ create table if not exists public.geofences (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   description text,
+  region text,
   coordinates jsonb not null default '[]'::jsonb,
   assigned_to uuid references public.users (id) on delete set null,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'geofences'
+      and column_name = 'region'
+  ) then
+    alter table public.geofences add column region text;
+  end if;
+end $$;
 
 create table if not exists public.route_plans (
   id uuid primary key default gen_random_uuid(),
@@ -420,6 +498,19 @@ begin
   end if;
 end $$;
 
+create table if not exists public.debt_collections (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.schools (id) on delete cascade,
+  collected_by uuid references public.users (id) on delete set null,
+  amount numeric(12,2) not null check (amount > 0),
+  payment_method text not null default 'cash',
+  payment_reference text,
+  notes text,
+  collected_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.school_sales (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null references public.schools (id) on delete cascade,
@@ -509,6 +600,8 @@ create table if not exists public.school_sample_distributions (
   sample_name text not null,
   sample_category text,
   quantity integer not null default 1,
+  stamped_receipt_url text,
+  stamped_receipt_path text,
   notes text,
   distributed_at timestamptz not null default now(),
   "isSynced" boolean not null default false,
@@ -520,6 +613,12 @@ do $$
 begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'isSynced') then
     alter table public.school_sample_distributions add column "isSynced" boolean not null default false;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'stamped_receipt_url') then
+    alter table public.school_sample_distributions add column stamped_receipt_url text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'stamped_receipt_path') then
+    alter table public.school_sample_distributions add column stamped_receipt_path text;
   end if;
 end $$;
 
@@ -533,10 +632,10 @@ begin
   values (
     new.id,
     new.email,
-    new.raw_user_meta_data ->> 'full_name',
-    new.raw_user_meta_data ->> 'phone',
+    coalesce(nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''), 'Not Captured'),
+    coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), 'Not Captured'),
     public.role_id_from_text(new.raw_user_meta_data ->> 'role'),
-    new.raw_user_meta_data ->> 'region'
+    coalesce(nullif(btrim(new.raw_user_meta_data ->> 'region'), ''), 'Not Captured')
   )
   on conflict (id) do update
   set email = excluded.email,
@@ -556,10 +655,10 @@ as $$
 begin
   update public.users
   set email = new.email,
-      full_name = coalesce(new.raw_user_meta_data ->> 'full_name', full_name),
-      phone = coalesce(new.raw_user_meta_data ->> 'phone', phone)
-      -- We removed 'role' and 'region' here so that manual changes made in the 
-      -- public.users table are no longer overwritten by outdated auth metadata upon login.
+      full_name = coalesce(nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''), full_name, 'Not Captured'),
+      phone = coalesce(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), phone, 'Not Captured'),
+      region = coalesce(nullif(btrim(new.raw_user_meta_data ->> 'region'), ''), region, 'Not Captured')
+      -- Keep role untouched so admin changes in public.users are not overwritten by auth metadata.
   where id = new.id;
   return new;
 end;
@@ -580,10 +679,10 @@ insert into public.users (id, email, full_name, phone, role, region)
 select
   u.id,
   u.email,
-  u.raw_user_meta_data ->> 'full_name',
-  u.raw_user_meta_data ->> 'phone',
+  coalesce(nullif(btrim(u.raw_user_meta_data ->> 'full_name'), ''), 'Not Captured'),
+  coalesce(nullif(btrim(u.raw_user_meta_data ->> 'phone'), ''), 'Not Captured'),
   public.role_id_from_text(u.raw_user_meta_data ->> 'role'),
-  u.raw_user_meta_data ->> 'region'
+  coalesce(nullif(btrim(u.raw_user_meta_data ->> 'region'), ''), 'Not Captured')
 from auth.users u
 on conflict (id) do update
 set email = excluded.email,
@@ -647,6 +746,11 @@ create trigger touch_school_follow_ups_updated_at
 before update on public.school_follow_ups
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists touch_debt_collections_updated_at on public.debt_collections;
+create trigger touch_debt_collections_updated_at
+before update on public.debt_collections
+for each row execute procedure public.set_updated_at();
+
 drop trigger if exists touch_school_sales_updated_at on public.school_sales;
 create trigger touch_school_sales_updated_at
 before update on public.school_sales
@@ -673,6 +777,7 @@ alter table public.order_items enable row level security;
 alter table public.messages enable row level security;
 alter table public.school_visits enable row level security;
 alter table public.school_follow_ups enable row level security;
+alter table public.debt_collections enable row level security;
 alter table public.school_sales enable row level security;
 alter table public.pipeline_history enable row level security;
 alter table public.school_sample_distributions enable row level security;
@@ -885,6 +990,17 @@ with check (
   or public.is_manager_or_admin()
 );
 
+drop policy if exists "authenticated_can_delete_messages" on public.messages;
+create policy "authenticated_can_delete_messages"
+on public.messages
+for delete
+to authenticated
+using (
+  sender_id = auth.uid()
+  or recipient_id = auth.uid()
+  or public.is_manager_or_admin()
+);
+
 drop policy if exists "agents_can_manage_school_visits" on public.school_visits;
 create policy "agents_can_manage_school_visits"
 on public.school_visits
@@ -900,6 +1016,14 @@ for all
 to authenticated
 using (agent_id = auth.uid() or public.is_manager_or_admin())
 with check (agent_id = auth.uid() or public.is_manager_or_admin());
+
+drop policy if exists "authenticated_can_manage_debt_collections" on public.debt_collections;
+create policy "authenticated_can_manage_debt_collections"
+on public.debt_collections
+for all
+to authenticated
+using (collected_by = auth.uid() or public.is_manager_or_admin())
+with check (collected_by = auth.uid() or public.is_manager_or_admin());
 
 drop policy if exists "agents_can_manage_school_sales" on public.school_sales;
 create policy "agents_can_manage_school_sales"

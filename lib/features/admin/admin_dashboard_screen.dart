@@ -10,6 +10,7 @@ import 'assign_books_page.dart';
 import 'admin_geofence_map_screen.dart';
 import 'admin_agent_tracker_screen.dart';
 import 'admin_pipeline_data_page.dart';
+import 'sample_receipts_page.dart';
 import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -329,6 +330,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminPipelineDataPage(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildDashboardCard(
+              context: context,
+              icon: Icons.receipt_long_outlined,
+              title: 'Stamped Sample Receipts',
+              subtitle: 'Review stamped proof images for sample distributions.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SampleReceiptsPage(),
                   ),
                 );
               },

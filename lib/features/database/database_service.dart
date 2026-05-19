@@ -6,6 +6,7 @@ import '../../models/catalog_item_model.dart';
 import '../../models/order_item_model.dart';
 import '../../models/order_model.dart';
 import '../../models/school_sale_model.dart';
+import '../../models/pipeline_stage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -79,7 +80,51 @@ class DatabaseService {
     final box = await _box;
     await box.put(school.id, school.toMap());
 
-    syncData();
+    await syncData();
+  }
+
+  Future<void> updateSchoolProfile(SchoolModel school) async {
+    final updatedSchool = SchoolModel(
+      id: school.id,
+      name: school.name,
+      phone: school.phone,
+      county: school.county,
+      focusAreas: school.focusAreas,
+      bookCategory: school.bookCategory,
+      latitude: school.latitude,
+      longitude: school.longitude,
+      photoUrl: school.photoUrl,
+      photoPath: school.photoPath,
+      capturedBy: school.capturedBy,
+      capturedAt: school.capturedAt,
+      captureStatus: school.captureStatus,
+      contactName: school.contactName,
+      contactPhone: school.contactPhone,
+      contactTitle: school.contactTitle,
+      feedback: school.feedback,
+      notes: school.notes,
+      samplesLeft: school.samplesLeft,
+      sampleBook: school.sampleBook,
+      schoolOwnership: school.schoolOwnership,
+      schoolOwnershipOther: school.schoolOwnershipOther,
+      schoolPopulation: school.schoolPopulation,
+      schoolLifecycleStatus: school.schoolLifecycleStatus,
+      engagementType: school.engagementType,
+      isSynced: false,
+      createdAt: school.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    await saveSchoolProfile(updatedSchool);
+  }
+
+  Future<void> deleteSchoolProfile(String schoolId) async {
+    final box = await _box;
+    await box.delete(schoolId);
+    try {
+      await _supabase.from('schools').delete().eq('id', schoolId);
+    } catch (e) {
+      debugPrint("Error deleting school $schoolId from Supabase: $e");
+    }
   }
 
   // 2. Sync pending data to Supabase
@@ -94,26 +139,10 @@ class DatabaseService {
     for (var school in unsynced) {
       try {
         await _supabase.from('schools').upsert(school.toMap());
+        await _syncEngagementToPipeline(school);
 
-        // Update local status to synced
-        final updatedSchool = SchoolModel(
-          id: school.id,
-          name: school.name,
-          phone: school.phone,
-          county: school.county,
-          focusAreas: school.focusAreas,
-          bookCategory: school.bookCategory,
-          latitude: school.latitude,
-          longitude: school.longitude,
-          photoUrl: school.photoUrl,
-          photoPath: school.photoPath,
-          capturedBy: school.capturedBy,
-          capturedAt: school.capturedAt,
-          captureStatus: school.captureStatus,
-          isSynced: true,
-          createdAt: school.createdAt,
-          updatedAt: school.updatedAt,
-        );
+        // Preserve all existing fields and only flip sync state.
+        final updatedSchool = school.copyWithSynced(true);
         await box.put(school.id, updatedSchool.toMap());
       } catch (e) {
         debugPrint("Sync Error for ${school.id}: $e");
@@ -161,6 +190,13 @@ class DatabaseService {
   }
 
   Future<List<SchoolModel>> getAllSchools() async {
+    // Attempt a sync before read so UI reflects latest server state.
+    try {
+      await syncData();
+    } catch (e) {
+      debugPrint("Pre-fetch sync failed: $e");
+    }
+
     final localSchools = await getAllSchoolProfiles();
     try {
       final data = await _supabase.from('schools').select().order('created_at');
@@ -202,10 +238,15 @@ class DatabaseService {
 
   Future<List<TaskModel>> getTasksForRole(int role) async {
     try {
+      final currentUserId = _supabase.auth.currentUser?.id;
+      if (currentUserId == null) return <TaskModel>[];
+
       final data = await _supabase
           .from('tasks')
           .select()
-          .or('target_role.eq.0,target_role.eq.$role')
+          .or(
+            'target_role.eq.$role,assigned_to.eq.$currentUserId',
+          )
           .order('created_at', ascending: false);
       return (data as List)
           .map((item) => TaskModel.fromMap(Map<String, dynamic>.from(item)))
@@ -374,6 +415,33 @@ class DatabaseService {
     }
   }
 
+  Future<void> recordSampleDistribution({
+    required String schoolId,
+    required String sampleName,
+    required String sampleCategory,
+    int quantity = 1,
+    String? notes,
+    String? stampedReceiptUrl,
+    String? stampedReceiptPath,
+  }) async {
+    try {
+      await _supabase.from('school_sample_distributions').insert({
+        'school_id': schoolId,
+        'agent_id': getCurrentUserId(),
+        'sample_name': sampleName,
+        'sample_category': sampleCategory,
+        'quantity': quantity,
+        'stamped_receipt_url': stampedReceiptUrl,
+        'stamped_receipt_path': stampedReceiptPath,
+        'notes': notes,
+        'distributed_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint("Error saving sample distribution record: $e");
+      rethrow;
+    }
+  }
+
   Future<List<OrderModel>> getOrdersForCurrentUser() async {
     try {
       final data = await _supabase
@@ -460,6 +528,15 @@ class DatabaseService {
     }
   }
 
+  Future<void> deleteMessage(String id) async {
+    try {
+      await _supabase.from('messages').delete().eq('id', id);
+    } catch (e) {
+      debugPrint("Error deleting message: $e");
+      rethrow;
+    }
+  }
+
   Future<SchoolSaleModel?> getLatestSchoolSale(String schoolId) async {
     try {
       final data = await _supabase
@@ -504,6 +581,91 @@ class DatabaseService {
     } catch (e) {
       debugPrint("Error creating school follow-up: $e");
       rethrow;
+    }
+  }
+
+  Future<void> _syncEngagementToPipeline(SchoolModel school) async {
+    final engagement = (school.engagementType ?? '').trim();
+    if (engagement.isEmpty) return;
+
+    final mappedStage = _pipelineStageFromEngagement(engagement);
+    final latestSale = await getLatestSchoolSale(school.id);
+
+    if (latestSale == null) {
+      final sale = SchoolSaleModel(
+        schoolId: school.id,
+        agentId: getCurrentUserId(),
+        packageName: engagement,
+        expectedValue: 0,
+        notes: 'Auto-created from onboarding engagement type: $engagement',
+        stage: mappedStage,
+        stageUpdatedAt: DateTime.now(),
+        probability: _probabilityFromStage(mappedStage),
+        isSynced: true,
+      );
+      await saveSchoolSale(sale);
+      return;
+    }
+
+    final updated = SchoolSaleModel(
+      id: latestSale.id,
+      schoolId: latestSale.schoolId,
+      agentId: latestSale.agentId ?? getCurrentUserId(),
+      packageName: latestSale.packageName.isNotEmpty
+          ? latestSale.packageName
+          : engagement,
+      expectedValue: latestSale.expectedValue,
+      notes: latestSale.notes,
+      stage: mappedStage,
+      stageUpdatedAt: DateTime.now(),
+      expectedCloseDate: latestSale.expectedCloseDate,
+      probability: _probabilityFromStage(mappedStage),
+      closedAt: latestSale.closedAt,
+      isSynced: true,
+      createdAt: latestSale.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    await saveSchoolSale(updated);
+  }
+
+  PipelineStage _pipelineStageFromEngagement(String engagement) {
+    switch (engagement.toLowerCase()) {
+      case 'cold lead':
+      case 'new prospect':
+        return PipelineStage.lead;
+      case 'warm lead':
+        return PipelineStage.contacted;
+      case 'follow-up':
+        return PipelineStage.decisionPending;
+      case 'existing relationship':
+        return PipelineStage.negotiation;
+      default:
+        return PipelineStage.lead;
+    }
+  }
+
+  int _probabilityFromStage(PipelineStage stage) {
+    switch (stage) {
+      case PipelineStage.lead:
+        return 10;
+      case PipelineStage.contacted:
+        return 25;
+      case PipelineStage.meetingScheduled:
+        return 35;
+      case PipelineStage.sampleIssued:
+        return 45;
+      case PipelineStage.quotationSent:
+        return 60;
+      case PipelineStage.decisionPending:
+        return 70;
+      case PipelineStage.negotiation:
+        return 80;
+      case PipelineStage.won:
+        return 100;
+      case PipelineStage.lost:
+        return 0;
+      case PipelineStage.dormant:
+        return 5;
     }
   }
 }

@@ -39,8 +39,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   // Global metrics
   int _totalUsers = 0;
   int _totalSchools = 0;
+  int _manualSchools = 0;
+  int _googleSchools = 0;
+  int _unattributedSchools = 0;
   List<FlSpot> _userGrowthSpots = [];
   double _maxUserCount = 0;
+  List<_OnboarderStat> _topOnboarders = <_OnboarderStat>[];
 
   @override
   void initState() {
@@ -89,8 +93,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       }
 
       // Fetch Global counts and User Growth
-      final usersRes = await _supabase.from('users').select('id, created_at');
-      final schoolsRes = await _supabase.from('schools').select('id');
+      final usersRes = await _supabase
+          .from('users')
+          .select('id, full_name, email, created_at');
+      final schoolsRes = await _supabase
+          .from('schools')
+          .select('id, source, captured_by');
 
       // Calculate User Growth
       int currentYear = DateTime.now().year;
@@ -115,6 +123,46 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         growthSpots.add(FlSpot(i.toDouble(), cumulative.toDouble()));
       }
 
+      int manualSchools = 0;
+      int googleSchools = 0;
+      int unattributedSchools = 0;
+      final userNameById = <String, String>{
+        for (final user in usersRes)
+          user['id'].toString():
+              ((user['full_name'] as String?)?.trim().isNotEmpty ?? false)
+                  ? user['full_name'].toString().trim()
+                  : user['email'].toString(),
+      };
+      final onboardCountByUserId = <String, int>{};
+      for (final school in schoolsRes) {
+        final source =
+            (school['source'] as String?)?.toLowerCase().trim() ?? 'manual';
+        if (source == 'google') {
+          googleSchools++;
+        } else {
+          manualSchools++;
+        }
+
+        final capturedBy = (school['captured_by'] as String?)?.trim();
+        if (capturedBy == null || capturedBy.isEmpty) {
+          unattributedSchools++;
+        } else {
+          onboardCountByUserId[capturedBy] =
+              (onboardCountByUserId[capturedBy] ?? 0) + 1;
+        }
+      }
+      final topOnboarders =
+          onboardCountByUserId.entries
+              .map(
+                (entry) => _OnboarderStat(
+                  userId: entry.key,
+                  displayName: userNameById[entry.key] ?? entry.key,
+                  count: entry.value,
+                ),
+              )
+              .toList()
+            ..sort((a, b) => b.count.compareTo(a.count));
+
       if (mounted) {
         setState(() {
           _openTasks = open;
@@ -126,8 +174,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           _pipelineSales = pipelineSales;
           _totalUsers = usersRes.length;
           _totalSchools = schoolsRes.length;
+          _manualSchools = manualSchools;
+          _googleSchools = googleSchools;
+          _unattributedSchools = unattributedSchools;
           _userGrowthSpots = growthSpots;
           _maxUserCount = cumulative.toDouble();
+          _topOnboarders = topOnboarders.take(5).toList();
           _isLoading = false;
         });
       }
@@ -144,7 +196,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 800;
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 1000;
+    final isTablet = width >= 700 && width < 1000;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Analytics'), centerTitle: true),
@@ -162,89 +216,41 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSummaryCards(isDesktop),
+                          _buildSummaryCards(width),
                           const SizedBox(height: 32),
                           if (isDesktop) ...[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'User Growth (Current Year)',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildUserGrowthChart(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Orders Revenue Overview',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildRevenueBarChart(),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            _buildTwoChartRow(
+                              titleA: 'User Growth (Current Year)',
+                              chartA: _buildUserGrowthChart(),
+                              titleB: 'Orders Revenue Overview',
+                              chartB: _buildRevenueBarChart(),
                             ),
                             const SizedBox(height: 32),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Sales Pipeline Value',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildSalesPipelineChart(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Task Status Breakdown',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildTaskPieChart(),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            _buildTwoChartRow(
+                              titleA: 'Sales Pipeline Value',
+                              chartA: _buildSalesPipelineChart(),
+                              titleB: 'Task Status Breakdown',
+                              chartB: _buildTaskPieChart(),
+                            ),
+                          ] else if (isTablet) ...[
+                            _buildChartSection(
+                              title: 'User Growth (Current Year)',
+                              chart: _buildUserGrowthChart(),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildChartSection(
+                              title: 'Orders Revenue Overview',
+                              chart: _buildRevenueBarChart(),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildChartSection(
+                              title: 'Sales Pipeline Value',
+                              chart: _buildSalesPipelineChart(),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildChartSection(
+                              title: 'Task Status Breakdown',
+                              chart: _buildTaskPieChart(),
                             ),
                           ] else ...[
                             const Text(
@@ -287,6 +293,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                             const SizedBox(height: 16),
                             _buildTaskPieChart(),
                           ],
+                          const SizedBox(height: 32),
+                          const Text(
+                            'School Onboarding Insights',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildOnboardingInsightsCard(),
                           const SizedBox(height: 32),
                         ],
                       ),
@@ -608,12 +624,21 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildSummaryCards(bool isDesktop) {
+  Widget _buildSummaryCards(double width) {
+    final crossAxisCount = width >= 1200
+        ? 6
+        : width >= 900
+            ? 3
+            : 2;
     return GridView.count(
-      crossAxisCount: isDesktop ? 4 : 2,
+      crossAxisCount: crossAxisCount,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: isDesktop ? 1.5 : 1.2,
+      childAspectRatio: width >= 1200
+          ? 1.35
+          : width >= 900
+              ? 1.4
+              : 1.2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
@@ -641,7 +666,125 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Icons.trending_up,
           Colors.purple,
         ),
+        _buildStatCard(
+          'Google Schools',
+          '$_googleSchools',
+          Icons.public,
+          Colors.teal,
+        ),
+        _buildStatCard(
+          'Manual Schools',
+          '$_manualSchools',
+          Icons.edit_location_alt,
+          Colors.indigo,
+        ),
       ],
+    );
+  }
+
+  Widget _buildTwoChartRow({
+    required String titleA,
+    required Widget chartA,
+    required String titleB,
+    required Widget chartB,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _buildChartSection(title: titleA, chart: chartA)),
+        const SizedBox(width: 24),
+        Expanded(child: _buildChartSection(title: titleB, chart: chartB)),
+      ],
+    );
+  }
+
+  Widget _buildChartSection({
+    required String title,
+    required Widget chart,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        chart,
+      ],
+    );
+  }
+
+  Widget _buildOnboardingInsightsCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _insightChip('Manual', _manualSchools, Colors.indigo),
+                _insightChip('Google', _googleSchools, Colors.teal),
+                _insightChip('No Onboarder', _unattributedSchools, Colors.orange),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Top Onboarders',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (_topOnboarders.isEmpty)
+              const Text('No onboarded school attribution data yet.')
+            else
+              ..._topOnboarders.map(
+                (entry) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    radius: 14,
+                    child: Text(
+                      entry.displayName.isNotEmpty
+                          ? entry.displayName[0].toUpperCase()
+                          : '?',
+                    ),
+                  ),
+                  title: Text(
+                    entry.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text(
+                    '${entry.count}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _insightChip(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -654,33 +797,60 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 36, color: color),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 110;
+          final iconSize = compact ? 26.0 : 36.0;
+          final titleSize = compact ? 12.0 : 14.0;
+          final valueSize = compact ? 16.0 : 20.0;
+          final vGap = compact ? 6.0 : 12.0;
+
+          return Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: iconSize, color: color),
+                SizedBox(height: vGap),
+                Flexible(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: titleSize, color: Colors.grey),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: valueSize,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
+}
+
+class _OnboarderStat {
+  const _OnboarderStat({
+    required this.userId,
+    required this.displayName,
+    required this.count,
+  });
+
+  final String userId;
+  final String displayName;
+  final int count;
 }

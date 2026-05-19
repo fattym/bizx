@@ -4,6 +4,7 @@ import '../../core/constants/colors.dart';
 import 'school_follow_up_page.dart';
 import 'school_sell_page.dart';
 import 'school_visit_page.dart';
+import 'collect_debt_page.dart';
 
 class SchoolActionMenuPage extends StatelessWidget {
   const SchoolActionMenuPage({super.key, required this.school});
@@ -139,6 +140,20 @@ class SchoolActionMenuPage extends StatelessWidget {
               );
             },
           ),
+          _ActionCard(
+            title: 'Collect Debt',
+            subtitle: 'Capture debt payments and record proof details.',
+            icon: Icons.payments_outlined,
+            color: AppColors.longhornMaroon,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CollectDebtPage(school: school),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -203,19 +218,28 @@ class SchoolActionMenuPage extends StatelessWidget {
     final message =
         'Hello ${schoolName}, I am reaching out from Dehus regarding the $actionPoint action. '
         'Please let me know the best time to continue.';
-    final uri = Uri.parse(
+    final deepLink = Uri.parse(
+      'whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}',
+    );
+    final webFallback = Uri.parse(
       'https://wa.me/$phone?text=${Uri.encodeComponent(message)}',
     );
 
-    if (!await canLaunchUrl(uri)) {
-      if (!context.mounted) return;
+    final openedDeepLink = await launchUrl(
+      deepLink,
+      mode: LaunchMode.externalApplication,
+    );
+    if (openedDeepLink) return;
+
+    final openedWeb = await launchUrl(
+      webFallback,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!openedWeb && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open WhatsApp.')),
       );
-      return;
     }
-
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 

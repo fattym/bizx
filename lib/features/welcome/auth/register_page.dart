@@ -13,11 +13,13 @@ class DeHeusRegister extends StatefulWidget {
 }
 
 class _DeHeusRegisterState extends State<DeHeusRegister> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
   final DatabaseService _dbService = DatabaseService();
 
   @override
@@ -80,43 +82,85 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
                   const SizedBox(height: 40),
 
                   // Registration Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildTextField("Full Name", Icons.person_outline, _fullNameController),
-                        const SizedBox(height: 16),
-                        _buildTextField(
-                          "Phone Number",
-                          Icons.phone_android_outlined,
-                          _phoneNumberController,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextField("Email Address", Icons.email_outlined, _emailController),
-                        const SizedBox(height: 16),
-                        _buildPasswordField(),
-                        const SizedBox(height: 24),
+                  Form(
+                    key: _formKey,
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            "Full Name",
+                            Icons.person_outline,
+                            _fullNameController,
+                            validator: (value) {
+                              final trimmed = value?.trim() ?? '';
+                              if (trimmed.isEmpty) return 'Full name is required';
+                              if (trimmed.length < 2) return 'Enter a valid full name';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            "Phone Number",
+                            Icons.phone_android_outlined,
+                            _phoneNumberController,
+                            keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              final trimmed = value?.trim() ?? '';
+                              if (trimmed.isEmpty) return 'Phone number is required';
+                              final digits = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
+                              if (digits.length < 10) return 'Enter a valid phone number';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            "Email Address",
+                            Icons.email_outlined,
+                            _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              final trimmed = value?.trim() ?? '';
+                              if (trimmed.isEmpty) return 'Email is required';
+                              final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                              if (!emailPattern.hasMatch(trimmed)) return 'Enter a valid email';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildPasswordField(),
+                          const SizedBox(height: 24),
 
-                        ElevatedButton(
-                          onPressed: _registerUser,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          ElevatedButton(
+                            onPressed: _isLoading ? null : _registerUser,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryGreen,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(double.infinity, 56),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    "CREATE ACCOUNT",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
                           ),
-                          child: const Text(
-                            "CREATE ACCOUNT",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
 
@@ -138,9 +182,17 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
     );
   }
 
-  Widget _buildTextField(String label, IconData icon, TextEditingController controller) {
-    return TextField(
+  Widget _buildTextField(
+    String label,
+    IconData icon,
+    TextEditingController controller, {
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
       controller: controller,
+      validator: validator,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: AppColors.primaryGreen),
@@ -151,9 +203,15 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
   }
 
   Widget _buildPasswordField() {
-    return TextField(
+    return TextFormField(
       controller: _passwordController,
       obscureText: !_isPasswordVisible,
+      validator: (value) {
+        final password = value ?? '';
+        if (password.isEmpty) return 'Password is required';
+        if (password.length < 6) return 'Password must be at least 6 characters';
+        return null;
+      },
       decoration: InputDecoration(
         labelText: 'Password',
         prefixIcon: const Icon(
@@ -173,6 +231,9 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
   }
 
   Future<void> _registerUser() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
       final authResponse = await supabase.auth.signUp(
@@ -181,7 +242,7 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
         data: {
           'full_name': _fullNameController.text.trim(),
           'phone': _phoneNumberController.text.trim(),
-          'role': 2,
+          'role': 5,
         },
       );
 
@@ -192,16 +253,21 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
           email: _emailController.text.trim(),
           fullName: _fullNameController.text.trim(),
           phone: _phoneNumberController.text.trim(),
-          role: 2, // Default role
+          role: 5, // Default role
         );
         if (authResponse.session != null) {
           await _dbService.saveUser(newUser);
         }
 
         if (!mounted) return;
+        final requiresEmailVerification = authResponse.session == null;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Registration successful. Please sign in."),
+          SnackBar(
+            content: Text(
+              requiresEmailVerification
+                  ? "Registration successful. Check your email to verify your account, then sign in."
+                  : "Registration successful. You can now sign in.",
+            ),
             backgroundColor: AppColors.primaryGreen,
           ),
         );
@@ -221,6 +287,10 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }

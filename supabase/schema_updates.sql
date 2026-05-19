@@ -5,6 +5,37 @@ ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES pu
 ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS due_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS target_role INTEGER NOT NULL DEFAULT 2;
 
+-- 0b. Schools table updates for onboarding tracking + external discovery
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS external_place_id TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS external_vicinity TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contact_name TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contact_title TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feedback TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS samples_left TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS sample_book TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_ownership TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_ownership_other TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_population INTEGER;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_lifecycle_status TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS engagement_type TEXT;
+ALTER TABLE public.school_sample_distributions ADD COLUMN IF NOT EXISTS stamped_receipt_url TEXT;
+ALTER TABLE public.school_sample_distributions ADD COLUMN IF NOT EXISTS stamped_receipt_path TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schools_external_place_id
+ON public.schools (external_place_id)
+WHERE external_place_id IS NOT NULL;
+
+DO $$ BEGIN
+    ALTER TABLE public.schools
+    DROP CONSTRAINT IF EXISTS schools_source_check;
+    ALTER TABLE public.schools
+    ADD CONSTRAINT schools_source_check CHECK (source IN ('manual', 'google'));
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
+
 -- 1. Route Plans Table
 CREATE TABLE IF NOT EXISTS public.route_plans (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -43,6 +74,20 @@ CREATE TABLE IF NOT EXISTS public.school_sample_distributions (
     notes TEXT,
     distributed_at TIMESTAMP WITH TIME ZONE,
     "isSynced" BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3b. Debt Collections Table
+CREATE TABLE IF NOT EXISTS public.debt_collections (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    school_id UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
+    collected_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    payment_reference TEXT,
+    notes TEXT,
+    collected_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -193,6 +238,7 @@ ALTER TABLE public.catalog_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.school_sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pipeline_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.debt_collections ENABLE ROW LEVEL SECURITY;
 
 -- Optional: Re-create missing permissive policies if needed
 -- (Your schema.sql handles granular RLS policies already, these act as fallbacks if missing)
@@ -213,4 +259,25 @@ DO $$ BEGIN
           AND (s.agent_id = auth.uid() OR public.is_manager_or_admin())
       )
     );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "authenticated_can_delete_messages"
+    ON public.messages
+    FOR DELETE
+    TO authenticated
+    USING (
+      sender_id = auth.uid()
+      OR recipient_id = auth.uid()
+      OR public.is_manager_or_admin()
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "authenticated_can_manage_debt_collections"
+    ON public.debt_collections
+    FOR ALL
+    TO authenticated
+    USING (collected_by = auth.uid() OR public.is_manager_or_admin())
+    WITH CHECK (collected_by = auth.uid() OR public.is_manager_or_admin());
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -54,12 +54,12 @@ VALUES
 
 -- 3. Insert Dummy Geofences
 -- Coordinates are stored as a JSONB array of objects matching your flutter map data structure
-INSERT INTO public.geofences (name, description, coordinates)
+INSERT INTO public.geofences (name, description, region, coordinates)
 VALUES
-  ('Nairobi CBD Zone', 'Cover all schools within the central business district.', '[{"lat": -1.286389, "lng": 36.817223, "radius": 2000}]'::jsonb),
-  ('Mombasa Island Area', 'Target coastal schools.', '[{"lat": -4.043477, "lng": 39.668206, "radius": 3500}]'::jsonb),
-  ('Kisumu Lakefront', 'Schools near the lake area.', '[{"lat": -0.102210, "lng": 34.761713, "radius": 1500}]'::jsonb),
-  ('Nakuru Town Center', 'Coverage area for central Nakuru.', '[{"lat": -0.303099, "lng": 36.080025, "radius": 2500}]'::jsonb);
+  ('Nairobi CBD Zone', 'Cover all schools within the central business district.', 'Nairobi', '[{"lat": -1.286389, "lng": 36.817223, "radius": 2000}]'::jsonb),
+  ('Mombasa Island Area', 'Target coastal schools.', 'Mombasa', '[{"lat": -4.043477, "lng": 39.668206, "radius": 3500}]'::jsonb),
+  ('Kisumu Lakefront', 'Schools near the lake area.', 'Kisumu', '[{"lat": -0.102210, "lng": 34.761713, "radius": 1500}]'::jsonb),
+  ('Nakuru Town Center', 'Coverage area for central Nakuru.', 'Nakuru', '[{"lat": -0.303099, "lng": 36.080025, "radius": 2500}]'::jsonb);
 
 -- ==========================================
 -- 4. Insert Dummy Users with Different Roles
@@ -93,10 +93,10 @@ VALUES
   ('Sell book fund package to Bora Education Centre', 'Present the offer and record the response.', 4, '11111111-1111-1111-1111-111111111111', 'in_progress', now() + interval '3 days', true),
   ('Check sample delivery for Green Pastures Academy', 'Make sure sample books were received and logged.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '4 days', true);
 
-INSERT INTO public.geofences (name, description, coordinates, assigned_to)
+INSERT INTO public.geofences (name, description, region, coordinates, assigned_to)
 VALUES
-  ('Nairobi Field Agent Zone', 'Primary school coverage for the Nairobi field agent.', '[{"lat": -1.2921, "lng": 36.8219, "radius": 4000}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('Kiambu Visit Corridor', 'Support schools along the Kiambu route.', '[{"lat": -1.1714, "lng": 36.8356, "radius": 2500}]'::jsonb, '11111111-1111-1111-1111-111111111111');
+  ('Nairobi Field Agent Zone', 'Primary school coverage for the Nairobi field agent.', 'Nairobi', '[{"lat": -1.2921, "lng": 36.8219, "radius": 4000}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
+  ('Kiambu Visit Corridor', 'Support schools along the Kiambu route.', 'Kiambu', '[{"lat": -1.1714, "lng": 36.8356, "radius": 2500}]'::jsonb, '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO public.route_plans (
   id,
@@ -228,18 +228,20 @@ VALUES
   ('Inspect Nyanza school route', 'Verify access roads and confirm the route timing for the day.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '1 day', true),
   ('Check delivery point at Kisumu Boys', 'Confirm the unloading area and school contact point.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '2 days', true);
 
-INSERT INTO public.geofences (id, name, description, coordinates, assigned_to)
+INSERT INTO public.geofences (id, name, description, region, coordinates, assigned_to)
 VALUES
   (
     '99999999-9999-9999-9999-999999999999',
     'Nyanza Grounds Coverage',
     'Coverage area for the role 5 demo user.',
+    'Kisumu',
     '[{"lat": -0.102210, "lng": 34.761713, "radius": 3000}]'::jsonb,
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
   )
 ON CONFLICT (id) DO UPDATE
 SET name = excluded.name,
     description = excluded.description,
+    region = excluded.region,
     coordinates = excluded.coordinates,
     assigned_to = excluded.assigned_to;
 
@@ -1148,11 +1150,11 @@ ON CONFLICT DO NOTHING;
 -- ==========================================
 
 -- Insert proper Polygon geofences (requires >= 3 points to render a shape on the map)
-INSERT INTO public.geofences (id, name, description, coordinates, assigned_to)
+INSERT INTO public.geofences (id, name, description, region, coordinates, assigned_to)
 VALUES
-  (gen_random_uuid(), 'Nairobi South Polygon', 'Detailed polygon mapping for southern Nairobi.', '[{"lat": -1.30, "lng": 36.80}, {"lat": -1.30, "lng": 36.85}, {"lat": -1.35, "lng": 36.85}, {"lat": -1.35, "lng": 36.80}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  (gen_random_uuid(), 'Mombasa North Coast', 'Polygon for northern coastal region coverage.', '[{"lat": -3.95, "lng": 39.70}, {"lat": -3.95, "lng": 39.75}, {"lat": -4.00, "lng": 39.75}, {"lat": -4.00, "lng": 39.70}]'::jsonb, '22222222-aaaa-aaaa-aaaa-222222222222'),
-  (gen_random_uuid(), 'Kisumu Central Grid', 'Triangular grid for Kisumu central field operations.', '[{"lat": -0.09, "lng": 34.75}, {"lat": -0.09, "lng": 34.77}, {"lat": -0.11, "lng": 34.76}]'::jsonb, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+  (gen_random_uuid(), 'Nairobi South Polygon', 'Detailed polygon mapping for southern Nairobi.', 'Nairobi', '[{"lat": -1.30, "lng": 36.80}, {"lat": -1.30, "lng": 36.85}, {"lat": -1.35, "lng": 36.85}, {"lat": -1.35, "lng": 36.80}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
+  (gen_random_uuid(), 'Mombasa North Coast', 'Polygon for northern coastal region coverage.', 'Mombasa', '[{"lat": -3.95, "lng": 39.70}, {"lat": -3.95, "lng": 39.75}, {"lat": -4.00, "lng": 39.75}, {"lat": -4.00, "lng": 39.70}]'::jsonb, '22222222-aaaa-aaaa-aaaa-222222222222'),
+  (gen_random_uuid(), 'Kisumu Central Grid', 'Triangular grid for Kisumu central field operations.', 'Kisumu', '[{"lat": -0.09, "lng": 34.75}, {"lat": -0.09, "lng": 34.77}, {"lat": -0.11, "lng": 34.76}]'::jsonb, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
 
 -- Insert dummy tasks designed to test the Daily, Weekly, and Monthly dashboard filters
 INSERT INTO public.tasks (title, description, target_role, assigned_to, status, due_at, "isSynced")

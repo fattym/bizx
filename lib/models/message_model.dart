@@ -28,7 +28,7 @@ class MessageModel {
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'sender_id': senderId,
       'recipient_id': recipientId,
@@ -38,9 +38,16 @@ class MessageModel {
       'related_task_id': relatedTaskId,
       'is_read': isRead,
       'isSynced': isSynced,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
+
+    if (createdAt != null) {
+      map['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      map['updated_at'] = updatedAt!.toIso8601String();
+    }
+
+    return map;
   }
 
   factory MessageModel.fromMap(Map<dynamic, dynamic> map) {

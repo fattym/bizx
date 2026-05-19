@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/colors.dart';
 import '../../features/database/database_service.dart';
@@ -15,6 +17,7 @@ class SampleDistributionPage extends StatefulWidget {
 class _SampleDistributionPageState extends State<SampleDistributionPage> {
   final DatabaseService _dbService = DatabaseService();
   final TextEditingController _searchController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
   late Future<List<SchoolModel>> _schoolsFuture;
   String? _selectedSchoolId;
@@ -80,6 +83,27 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       return;
     }
 
+    final proofPhoto = await _captureStampedPaperProof(
+      sampleName: sample.name,
+      schoolName: school.name,
+    );
+    if (proofPhoto == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Distribution cancelled: proof photo is required.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final receiptUpload = await _uploadStampedReceipt(
+      photo: proofPhoto,
+      sampleName: sample.name,
+      schoolName: school.name,
+    );
+
     setState(() {
       final index = _samples.indexWhere((item) => item.id == sample.id);
       if (index != -1) {
@@ -100,7 +124,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       }
       _distributionLog.insert(
         0,
-        '${sample.name} given to ${school.name}',
+        '${sample.name} given to ${school.name} (proof captured)',
       );
       if (_distributionLog.length > 5) {
         _distributionLog.removeLast();
@@ -108,6 +132,15 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     });
 
     try {
+      await _dbService.recordSampleDistribution(
+        schoolId: school.id,
+        sampleName: sample.name,
+        sampleCategory: sample.category,
+        quantity: 1,
+        notes: 'Distributed from Sample Distribution page.',
+        stampedReceiptUrl: receiptUpload['url'],
+        stampedReceiptPath: receiptUpload['path'],
+      );
       await _dbService.decrementCatalogStock(sample.id, 1);
     } catch (e) {
       debugPrint('Sample stock update warning: $e');
@@ -119,6 +152,135 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         backgroundColor: AppColors.primaryGreen,
       ),
     );
+  }
+
+  Future<XFile?> _captureStampedPaperProof({
+    required String sampleName,
+    required String schoolName,
+  }) async {
+    XFile? capturedPhoto;
+
+    final result = await showDialog<XFile?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Capture Stamped Paper Proof'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Take a clear photo of the stamped instruction paper for:',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$sampleName -> $schoolName',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  if (capturedPhoto == null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'No photo captured yet.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Photo captured. You can proceed.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancel'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    try {
+                      final photo = await _imagePicker.pickImage(
+                        source: ImageSource.camera,
+                        imageQuality: 80,
+                      );
+                      if (photo == null) return;
+                      setModalState(() => capturedPhoto = photo);
+                    } catch (_) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not open camera.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: Text(capturedPhoto == null ? 'Capture Photo' : 'Retake'),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      capturedPhoto == null
+                          ? null
+                          : () => Navigator.pop(context, capturedPhoto),
+                  child: const Text('Use Photo'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return result;
+  }
+
+  Future<Map<String, String?>> _uploadStampedReceipt({
+    required XFile photo,
+    required String sampleName,
+    required String schoolName,
+  }) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final fileExt = photo.path.split('.').last.toLowerCase();
+      final safeSchool = schoolName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+      final safeSample = sampleName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+      final fileName =
+          'sample_receipts/${safeSchool}_${safeSample}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final bytes = await photo.readAsBytes();
+
+      await supabase.storage.from('schools').uploadBinary(
+        fileName,
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+
+      return {
+        'url': supabase.storage.from('schools').getPublicUrl(fileName),
+        'path': fileName,
+      };
+    } catch (e) {
+      debugPrint('Stamped receipt upload failed: $e');
+      return {'url': null, 'path': photo.path};
+    }
   }
 
   List<CatalogItemModel> _filteredSamples() {

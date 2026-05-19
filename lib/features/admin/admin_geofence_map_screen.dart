@@ -19,8 +19,11 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
   List<Map<String, dynamic>> _filteredUsers = [];
   int _selectedRoleFilter = 4;
   List<Map<String, dynamic>> _existingGeofences = [];
+  List<Map<String, dynamic>> _schools = [];
   String? _selectedUserId;
+  String? _selectedCountyFilter;
   bool _isLoadingUsers = true;
+  bool _isMapReady = false;
 
   // Geofence states
   LatLng? _selectedLocation;
@@ -31,6 +34,56 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
     -1.2921,
     36.8219,
   ); // Nairobi, Kenya
+
+  static const List<String> _kenyaCounties = [
+    'Baringo',
+    'Bomet',
+    'Bungoma',
+    'Busia',
+    'Elgeyo-Marakwet',
+    'Embu',
+    'Garissa',
+    'Homa Bay',
+    'Isiolo',
+    'Kajiado',
+    'Kakamega',
+    'Kericho',
+    'Kiambu',
+    'Kilifi',
+    'Kirinyaga',
+    'Kisii',
+    'Kisumu',
+    'Kitui',
+    'Kwale',
+    'Laikipia',
+    'Lamu',
+    'Machakos',
+    'Makueni',
+    'Mandera',
+    'Marsabit',
+    'Meru',
+    'Migori',
+    'Mombasa',
+    'Murang\'a',
+    'Nairobi',
+    'Nakuru',
+    'Nandi',
+    'Narok',
+    'Nyamira',
+    'Nyandarua',
+    'Nyeri',
+    'Samburu',
+    'Siaya',
+    'Taita-Taveta',
+    'Tana River',
+    'Tharaka-Nithi',
+    'Trans Nzoia',
+    'Turkana',
+    'Uasin Gishu',
+    'Vihiga',
+    'Wajir',
+    'West Pokot',
+  ];
 
   @override
   void initState() {
@@ -43,11 +96,14 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
       // Fetch all non-admin users to populate the dropdown
       final usersResponse = await _supabase
           .from('users')
-          .select('id, full_name, email, role')
+          .select('id, full_name, email, role, region')
           .neq('role', 1);
 
       // Fetch existing geofences to display on the map
       final geofencesResponse = await _supabase.from('geofences').select('*');
+      final schoolsResponse = await _supabase
+          .from('schools')
+          .select('id, county, latitude, longitude');
 
       if (mounted) {
         setState(() {
@@ -56,8 +112,10 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
           _existingGeofences = List<Map<String, dynamic>>.from(
             geofencesResponse,
           );
+          _schools = List<Map<String, dynamic>>.from(schoolsResponse);
           _isLoadingUsers = false;
         });
+        _zoomToSelectedCountyGeofences();
       }
     } catch (e) {
       debugPrint('Error fetching data: $e');
@@ -67,17 +125,60 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
 
   void _filterUsers() {
     _filteredUsers =
-        _users.where((u) => u['role'] == _selectedRoleFilter).toList();
+        _users.where((u) {
+          final hasRole = u['role'] == _selectedRoleFilter;
+          if (!hasRole) return false;
+          if (_selectedCountyFilter == null ||
+              _selectedCountyFilter!.trim().isEmpty) {
+            return true;
+          }
+          final region = (u['region'] ?? '').toString().trim().toLowerCase();
+          return region == _selectedCountyFilter!.toLowerCase();
+        }).toList();
     if (!_filteredUsers.any((u) => u['id'].toString() == _selectedUserId)) {
       _selectedUserId = null;
     }
   }
 
+  Color _countyColor(String? county) {
+    final normalized = (county ?? '').trim();
+    if (normalized.isEmpty) return Colors.grey;
+    final index = _kenyaCounties.indexWhere(
+      (c) => c.toLowerCase() == normalized.toLowerCase(),
+    );
+    final safe = index >= 0 ? index : normalized.hashCode.abs() % 47;
+    return Colors.primaries[safe % Colors.primaries.length];
+  }
+
+  bool _geofenceMatchesCounty(Map<String, dynamic> geo) {
+    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+      return true;
+    }
+    final selected = _selectedCountyFilter!.toLowerCase();
+    final geoCounty = (geo['region'] ?? '').toString().trim().toLowerCase();
+    if (geoCounty == selected) return true;
+
+    // Fallback: infer county from assigned user's region when geofence.region is missing.
+    final assignedTo = geo['assigned_to']?.toString();
+    if (assignedTo == null || assignedTo.isEmpty) return false;
+    final matchedUser = _users.cast<Map<String, dynamic>?>().firstWhere(
+      (u) => u?['id']?.toString() == assignedTo,
+      orElse: () => null,
+    );
+    if (matchedUser == null) return false;
+    final userRegion =
+        (matchedUser['region'] ?? '').toString().trim().toLowerCase();
+    return userRegion == selected;
+  }
+
   List<CircleMarker> _buildExistingGeofenceCircles() {
     List<CircleMarker> markers = [];
     for (var geo in _existingGeofences) {
+      final county = geo['region']?.toString();
+      if (!_geofenceMatchesCounty(geo)) continue;
       final coords = geo['coordinates'];
       if (coords != null && coords is List && coords.isNotEmpty) {
+        final countyColor = _countyColor(county);
         for (var point in coords) {
           final lat = (point['lat'] as num?)?.toDouble();
           final lng = (point['lng'] as num?)?.toDouble();
@@ -88,9 +189,9 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                 point: LatLng(lat, lng),
                 radius: radius,
                 useRadiusInMeter: true,
-                color: Colors.grey.withOpacity(0.3),
-                borderColor: Colors.grey,
-                borderStrokeWidth: 2,
+                color: countyColor.withOpacity(0.22),
+                borderColor: countyColor,
+                borderStrokeWidth: 3,
               ),
             );
           }
@@ -98,6 +199,150 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
       }
     }
     return markers;
+  }
+
+  List<Marker> _buildCountyLabels() {
+    final labels = <Marker>[];
+    for (final geo in _existingGeofences) {
+      final county = geo['region']?.toString();
+      if (!_geofenceMatchesCounty(geo)) continue;
+      final coords = geo['coordinates'];
+      if (coords is List && coords.isNotEmpty) {
+        final first = coords.first;
+        if (first is Map) {
+          final mapFirst = Map<String, dynamic>.from(first);
+          final lat = (mapFirst['lat'] as num?)?.toDouble();
+          final lng = (mapFirst['lng'] as num?)?.toDouble();
+          if (lat != null && lng != null && (county ?? '').trim().isNotEmpty) {
+            labels.add(
+              Marker(
+                point: LatLng(lat, lng),
+                width: 130,
+                height: 28,
+                child: IgnorePointer(
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _countyColor(county), width: 2),
+                    ),
+                    child: Text(
+                      county!,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+        }
+      }
+    }
+    return labels;
+  }
+
+  List<LatLng> _countyAreaPoints() {
+    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+      return const [];
+    }
+    final selected = _selectedCountyFilter!.toLowerCase();
+    final points = <LatLng>[];
+
+    for (final geo in _existingGeofences) {
+      if (!_geofenceMatchesCounty(geo)) continue;
+      final coords = geo['coordinates'];
+      if (coords is List) {
+        for (final point in coords) {
+          if (point is Map) {
+            final mapPoint = Map<String, dynamic>.from(point);
+            final lat = (mapPoint['lat'] as num?)?.toDouble();
+            final lng = (mapPoint['lng'] as num?)?.toDouble();
+            if (lat != null && lng != null) {
+              points.add(LatLng(lat, lng));
+            }
+          }
+        }
+      }
+    }
+
+    for (final school in _schools) {
+      final county = (school['county'] ?? '').toString().trim().toLowerCase();
+      if (county != selected) continue;
+      final lat = (school['latitude'] as num?)?.toDouble();
+      final lng = (school['longitude'] as num?)?.toDouble();
+      if (lat != null && lng != null) {
+        points.add(LatLng(lat, lng));
+      }
+    }
+
+    return points;
+  }
+
+  List<LatLng> _countyBoundaryPolygon() {
+    final points = _countyAreaPoints();
+    if (points.isEmpty) return const [];
+
+    double minLat = points.first.latitude;
+    double maxLat = points.first.latitude;
+    double minLng = points.first.longitude;
+    double maxLng = points.first.longitude;
+
+    for (final p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    const latPad = 0.03;
+    const lngPad = 0.03;
+
+    return [
+      LatLng(minLat - latPad, minLng - lngPad),
+      LatLng(minLat - latPad, maxLng + lngPad),
+      LatLng(maxLat + latPad, maxLng + lngPad),
+      LatLng(maxLat + latPad, minLng - lngPad),
+    ];
+  }
+
+  void _zoomToSelectedCountyGeofences() {
+    if (!_isMapReady) return;
+    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+      return;
+    }
+
+    final points = _countyAreaPoints();
+
+    if (points.isEmpty) {
+      _mapController.move(_initialCenter, 6);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No geofence/school coordinates found in $_selectedCountyFilter.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (points.length == 1) {
+      _mapController.move(points.first, 12);
+      return;
+    }
+
+    final bounds = LatLngBounds.fromPoints(points);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(48),
+      ),
+    );
   }
 
   Future<void> _centerOnCurrentLocation() async {
@@ -180,6 +425,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
         'name': 'Cover Geofenced Area',
         'description': 'Please cover the assigned geographic area.',
         'assigned_to': _selectedUserId,
+        'region': _selectedCountyFilter,
         'coordinates': [
           {
             'lat': _selectedLocation!.latitude,
@@ -227,7 +473,11 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
           options: MapOptions(
             initialCenter: _initialCenter,
             initialZoom: 12.0,
-            onMapReady: _centerOnCurrentLocation,
+            onMapReady: () {
+              _isMapReady = true;
+              _centerOnCurrentLocation();
+              _zoomToSelectedCountyGeofences();
+            },
             onTap: _onMapTapped,
           ),
           children: [
@@ -264,10 +514,45 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                   ),
                 ],
               ),
+            MarkerLayer(markers: _buildCountyLabels()),
+            if (_selectedCountyFilter != null &&
+                _selectedCountyFilter!.trim().isNotEmpty &&
+                _countyBoundaryPolygon().isNotEmpty)
+              PolygonLayer(
+                polygons: [
+                  Polygon(
+                    points: _countyBoundaryPolygon(),
+                    color: _countyColor(_selectedCountyFilter).withOpacity(0.12),
+                    borderColor: _countyColor(_selectedCountyFilter),
+                    borderStrokeWidth: 3,
+                  ),
+                ],
+              ),
           ],
         ),
 
         // Custom location button since FlutterMap doesn't include one by default
+        if (_selectedCountyFilter != null &&
+            _selectedCountyFilter!.trim().isNotEmpty)
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _countyColor(_selectedCountyFilter),
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                'County: $_selectedCountyFilter',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
         Positioned(
           top: 16,
           right: 16,
@@ -349,6 +634,34 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
             ],
           ),
           const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              labelText: 'County (Kenya)',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            value: _selectedCountyFilter,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('All counties'),
+              ),
+              ..._kenyaCounties.map(
+                (county) => DropdownMenuItem<String>(
+                  value: county,
+                  child: Text(county),
+                ),
+              ),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _selectedCountyFilter = value;
+                _filterUsers();
+              });
+              _zoomToSelectedCountyGeofences();
+            },
+          ),
+          const SizedBox(height: 8),
           _isLoadingUsers
               ? const Center(child: CircularProgressIndicator())
               : DropdownButtonFormField<String>(
@@ -363,7 +676,8 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                       return DropdownMenuItem<String>(
                         value: user['id'].toString(),
                         child: Text(
-                          user['full_name'] ?? user['email'] ?? 'Unknown User',
+                          '${user['full_name'] ?? user['email'] ?? 'Unknown User'}'
+                          '${(user['region'] ?? '').toString().trim().isNotEmpty ? ' (${user['region']})' : ''}',
                         ),
                       );
                     }).toList(),
