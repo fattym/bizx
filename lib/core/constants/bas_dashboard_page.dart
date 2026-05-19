@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/bas_screens.dart';
 import '../../core/constants/colors.dart';
 import '../../features/admin/users_list_page.dart';
+import '../../features/admin/role3_supervision_dashboard_page.dart';
+import '../../features/profile/bas_alerts_page.dart';
 
 class BasDashboardPage extends StatelessWidget {
   const BasDashboardPage({super.key});
@@ -84,6 +86,20 @@ class BasDashboardPage extends StatelessWidget {
                     'Team Overview',
                     AppColors.softGold,
                     const UsersListPage(),
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    Icons.supervisor_account_outlined,
+                    'Role 3 Command Center',
+                    AppColors.primaryDark,
+                    const Role3SupervisionDashboardPage(),
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    Icons.assignment_turned_in_outlined,
+                    'Assigned Tasks & Geofences',
+                    AppColors.infoBlue,
+                    const BasAlertsPage(),
                   ),
                 ],
               ),

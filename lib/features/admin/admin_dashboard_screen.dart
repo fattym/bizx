@@ -11,6 +11,7 @@ import 'admin_geofence_map_screen.dart';
 import 'admin_agent_tracker_screen.dart';
 import 'admin_pipeline_data_page.dart';
 import 'sample_receipts_page.dart';
+import 'role3_supervision_dashboard_page.dart';
 import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -254,6 +255,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminCreateRouteScreen(),
+                  ),
+                );
+                _refreshData();
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildDashboardCard(
+              context: context,
+              icon: Icons.supervisor_account_outlined,
+              title: 'Role 3 Command Center',
+              subtitle:
+                  'Regional supervision for Role 5 with health, SLA and escalations.',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const Role3SupervisionDashboardPage(),
                   ),
                 );
                 _refreshData();

@@ -1172,3 +1172,53 @@ VALUES
   ('Daily: Inspect Vehicle', 'Perform daily routine check on delivery vehicle.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now(), true),
   ('Weekly: Service Route Validation', 'Validate newly added schools on the route map.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '4 days', true),
   ('Monthly: Log Book Audit', 'Submit the monthly physical log book for audit.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '25 days', true);
+
+-- ==========================================
+-- 6. Role 3 Supervision Demo Data
+-- ==========================================
+INSERT INTO public.supervisor_alerts (user_id, region, alert_type, severity, status, message, acked_at, resolved_at, ack_sla_met, resolve_sla_met, escalated_to_admin)
+VALUES
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'missed_checkin', 'red', 'open', 'Grounds user missed first check-in.', null, null, false, false, false),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'late_start', 'amber', 'resolved', 'Route start was delayed by 40 minutes.', now() - interval '5 hours', now() - interval '3 hours', true, true, false)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.geofence_events (user_id, geofence_id, event_type, region, lat, lng, reason, status, created_at)
+VALUES
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '99999999-9999-9999-9999-999999999999', 'breach', 'Kisumu', -0.0981, 34.7742, 'Detour due to road closure', 'open', now() - interval '2 hours')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.supervisor_incidents (user_id, region, incident_type, severity, status, notes, created_by)
+VALUES
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'boundary_breach', 'high', 'open', 'Repeated breach on western corridor.', '22222222-aaaa-aaaa-aaaa-222222222222')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.supervisor_notes (supervisor_id, user_id, region, context_type, note, follow_up_at)
+VALUES
+  ('22222222-aaaa-aaaa-aaaa-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'weekly_review', 'Improve first check-in discipline and submit route evidence by 9 AM.', now() + interval '7 days')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.supervisor_notifications (
+  supervisor_id, region, notification_type, title, body, payload, scheduled_for, sent_at
+)
+VALUES
+  (
+    '22222222-aaaa-aaaa-aaaa-222222222222',
+    'Nairobi',
+    'daily_digest',
+    'Morning Supervision Digest',
+    'You have 2 open alerts and 3 overdue tasks in your region.',
+    '{"open_alerts": 2, "overdue_tasks": 3}'::jsonb,
+    now() - interval '2 hours',
+    now() - interval '2 hours'
+  ),
+  (
+    '22222222-aaaa-aaaa-aaaa-222222222222',
+    'Nairobi',
+    'escalation',
+    'Escalated Red Alert',
+    'A red alert has remained unresolved beyond SLA.',
+    '{"alert_type": "missed_checkin"}'::jsonb,
+    now() - interval '30 minutes',
+    now() - interval '30 minutes'
+  )
+ON CONFLICT DO NOTHING;

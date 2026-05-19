@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminCrmPage extends StatefulWidget {
   const AdminCrmPage({super.key});
@@ -8,6 +9,7 @@ class AdminCrmPage extends StatefulWidget {
 }
 
 class _AdminCrmPageState extends State<AdminCrmPage> {
+  final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _schoolController = TextEditingController();
   final TextEditingController _contactController = TextEditingController();
@@ -16,60 +18,107 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
-  final List<_CrmRecord> _records = <_CrmRecord>[
-    _CrmRecord(
-      school: 'Green Valley Academy',
-      contact: 'Grace Wanjiku',
-      phone: '+254 712 001 102',
-      stage: 'Lead',
-      owner: 'Mercy',
-      dealValue: 120000,
-      lastContact: DateTime(2026, 5, 10),
-      notes: 'Interested in lower primary set books',
-    ),
-    _CrmRecord(
-      school: 'Blue Ridge School',
-      contact: 'Samuel Kibet',
-      phone: '+254 723 887 212',
-      stage: 'Qualified',
-      owner: 'Evans',
-      dealValue: 265000,
-      lastContact: DateTime(2026, 5, 12),
-      notes: 'Requested bundle quotation',
-    ),
-    _CrmRecord(
-      school: 'Sunrise Junior',
-      contact: 'Anne Chebet',
-      phone: '+254 701 442 983',
-      stage: 'Proposal',
-      owner: 'Mercy',
-      dealValue: 310000,
-      lastContact: DateTime(2026, 5, 14),
-      notes: 'Proposal shared, follow up next week',
-    ),
-    _CrmRecord(
-      school: 'Hilltop Learning Center',
-      contact: 'John Mutiso',
-      phone: '+254 734 772 100',
-      stage: 'Won',
-      owner: 'Brian',
-      dealValue: 420000,
-      lastContact: DateTime(2026, 5, 9),
-      notes: 'Confirmed term 2 order',
-    ),
-  ];
+  final List<_CrmRecord> _records = <_CrmRecord>[];
+  final Map<String, Map<String, dynamic>> _schoolsById = {};
+  final Map<String, Map<String, dynamic>> _usersById = {};
+  bool _isLoading = true;
 
   final List<String> _stages = <String>[
     'All',
     'Lead',
     'Qualified',
     'Proposal',
+    'Negotiation',
     'Won',
     'Lost',
   ];
 
   String _selectedStage = 'All';
   bool _sortAscending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCrmData();
+  }
+
+  Future<void> _loadCrmData() async {
+    setState(() => _isLoading = true);
+    try {
+      final schoolsRes = await _supabase
+          .from('schools')
+          .select('id,name,phone');
+      final usersRes = await _supabase
+          .from('users')
+          .select('id,full_name,email');
+      final salesRes = await _supabase
+          .from('school_sales')
+          .select(
+            'id,school_id,agent_id,expected_value,notes,sale_status,probability,next_action_date,stage_updated_at,created_at',
+          )
+          .order('updated_at', ascending: false);
+
+      _schoolsById
+        ..clear()
+        ..addEntries(
+          List<Map<String, dynamic>>.from(schoolsRes).map(
+            (s) => MapEntry(s['id'].toString(), s),
+          ),
+        );
+      _usersById
+        ..clear()
+        ..addEntries(
+          List<Map<String, dynamic>>.from(usersRes).map(
+            (u) => MapEntry(u['id'].toString(), u),
+          ),
+        );
+
+      _records
+        ..clear()
+        ..addAll(
+          List<Map<String, dynamic>>.from(salesRes).map((row) {
+            final school = _schoolsById[row['school_id']?.toString()] ?? {};
+            final owner = _usersById[row['agent_id']?.toString()] ?? {};
+            final stageDb = (row['sale_status'] ?? 'lead').toString();
+            final stage = _fromDbStage(stageDb);
+            return _CrmRecord(
+              id: row['id'].toString(),
+              schoolId: row['school_id']?.toString() ?? '',
+              ownerId: row['agent_id']?.toString(),
+              school: (school['name'] ?? 'Unknown School').toString(),
+              contact: 'N/A',
+              phone: (school['phone'] ?? '').toString(),
+              stage: stage,
+              owner:
+                  (owner['full_name'] ?? owner['email'] ?? 'Unassigned')
+                      .toString(),
+              dealValue: ((row['expected_value'] ?? 0) as num).toDouble(),
+              lastContact:
+                  DateTime.tryParse(
+                    (row['stage_updated_at'] ?? row['created_at'] ?? '')
+                        .toString(),
+                  ) ??
+                  DateTime.now(),
+              nextActionDate:
+                  DateTime.tryParse(
+                    (row['next_action_date'] ?? '').toString(),
+                  ) ??
+                  DateTime.now().add(const Duration(days: 2)),
+              probability: (row['probability'] as num?)?.toInt() ?? 0,
+              notes: (row['notes'] ?? '').toString(),
+            );
+          }),
+        );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load CRM data: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -108,6 +157,12 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
 
   double get _pipelineValue =>
       _visibleRecords.fold(0, (sum, record) => sum + record.dealValue);
+  double get _weightedForecast => _visibleRecords.fold(
+    0,
+    (sum, record) => sum + record.dealValue * (record.probability / 100),
+  );
+  int get _atRiskCount =>
+      _visibleRecords.where((record) => record.riskLevel == 'High').length;
 
   int _countByStage(String stage) =>
       _visibleRecords.where((r) => r.stage == stage).length;
@@ -182,22 +237,38 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                             parsed == null) {
                           return;
                         }
-                        setState(() {
-                          _records.insert(
-                            0,
-                            _CrmRecord(
-                              school: _schoolController.text.trim(),
-                              contact: _contactController.text.trim(),
-                              phone: _phoneController.text.trim(),
-                              stage: selectedStage,
-                              owner: _ownerController.text.trim(),
-                              dealValue: parsed,
-                              lastContact: DateTime.now(),
-                              notes: _notesController.text.trim(),
-                            ),
-                          );
+                        final schoolEntry = _schoolsById.values.firstWhere(
+                          (s) =>
+                              (s['name'] ?? '').toString().toLowerCase() ==
+                              _schoolController.text.trim().toLowerCase(),
+                          orElse: () => const {},
+                        );
+                        if (schoolEntry.isEmpty) return;
+                        final ownerEntry = _usersById.values.firstWhere(
+                          (u) =>
+                              (u['full_name'] ?? u['email'] ?? '')
+                                  .toString()
+                                  .toLowerCase() ==
+                              _ownerController.text.trim().toLowerCase(),
+                          orElse: () => const {},
+                        );
+                        _supabase.from('school_sales').insert({
+                          'school_id': schoolEntry['id'],
+                          'agent_id': ownerEntry['id'],
+                          'package_name': 'CRM Opportunity',
+                          'expected_value': parsed,
+                          'notes': _notesController.text.trim(),
+                          'sale_status': _toDbStage(selectedStage),
+                          'probability': _probabilityByStage(selectedStage),
+                          'next_action': 'Follow up call',
+                          'next_action_date':
+                              DateTime.now().add(const Duration(days: 2)).toIso8601String(),
+                        }).then((_) async {
+                          if (mounted) {
+                            Navigator.pop(context, true);
+                            await _loadCrmData();
+                          }
                         });
-                        Navigator.pop(context, true);
                       },
                       child: const Text('Save'),
                     ),
@@ -278,17 +349,25 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                       onPressed: () {
                         final parsed = double.tryParse(_valueController.text);
                         if (parsed == null) return;
-                        setState(() {
-                          record.school = _schoolController.text.trim();
-                          record.contact = _contactController.text.trim();
-                          record.phone = _phoneController.text.trim();
-                          record.stage = selectedStage;
-                          record.owner = _ownerController.text.trim();
-                          record.dealValue = parsed;
-                          record.notes = _notesController.text.trim();
-                          record.lastContact = DateTime.now();
-                        });
-                        Navigator.pop(context);
+                        _supabase
+                            .from('school_sales')
+                            .update({
+                              'expected_value': parsed,
+                              'notes': _notesController.text.trim(),
+                              'sale_status': _toDbStage(selectedStage),
+                              'probability': _probabilityByStage(selectedStage),
+                              'stage_updated_at': DateTime.now().toIso8601String(),
+                              'next_action': 'Follow up call',
+                              'next_action_date':
+                                  DateTime.now().add(const Duration(days: 2)).toIso8601String(),
+                            })
+                            .eq('id', record.id)
+                            .then((_) async {
+                              if (mounted) {
+                                Navigator.pop(context);
+                                await _loadCrmData();
+                              }
+                            });
                       },
                       child: const Text('Update'),
                     ),
@@ -339,7 +418,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         icon: const Icon(Icons.add),
         label: const Text('New Record'),
       ),
-      body: Padding(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,11 +434,16 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                   label: 'Pipeline Value',
                   value: 'KES ${_pipelineValue.toStringAsFixed(0)}',
                 ),
+                _MetricTile(
+                  label: 'Weighted Forecast',
+                  value: 'KES ${_weightedForecast.toStringAsFixed(0)}',
+                ),
                 _MetricTile(label: 'Leads', value: '${_countByStage('Lead')}'),
                 _MetricTile(
                   label: 'Proposals',
                   value: '${_countByStage('Proposal')}',
                 ),
+                _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
               ],
             ),
             const SizedBox(height: 14),
@@ -417,6 +503,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                               DataColumn(label: Text('Stage')),
                               DataColumn(label: Text('Owner')),
                               DataColumn(label: Text('Deal Value')),
+                              DataColumn(label: Text('Prob%')),
+                              DataColumn(label: Text('Next Action')),
+                              DataColumn(label: Text('Risk')),
                               DataColumn(label: Text('Last Contact')),
                               DataColumn(label: Text('Actions')),
                             ],
@@ -433,6 +522,25 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                                           DataCell(
                                             Text(
                                               'KES ${record.dealValue.toStringAsFixed(0)}',
+                                            ),
+                                          ),
+                                          DataCell(Text('${record.probability}%')),
+                                          DataCell(
+                                            Text(
+                                              '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              record.riskLevel,
+                                              style: TextStyle(
+                                                color: record.riskLevel == 'High'
+                                                    ? Colors.red
+                                                    : record.riskLevel == 'Medium'
+                                                    ? Colors.orange
+                                                    : Colors.green,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                           DataCell(
@@ -457,9 +565,13 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                                                   ),
                                                   tooltip: 'Delete',
                                                   onPressed: () {
-                                                    setState(() {
-                                                      _records.remove(record);
-                                                    });
+                                                    _supabase
+                                                        .from('school_sales')
+                                                        .delete()
+                                                        .eq('id', record.id)
+                                                        .then((_) {
+                                                          _loadCrmData();
+                                                        });
                                                   },
                                                 ),
                                               ],
@@ -477,6 +589,66 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         ),
       ),
     );
+  }
+
+  int _probabilityByStage(String stage) {
+    switch (stage) {
+      case 'Lead':
+        return 15;
+      case 'Qualified':
+        return 35;
+      case 'Proposal':
+        return 65;
+      case 'Negotiation':
+        return 80;
+      case 'Won':
+        return 100;
+      case 'Lost':
+        return 0;
+      default:
+        return 20;
+    }
+  }
+
+  String _toDbStage(String uiStage) {
+    switch (uiStage) {
+      case 'Lead':
+        return 'lead';
+      case 'Qualified':
+        return 'contacted';
+      case 'Proposal':
+        return 'quotation_sent';
+      case 'Negotiation':
+        return 'negotiation';
+      case 'Won':
+        return 'won';
+      case 'Lost':
+        return 'lost';
+      default:
+        return 'lead';
+    }
+  }
+
+  String _fromDbStage(String dbStage) {
+    switch (dbStage) {
+      case 'lead':
+        return 'Lead';
+      case 'contacted':
+      case 'meeting_scheduled':
+      case 'sample_issued':
+      case 'decision_pending':
+        return 'Qualified';
+      case 'quotation_sent':
+        return 'Proposal';
+      case 'negotiation':
+        return 'Negotiation';
+      case 'won':
+        return 'Won';
+      case 'lost':
+        return 'Lost';
+      default:
+        return 'Lead';
+    }
   }
 }
 
@@ -522,6 +694,7 @@ class _StageChip extends StatelessWidget {
       'Lead' => Colors.blue,
       'Qualified' => Colors.orange,
       'Proposal' => Colors.purple,
+      'Negotiation' => Colors.teal,
       'Won' => Colors.green,
       'Lost' => Colors.red,
       _ => Colors.grey,
@@ -543,6 +716,9 @@ class _StageChip extends StatelessWidget {
 
 class _CrmRecord {
   _CrmRecord({
+    required this.id,
+    required this.schoolId,
+    required this.ownerId,
     required this.school,
     required this.contact,
     required this.phone,
@@ -550,9 +726,14 @@ class _CrmRecord {
     required this.owner,
     required this.dealValue,
     required this.lastContact,
+    required this.nextActionDate,
+    required this.probability,
     required this.notes,
   });
 
+  String id;
+  String schoolId;
+  String? ownerId;
   String school;
   String contact;
   String phone;
@@ -560,5 +741,17 @@ class _CrmRecord {
   String owner;
   double dealValue;
   DateTime lastContact;
+  DateTime nextActionDate;
+  int probability;
   String notes;
+
+  String get riskLevel {
+    final now = DateTime.now();
+    final daysSinceContact = now.difference(lastContact).inDays;
+    final daysToAction = nextActionDate.difference(now).inDays;
+    if (stage == 'Won' || stage == 'Lost') return 'Low';
+    if (daysSinceContact > 7 || daysToAction < 0) return 'High';
+    if (daysSinceContact > 3 || daysToAction <= 1) return 'Medium';
+    return 'Low';
+  }
 }

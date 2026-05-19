@@ -170,7 +170,7 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    "Publisher Portal",
+                    "Agents Portal",
                     style: TextStyle(
                       color: AppColors.surfaceWhite,
                       fontSize: 28,

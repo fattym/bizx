@@ -25,8 +25,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   // --- FORM STATE VARIABLES ---
   final TextEditingController _shopNameController = TextEditingController();
   final TextEditingController _contactNameController = TextEditingController();
-  final TextEditingController _contactPhoneController =
-      TextEditingController();
+  final TextEditingController _contactPhoneController = TextEditingController();
   final TextEditingController _contactTitleController = TextEditingController();
   final TextEditingController _feedbackController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
@@ -153,19 +152,23 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       photoUrl: uploadedPhoto['photoUrl'],
       photoPath: uploadedPhoto['photoPath'],
       captureStatus: _captureStatus,
-      contactName: _contactNameController.text.trim().isEmpty
-          ? null
-          : _contactNameController.text.trim(),
+      contactName:
+          _contactNameController.text.trim().isEmpty
+              ? null
+              : _contactNameController.text.trim(),
       contactPhone: _contactPhoneController.text.trim(),
-      contactTitle: _contactTitleController.text.trim().isEmpty
-          ? null
-          : _contactTitleController.text.trim(),
-      feedback: _feedbackController.text.trim().isEmpty
-          ? null
-          : _feedbackController.text.trim(),
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
+      contactTitle:
+          _contactTitleController.text.trim().isEmpty
+              ? null
+              : _contactTitleController.text.trim(),
+      feedback:
+          _feedbackController.text.trim().isEmpty
+              ? null
+              : _feedbackController.text.trim(),
+      notes:
+          _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
       samplesLeft: _samplesLeft,
       sampleBook: _selectedSampleBook,
       schoolOwnership: _schoolOwnership,
@@ -182,9 +185,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          "${_dealerType ?? "School"} onboarding collected",
-        ),
+        content: Text("${_dealerType ?? "School"} onboarding collected"),
         backgroundColor: AppColors.primaryGreen,
         duration: const Duration(seconds: 1),
       ),
@@ -391,18 +392,19 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            items: _counties
-                .map(
-                  (county) => DropdownMenuItem<String>(
-                    value: county,
-                    child: Text(
-                      county,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
+            items:
+                _counties
+                    .map(
+                      (county) => DropdownMenuItem<String>(
+                        value: county,
+                        child: Text(
+                          county,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
             onChanged: (value) => setState(() => _selectedCounty = value),
           ),
           const SizedBox(height: 16),
@@ -410,7 +412,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             value: _dealerType,
             isExpanded: true,
             decoration: InputDecoration(
-              labelText: "School Type",
+              labelText: "Client Type",
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -421,37 +423,39 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                 value: "Distributor",
                 child: Text("Distributor"),
               ),
-              DropdownMenuItem(
-                value: "Bookshop",
-                child: Text("Bookshop"),
-              ),
+              DropdownMenuItem(value: "Bookshop", child: Text("Bookshop")),
             ],
-            onChanged: (val) => setState(() {
-              _dealerType = val;
-              _shopCategory = null;
-              _partnerSubtype = null;
-              _selectedProduct = null;
-              _selectedBookProgram = null;
-            }),
+            onChanged:
+                (val) => setState(() {
+                  _dealerType = val;
+                  _shopCategory = null;
+                  _partnerSubtype = null;
+                  _selectedProduct = null;
+                  _selectedBookProgram = null;
+                }),
           ),
           const SizedBox(height: 16),
           if (_dealerType == "School")
-            _buildDropdown("School Category", [
-              "Primary",
-              "Secondary",
-            ], (val) => setState(() => _shopCategory = val), value: _shopCategory)
+            _buildDropdown(
+              "School Category",
+              ["Primary", "Secondary"],
+              (val) => setState(() => _shopCategory = val),
+              value: _shopCategory,
+            )
           else if (_dealerType == "Bookshop")
-            _buildDropdown("Bookshop Category", [
-              "Retail",
-              "Chain",
-              "Independent",
-            ], (val) => setState(() => _partnerSubtype = val), value: _partnerSubtype)
+            _buildDropdown(
+              "Bookshop Category",
+              ["Retail", "Chain", "Independent"],
+              (val) => setState(() => _partnerSubtype = val),
+              value: _partnerSubtype,
+            )
           else if (_dealerType == "Distributor")
-            _buildDropdown("Distributor Category", [
-              "Regional",
-              "National",
-              "Specialist",
-            ], (val) => setState(() => _partnerSubtype = val), value: _partnerSubtype)
+            _buildDropdown(
+              "Distributor Category",
+              ["Regional", "National", "Specialist"],
+              (val) => setState(() => _partnerSubtype = val),
+              value: _partnerSubtype,
+            )
           else
             const SizedBox.shrink(),
           const SizedBox(height: 24),
@@ -764,9 +768,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   Widget _buildDropdown(
     String label,
     List<String> items,
-    ValueChanged<String?> onChanged,
-    {String? value}
-  ) {
+    ValueChanged<String?> onChanged, {
+    String? value,
+  }) {
     return DropdownButtonFormField<String>(
       isExpanded: true,
       value: value,
@@ -774,18 +778,19 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      items: items
-          .map(
-            (item) => DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                item,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          )
-          .toList(),
+      items:
+          items
+              .map(
+                (item) => DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(
+                    item,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
       onChanged: onChanged,
     );
   }
@@ -819,9 +824,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -872,11 +875,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                       )
                       : ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child:
-                            Image.memory(
-                              _capturedPhotoBytes!,
-                              fit: BoxFit.cover,
-                            ),
+                        child: Image.memory(
+                          _capturedPhotoBytes!,
+                          fit: BoxFit.cover,
+                        ),
                       ),
             ),
           ),
@@ -961,9 +963,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                           : "Location not captured yet"),
                   style: TextStyle(
                     color:
-                        hasLocation
-                            ? AppColors.primaryGreen
-                            : Colors.black87,
+                        hasLocation ? AppColors.primaryGreen : Colors.black87,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1010,17 +1010,22 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     final safeName =
         _shopNameController.text.trim().isEmpty
             ? 'school'
-            : _shopNameController.text.trim().replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+            : _shopNameController.text.trim().replaceAll(
+              RegExp(r'[^a-zA-Z0-9]+'),
+              '_',
+            );
     final fileName =
         'schools/${safeName}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
     final bytes = await _capturedPhoto!.readAsBytes();
 
     try {
-      await supabase.storage.from('schools').uploadBinary(
-        fileName,
-        bytes,
-        fileOptions: const FileOptions(upsert: true),
-      );
+      await supabase.storage
+          .from('schools')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
       return {
         'photoUrl': supabase.storage.from('schools').getPublicUrl(fileName),
         'photoPath': fileName,
@@ -1070,13 +1075,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               width: isNarrow ? constraints.maxWidth : null,
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : details.onStepContinue,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Continue'),
+                child:
+                    _isSubmitting
+                        ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Continue'),
               ),
             ),
             SizedBox(
@@ -1101,7 +1107,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
         return 'County is required.';
       }
       if (_dealerType == null) {
-        return 'School type is required.';
+        return 'Client Typr is required.';
       }
       if (_dealerType == 'School') {
         if ((_schoolOwnership ?? '').trim().isEmpty) {
@@ -1113,7 +1119,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
         }
         final population = _schoolPopulationController.text.trim();
         final parsedPopulation = int.tryParse(population);
-        if (population.isEmpty || parsedPopulation == null || parsedPopulation < 0) {
+        if (population.isEmpty ||
+            parsedPopulation == null ||
+            parsedPopulation < 0) {
           return 'Enter a valid school population.';
         }
         if ((_schoolLifecycleStatus ?? '').trim().isEmpty) {

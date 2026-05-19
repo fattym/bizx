@@ -177,6 +177,18 @@ as $$
   );
 $$;
 
+create or replace function public.current_user_region()
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select nullif(btrim(region), '') from public.users where id = auth.uid() limit 1),
+    nullif(btrim(public.current_user_region_from_jwt()), '')
+  );
+$$;
+
 create table if not exists public.schools (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -282,6 +294,22 @@ begin
   end if;
 end $$;
 
+do $$
+begin
+  if to_regclass('public.users') is not null then
+    create index if not exists idx_users_role_region on public.users(role, region);
+  end if;
+  if to_regclass('public.tasks') is not null then
+    create index if not exists idx_tasks_assigned_status_due on public.tasks(assigned_to, status, due_at);
+  end if;
+  if to_regclass('public.geofences') is not null then
+    create index if not exists idx_geofences_region_assigned on public.geofences(region, assigned_to);
+  end if;
+  if to_regclass('public.route_plans') is not null then
+    create index if not exists idx_route_plans_assigned_date_status on public.route_plans(assigned_to, route_date, status);
+  end if;
+end $$;
+
 create unique index if not exists idx_schools_external_place_id
   on public.schools (external_place_id)
   where external_place_id is not null;
@@ -346,6 +374,285 @@ create table if not exists public.route_plans (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'route_plans' and column_name = 'reviewed_by') then
+    alter table public.route_plans add column reviewed_by uuid references public.users (id) on delete set null;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'route_plans' and column_name = 'reviewed_at') then
+    alter table public.route_plans add column reviewed_at timestamptz;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'route_plans' and column_name = 'review_note') then
+    alter table public.route_plans add column review_note text;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'route_plans_status_check'
+      and conrelid = 'public.route_plans'::regclass
+  ) then
+    alter table public.route_plans
+      add constraint route_plans_status_check
+      check (status in ('draft', 'submitted', 'approved', 'rejected', 'assigned', 'in_progress', 'completed'));
+  end if;
+end $$;
+
+create table if not exists public.geofence_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  geofence_id uuid references public.geofences (id) on delete set null,
+  event_type text not null,
+  region text,
+  lat double precision,
+  lng double precision,
+  reason text,
+  status text not null default 'open',
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+
+create table if not exists public.supervisor_alerts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  region text,
+  alert_type text not null,
+  severity text not null default 'amber',
+  status text not null default 'open',
+  message text,
+  acked_at timestamptz,
+  resolved_at timestamptz,
+  ack_sla_met boolean default false,
+  resolve_sla_met boolean default false,
+  escalated_to_admin boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.supervisor_incidents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  region text,
+  incident_type text not null,
+  severity text not null default 'high',
+  status text not null default 'open',
+  notes text,
+  created_by uuid references public.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.supervisor_notes (
+  id uuid primary key default gen_random_uuid(),
+  supervisor_id uuid not null references public.users (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  region text,
+  context_type text,
+  context_id uuid,
+  note text not null,
+  follow_up_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.audit_events (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references public.users (id) on delete set null,
+  action text not null,
+  entity_type text not null,
+  entity_id text not null,
+  region text,
+  before_data jsonb,
+  after_data jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.task_completion_evidence (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks (id) on delete cascade,
+  submitted_by uuid not null references public.users (id) on delete cascade,
+  gps_lat double precision,
+  gps_lng double precision,
+  proof_url text,
+  proof_type text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.supervisor_notifications (
+  id uuid primary key default gen_random_uuid(),
+  supervisor_id uuid not null references public.users (id) on delete cascade,
+  region text,
+  notification_type text not null,
+  title text not null,
+  body text not null,
+  payload jsonb not null default '{}'::jsonb,
+  scheduled_for timestamptz not null default now(),
+  sent_at timestamptz,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_supervisor_alerts_status_created
+  on public.supervisor_alerts(status, created_at);
+create index if not exists idx_supervisor_alerts_region
+  on public.supervisor_alerts(region);
+create index if not exists idx_supervisor_notifications_supervisor_scheduled
+  on public.supervisor_notifications(supervisor_id, scheduled_for);
+create index if not exists idx_supervisor_notifications_read_at
+  on public.supervisor_notifications(read_at);
+
+create or replace function public.process_supervisor_alert_sla()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  affected_count integer := 0;
+begin
+  -- Mark open red alerts older than 15 minutes as SLA-breached for ack.
+  update public.supervisor_alerts
+  set ack_sla_met = false
+  where status = 'open'
+    and lower(coalesce(severity, '')) = 'red'
+    and created_at <= now() - interval '15 minutes'
+    and coalesce(ack_sla_met, true) = true;
+  get diagnostics affected_count = row_count;
+
+  -- Escalate unresolved red alerts older than 2 hours.
+  with to_escalate as (
+    update public.supervisor_alerts
+    set escalated_to_admin = true
+    where status = 'open'
+      and lower(coalesce(severity, '')) = 'red'
+      and created_at <= now() - interval '2 hours'
+      and coalesce(escalated_to_admin, false) = false
+    returning id, user_id, region, alert_type
+  )
+  insert into public.supervisor_notifications (
+    supervisor_id,
+    region,
+    notification_type,
+    title,
+    body,
+    payload,
+    scheduled_for
+  )
+  select
+    u.id,
+    u.region,
+    'escalation',
+    'Escalated Red Alert',
+    'A red alert is unresolved for over 2 hours and has been escalated.',
+    jsonb_build_object('alert_id', e.id, 'alert_type', e.alert_type, 'user_id', e.user_id),
+    now()
+  from to_escalate e
+  join public.users u
+    on u.role = 3
+   and lower(coalesce(u.region, '')) = lower(coalesce(e.region, ''));
+
+  return affected_count;
+end;
+$$;
+
+create or replace function public.queue_supervisor_daily_digests()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted_count integer := 0;
+  batch_count integer := 0;
+begin
+  -- Morning digest at 07:00 local DB time.
+  if to_char(now(), 'HH24:MI') between '07:00' and '07:10' then
+    insert into public.supervisor_notifications (
+      supervisor_id,
+      region,
+      notification_type,
+      title,
+      body,
+      payload,
+      scheduled_for
+    )
+    select
+      s.id,
+      s.region,
+      'daily_digest',
+      'Morning Supervision Digest',
+      'Start-of-day summary for your Role 5 region.',
+      jsonb_build_object(
+        'open_alerts', (
+          select count(*)
+          from public.supervisor_alerts a
+          where lower(coalesce(a.region, '')) = lower(coalesce(s.region, ''))
+            and a.status = 'open'
+        ),
+        'overdue_tasks', (
+          select count(*)
+          from public.tasks t
+          join public.users u on u.id = t.assigned_to
+          where u.role = 5
+            and lower(coalesce(u.region, '')) = lower(coalesce(s.region, ''))
+            and t.due_at < now()
+            and lower(coalesce(t.status, '')) not in ('closed', 'completed')
+        )
+      ),
+      now()
+    from public.users s
+    where s.role = 3;
+    get diagnostics batch_count = row_count;
+    inserted_count := inserted_count + batch_count;
+  end if;
+
+  -- Evening digest at 18:00 local DB time.
+  if to_char(now(), 'HH24:MI') between '18:00' and '18:10' then
+    insert into public.supervisor_notifications (
+      supervisor_id,
+      region,
+      notification_type,
+      title,
+      body,
+      payload,
+      scheduled_for
+    )
+    select
+      s.id,
+      s.region,
+      'evening_summary',
+      'Evening Supervision Summary',
+      'End-of-day summary for Role 5 execution in your region.',
+      jsonb_build_object(
+        'resolved_alerts', (
+          select count(*)
+          from public.supervisor_alerts a
+          where lower(coalesce(a.region, '')) = lower(coalesce(s.region, ''))
+            and a.status = 'resolved'
+            and a.resolved_at >= date_trunc('day', now())
+        ),
+        'completed_routes', (
+          select count(*)
+          from public.route_plans r
+          join public.users u on u.id = r.assigned_to
+          where u.role = 5
+            and lower(coalesce(u.region, '')) = lower(coalesce(s.region, ''))
+            and lower(coalesce(r.status, '')) = 'completed'
+            and r.route_date = current_date
+        )
+      ),
+      now()
+    from public.users s
+    where s.role = 3;
+    get diagnostics batch_count = row_count;
+    inserted_count := inserted_count + batch_count;
+  end if;
+
+  return inserted_count;
+end;
+$$;
 
 do $$
 begin
@@ -553,7 +860,262 @@ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'isSynced') then
     alter table public.school_sales add column "isSynced" boolean not null default false;
   end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'next_action') then
+    alter table public.school_sales add column next_action text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'next_action_date') then
+    alter table public.school_sales add column next_action_date date;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'last_activity_at') then
+    alter table public.school_sales add column last_activity_at timestamptz;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'forecast_category') then
+    alter table public.school_sales add column forecast_category text default 'pipeline';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'risk_level') then
+    alter table public.school_sales add column risk_level text default 'low';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'weighted_forecast') then
+    alter table public.school_sales add column weighted_forecast numeric(12,2) default 0;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sales' and column_name = 'stage_sla_due_at') then
+    alter table public.school_sales add column stage_sla_due_at timestamptz;
+  end if;
 end $$;
+
+create index if not exists idx_school_sales_stage_sla_due_at
+  on public.school_sales (stage_sla_due_at);
+create index if not exists idx_school_sales_next_action_date
+  on public.school_sales (next_action_date);
+create index if not exists idx_school_sales_risk_level
+  on public.school_sales (risk_level);
+
+create table if not exists public.opportunity_activities (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references public.school_sales (id) on delete cascade,
+  school_id uuid references public.schools (id) on delete set null,
+  actor_id uuid references public.users (id) on delete set null,
+  activity_type text not null,
+  activity_outcome text,
+  notes text,
+  next_action text,
+  next_action_date date,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_opportunity_activities_opportunity
+  on public.opportunity_activities (opportunity_id, created_at desc);
+
+create or replace function public.refresh_school_sale_metrics()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expected numeric(12,2) := coalesce(new.expected_value, 0);
+  v_probability integer := coalesce(new.probability, 0);
+  v_stage text := lower(coalesce(new.sale_status, 'lead'));
+  v_sla_days integer := 5;
+begin
+  new.weighted_forecast := round((v_expected * v_probability) / 100.0, 2);
+
+  if v_stage in ('lead', 'contacted') then
+    v_sla_days := 3;
+  elsif v_stage in ('meeting_scheduled', 'sample_issued') then
+    v_sla_days := 5;
+  elsif v_stage in ('quotation_sent', 'decision_pending', 'negotiation') then
+    v_sla_days := 7;
+  end if;
+
+  if new.stage_sla_due_at is null then
+    new.stage_sla_due_at := now() + make_interval(days => v_sla_days);
+  end if;
+
+  if v_stage in ('won', 'lost') then
+    new.risk_level := 'low';
+  elsif new.next_action_date is null then
+    new.risk_level := 'high';
+  elsif new.next_action_date < current_date then
+    new.risk_level := 'high';
+  elsif new.next_action_date <= current_date + 1 then
+    new.risk_level := 'medium';
+  else
+    new.risk_level := 'low';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists derive_school_sale_metrics on public.school_sales;
+create trigger derive_school_sale_metrics
+before insert or update on public.school_sales
+for each row execute procedure public.refresh_school_sale_metrics();
+
+create or replace function public.enforce_school_sale_followup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_stage text := lower(coalesce(new.sale_status, 'lead'));
+begin
+  if v_stage not in ('won', 'lost', 'dormant') then
+    -- Auto-fill defaults during migration/legacy updates to avoid hard failures.
+    if nullif(btrim(coalesce(new.next_action, '')), '') is null then
+      new.next_action := 'Follow up call';
+    end if;
+    if new.next_action_date is null then
+      new.next_action_date := current_date + 2;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists enforce_school_sale_followup_trigger on public.school_sales;
+create trigger enforce_school_sale_followup_trigger
+before insert or update on public.school_sales
+for each row execute procedure public.enforce_school_sale_followup();
+
+update public.school_sales
+set
+  next_action = coalesce(nullif(btrim(next_action), ''), 'Follow up call'),
+  next_action_date = coalesce(next_action_date, current_date + 2)
+where lower(coalesce(sale_status, 'lead')) not in ('won', 'lost', 'dormant')
+  and (
+    nullif(btrim(coalesce(next_action, '')), '') is null
+    or next_action_date is null
+  );
+
+create or replace function public.sync_opportunity_activity_to_sale()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if nullif(btrim(coalesce(new.next_action, '')), '') is null then
+    raise exception 'next_action is required when logging opportunity activity';
+  end if;
+  if new.next_action_date is null then
+    raise exception 'next_action_date is required when logging opportunity activity';
+  end if;
+
+  update public.school_sales
+  set
+    last_activity_at = new.created_at,
+    next_action = new.next_action,
+    next_action_date = new.next_action_date,
+    stage_updated_at = now()
+  where id = new.opportunity_id;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_opportunity_activity_to_sale_trigger on public.opportunity_activities;
+create trigger sync_opportunity_activity_to_sale_trigger
+after insert on public.opportunity_activities
+for each row execute procedure public.sync_opportunity_activity_to_sale();
+
+create or replace function public.enforce_role5_task_completion_evidence()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_is_role5 boolean := false;
+  v_has_evidence boolean := false;
+begin
+  if lower(coalesce(new.status, '')) not in ('closed', 'completed') then
+    return new;
+  end if;
+
+  if lower(coalesce(old.status, '')) in ('closed', 'completed') then
+    return new;
+  end if;
+
+  select exists (
+    select 1 from public.users u
+    where u.id = new.assigned_to
+      and u.role = 5
+  ) into v_is_role5;
+
+  if not v_is_role5 then
+    return new;
+  end if;
+
+  select exists (
+    select 1
+    from public.task_completion_evidence e
+    where e.task_id = new.id
+      and e.gps_lat is not null
+      and e.gps_lng is not null
+      and nullif(btrim(coalesce(e.proof_url, '')), '') is not null
+  ) into v_has_evidence;
+
+  if not v_has_evidence then
+    raise exception 'Role 5 task completion requires evidence with GPS and proof_url';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists enforce_role5_task_completion_evidence_trigger on public.tasks;
+create trigger enforce_role5_task_completion_evidence_trigger
+before update on public.tasks
+for each row execute procedure public.enforce_role5_task_completion_evidence();
+
+create or replace function public.generate_overdue_followup_alerts()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted_count integer := 0;
+begin
+  insert into public.supervisor_alerts (
+    user_id,
+    region,
+    alert_type,
+    severity,
+    status,
+    message,
+    created_at
+  )
+  select
+    s.agent_id as user_id,
+    u.region,
+    'overdue_followup',
+    'amber',
+    'open',
+    'Opportunity follow-up is overdue for assigned Role 5 user.',
+    now()
+  from public.school_sales s
+  join public.users u on u.id = s.agent_id
+  where u.role = 5
+    and s.next_action_date is not null
+    and s.next_action_date < current_date
+    and lower(coalesce(s.sale_status, '')) not in ('won', 'lost', 'dormant')
+    and not exists (
+      select 1
+      from public.supervisor_alerts a
+      where a.user_id = s.agent_id
+        and a.alert_type = 'overdue_followup'
+        and a.status = 'open'
+        and a.created_at >= now() - interval '24 hours'
+    );
+
+  get diagnostics inserted_count = row_count;
+  return inserted_count;
+end;
+$$;
 
 create table if not exists public.pipeline_history (
   id uuid primary key default gen_random_uuid(),
@@ -781,6 +1343,14 @@ alter table public.debt_collections enable row level security;
 alter table public.school_sales enable row level security;
 alter table public.pipeline_history enable row level security;
 alter table public.school_sample_distributions enable row level security;
+alter table public.opportunity_activities enable row level security;
+alter table public.geofence_events enable row level security;
+alter table public.supervisor_alerts enable row level security;
+alter table public.supervisor_incidents enable row level security;
+alter table public.supervisor_notes enable row level security;
+alter table public.audit_events enable row level security;
+alter table public.task_completion_evidence enable row level security;
+alter table public.supervisor_notifications enable row level security;
 
 drop policy if exists "users_can_manage_own_row" on public.users;
 create policy "users_can_manage_own_row"
@@ -797,10 +1367,11 @@ for select
 to authenticated
 using (
   auth.uid() = id
-  or public.current_user_role_from_jwt() <= 2
+  or public.current_user_role_id() <= 2
   or (
-    public.current_user_role_from_jwt() <= 3
-    and region = public.current_user_region_from_jwt()
+    public.current_user_role_id() = 3
+    and role = 5
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
   )
 );
 
@@ -829,7 +1400,17 @@ using (
   target_role = 0
   or target_role >= public.current_user_role_id()
   or assigned_to = auth.uid()
-  or public.is_sales_manager()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.tasks.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
 );
 
 drop policy if exists "admins_can_manage_tasks" on public.tasks;
@@ -838,8 +1419,32 @@ create policy "managers_can_manage_tasks"
 on public.tasks
 for all
 to authenticated
-using (public.is_manager_or_admin())
-with check (public.is_manager_or_admin());
+using (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.tasks.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
+)
+with check (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.tasks.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
+);
 
 drop policy if exists "authenticated_can_view_geofences" on public.geofences;
 create policy "authenticated_can_view_geofences"
@@ -848,7 +1453,20 @@ for select
 to authenticated
 using (
   assigned_to = auth.uid()
-  or public.is_manager_or_admin()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and (
+      lower(coalesce(public.geofences.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      or exists (
+        select 1
+        from public.users u
+        where u.id = public.geofences.assigned_to
+          and u.role = 5
+          and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      )
+    )
+  )
 );
 
 drop policy if exists "managers_can_manage_geofences" on public.geofences;
@@ -856,8 +1474,38 @@ create policy "managers_can_manage_geofences"
 on public.geofences
 for all
 to authenticated
-using (public.is_manager_or_admin())
-with check (public.is_manager_or_admin());
+using (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and (
+      lower(coalesce(public.geofences.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      or exists (
+        select 1
+        from public.users u
+        where u.id = public.geofences.assigned_to
+          and u.role = 5
+          and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      )
+    )
+  )
+)
+with check (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and (
+      lower(coalesce(public.geofences.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      or exists (
+        select 1
+        from public.users u
+        where u.id = public.geofences.assigned_to
+          and u.role = 5
+          and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+      )
+    )
+  )
+);
 
 drop policy if exists "authenticated_can_view_route_plans" on public.route_plans;
 create policy "authenticated_can_view_route_plans"
@@ -866,7 +1514,17 @@ for select
 to authenticated
 using (
   assigned_to = auth.uid()
-  or public.is_manager_or_admin()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.route_plans.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
 );
 
 drop policy if exists "managers_can_manage_route_plans" on public.route_plans;
@@ -874,8 +1532,214 @@ create policy "managers_can_manage_route_plans"
 on public.route_plans
 for all
 to authenticated
-using (public.is_manager_or_admin())
-with check (public.is_manager_or_admin());
+using (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.route_plans.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
+)
+with check (
+  public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and exists (
+      select 1
+      from public.users u
+      where u.id = public.route_plans.assigned_to
+        and u.role = 5
+        and lower(coalesce(u.region, '')) = lower(coalesce(public.current_user_region(), ''))
+    )
+  )
+);
+
+drop policy if exists "role5_can_submit_route_plans" on public.route_plans;
+create policy "role5_can_submit_route_plans"
+on public.route_plans
+for update
+to authenticated
+using (assigned_to = auth.uid())
+with check (
+  assigned_to = auth.uid()
+  and status in ('submitted', 'in_progress', 'completed')
+);
+
+drop policy if exists "authenticated_can_view_geofence_events" on public.geofence_events;
+create policy "authenticated_can_view_geofence_events"
+on public.geofence_events
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+);
+
+drop policy if exists "authenticated_can_manage_geofence_events" on public.geofence_events;
+create policy "authenticated_can_manage_geofence_events"
+on public.geofence_events
+for all
+to authenticated
+using (
+  user_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+)
+with check (
+  user_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+);
+
+drop policy if exists "authenticated_can_view_supervisor_alerts" on public.supervisor_alerts;
+create policy "authenticated_can_view_supervisor_alerts"
+on public.supervisor_alerts
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+);
+
+drop policy if exists "managers_can_manage_supervisor_alerts" on public.supervisor_alerts;
+create policy "managers_can_manage_supervisor_alerts"
+on public.supervisor_alerts
+for all
+to authenticated
+using (public.current_user_role_id() <= 3)
+with check (public.current_user_role_id() <= 3);
+
+drop policy if exists "authenticated_can_view_supervisor_incidents" on public.supervisor_incidents;
+create policy "authenticated_can_view_supervisor_incidents"
+on public.supervisor_incidents
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+);
+
+drop policy if exists "managers_can_manage_supervisor_incidents" on public.supervisor_incidents;
+create policy "managers_can_manage_supervisor_incidents"
+on public.supervisor_incidents
+for all
+to authenticated
+using (public.current_user_role_id() <= 3)
+with check (public.current_user_role_id() <= 3);
+
+drop policy if exists "authenticated_can_view_supervisor_notes" on public.supervisor_notes;
+create policy "authenticated_can_view_supervisor_notes"
+on public.supervisor_notes
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or supervisor_id = auth.uid()
+  or public.current_user_role_id() <= 2
+  or (
+    public.current_user_role_id() = 3
+    and lower(coalesce(region, '')) = lower(coalesce(public.current_user_region(), ''))
+  )
+);
+
+drop policy if exists "managers_can_manage_supervisor_notes" on public.supervisor_notes;
+create policy "managers_can_manage_supervisor_notes"
+on public.supervisor_notes
+for all
+to authenticated
+using (supervisor_id = auth.uid() or public.current_user_role_id() <= 2)
+with check (supervisor_id = auth.uid() or public.current_user_role_id() <= 2);
+
+drop policy if exists "admins_can_view_audit_events" on public.audit_events;
+create policy "admins_can_view_audit_events"
+on public.audit_events
+for select
+to authenticated
+using (public.current_user_role_id() <= 2);
+
+drop policy if exists "managers_can_insert_audit_events" on public.audit_events;
+create policy "managers_can_insert_audit_events"
+on public.audit_events
+for insert
+to authenticated
+with check (public.current_user_role_id() <= 3);
+
+drop policy if exists "authenticated_can_view_task_completion_evidence" on public.task_completion_evidence;
+create policy "authenticated_can_view_task_completion_evidence"
+on public.task_completion_evidence
+for select
+to authenticated
+using (
+  submitted_by = auth.uid()
+  or exists (
+    select 1
+    from public.tasks t
+    where t.id = task_id
+      and (t.assigned_to = auth.uid() or public.current_user_role_id() <= 3)
+  )
+);
+
+drop policy if exists "authenticated_can_manage_task_completion_evidence" on public.task_completion_evidence;
+create policy "authenticated_can_manage_task_completion_evidence"
+on public.task_completion_evidence
+for all
+to authenticated
+using (submitted_by = auth.uid() or public.current_user_role_id() <= 3)
+with check (submitted_by = auth.uid() or public.current_user_role_id() <= 3);
+
+drop policy if exists "authenticated_can_view_supervisor_notifications" on public.supervisor_notifications;
+create policy "authenticated_can_view_supervisor_notifications"
+on public.supervisor_notifications
+for select
+to authenticated
+using (
+  supervisor_id = auth.uid()
+  or public.current_user_role_id() <= 2
+);
+
+drop policy if exists "authenticated_can_update_supervisor_notifications" on public.supervisor_notifications;
+create policy "authenticated_can_update_supervisor_notifications"
+on public.supervisor_notifications
+for update
+to authenticated
+using (
+  supervisor_id = auth.uid()
+  or public.current_user_role_id() <= 2
+)
+with check (
+  supervisor_id = auth.uid()
+  or public.current_user_role_id() <= 2
+);
+
+drop policy if exists "managers_can_insert_supervisor_notifications" on public.supervisor_notifications;
+create policy "managers_can_insert_supervisor_notifications"
+on public.supervisor_notifications
+for insert
+to authenticated
+with check (public.current_user_role_id() <= 3);
 
 drop policy if exists "authenticated_can_view_catalog_items" on public.catalog_items;
 create policy "authenticated_can_view_catalog_items"
@@ -1032,6 +1896,35 @@ for all
 to authenticated
 using (agent_id = auth.uid() or public.is_manager_or_admin())
 with check (agent_id = auth.uid() or public.is_manager_or_admin());
+
+drop policy if exists "authenticated_can_view_opportunity_activities" on public.opportunity_activities;
+create policy "authenticated_can_view_opportunity_activities"
+on public.opportunity_activities
+for select
+to authenticated
+using (
+  actor_id = auth.uid()
+  or exists (
+    select 1
+    from public.school_sales s
+    where s.id = opportunity_id
+      and (s.agent_id = auth.uid() or public.current_user_role_id() <= 3)
+  )
+);
+
+drop policy if exists "authenticated_can_manage_opportunity_activities" on public.opportunity_activities;
+create policy "authenticated_can_manage_opportunity_activities"
+on public.opportunity_activities
+for all
+to authenticated
+using (
+  actor_id = auth.uid()
+  or public.current_user_role_id() <= 3
+)
+with check (
+  actor_id = auth.uid()
+  or public.current_user_role_id() <= 3
+);
 
 drop policy if exists "authenticated_can_view_pipeline_history" on public.pipeline_history;
 create policy "authenticated_can_view_pipeline_history"
