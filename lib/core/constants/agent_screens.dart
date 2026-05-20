@@ -201,6 +201,7 @@ class AgentSubmitOrderScreen extends StatefulWidget {
 class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _schools = [];
+  final Map<String, String> _stageBySchoolId = <String, String>{};
 
   @override
   void initState() {
@@ -215,8 +216,25 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
           .select()
           .order('name');
 
+      final salesResponse = await Supabase.instance.client
+          .from('school_sales')
+          .select('school_id,sale_status,stage_updated_at')
+          .order('stage_updated_at', ascending: false);
+
+      final stageMap = <String, String>{};
+      for (final row in List<Map<String, dynamic>>.from(salesResponse)) {
+        final schoolId = (row['school_id'] ?? '').toString();
+        if (schoolId.isEmpty || stageMap.containsKey(schoolId)) continue;
+        final rawStage = (row['sale_status'] ?? '').toString().trim();
+        if (rawStage.isEmpty) continue;
+        stageMap[schoolId] = _formatStage(rawStage);
+      }
+
       setState(() {
         _schools = List<Map<String, dynamic>>.from(response);
+        _stageBySchoolId
+          ..clear()
+          ..addAll(stageMap);
         _isLoading = false;
       });
     } catch (e) {
@@ -243,35 +261,142 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
               : _schools.isEmpty
               ? const Center(child: Text('No schools available.'))
               : ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 itemCount: _schools.length,
                 itemBuilder: (context, index) {
                   final school = _schools[index];
-                  return ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.primaryPale,
-                      child: Icon(
-                        Icons.shopping_bag_outlined,
-                        color: AppColors.accentOrange,
+                  final schoolName = school['name']?.toString() ?? 'Unknown School';
+                  final county = school['county']?.toString() ?? 'Unknown County';
+                  final phone = school['phone']?.toString();
+                  final category = school['book_category']?.toString();
+                  final source =
+                      school['source']?.toString().isNotEmpty == true
+                          ? school['source'].toString()
+                          : 'manual';
+                  final captureStatus =
+                      school['capture_status']?.toString().isNotEmpty == true
+                          ? school['capture_status'].toString()
+                          : 'active';
+                  final schoolId = school['id']?.toString() ?? '';
+                  final pipelineStage = _stageBySchoolId[schoolId];
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SchoolSellPage(school: school),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  backgroundColor: AppColors.primaryPale,
+                                  child: Icon(
+                                    Icons.shopping_bag_outlined,
+                                    color: AppColors.accentOrange,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    schoolName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios, size: 16),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _schoolMetaChip(Icons.location_on_outlined, county),
+                                _schoolMetaChip(
+                                  Icons.phone_outlined,
+                                  (phone != null && phone.trim().isNotEmpty)
+                                      ? phone
+                                      : 'No phone',
+                                ),
+                                _schoolMetaChip(
+                                  Icons.menu_book_outlined,
+                                  (category != null && category.trim().isNotEmpty)
+                                      ? category
+                                      : 'General',
+                                ),
+                                _schoolMetaChip(
+                                  Icons.source_outlined,
+                                  'Source: $source',
+                                ),
+                                _schoolMetaChip(
+                                  Icons.verified_outlined,
+                                  'Status: $captureStatus',
+                                ),
+                                if (pipelineStage != null)
+                                  _schoolMetaChip(
+                                    Icons.timeline_outlined,
+                                    'Stage: $pipelineStage',
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    title: Text(
-                      school['name'] ?? 'Unknown School',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(school['county'] ?? 'Unknown County'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SchoolSellPage(school: school),
-                        ),
-                      );
-                    },
                   );
                 },
               ),
     );
+  }
+
+  Widget _schoolMetaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F7FA),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.blueGrey),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatStage(String stage) {
+    return stage
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((part) {
+          if (part.isEmpty) return part;
+          return '${part[0].toUpperCase()}${part.substring(1)}';
+        })
+        .join(' ');
   }
 }
 

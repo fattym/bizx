@@ -277,6 +277,16 @@ class DatabaseService {
     }
   }
 
+  Future<void> updateTaskStatus(String taskId, String status) async {
+    try {
+      await _supabase.from('tasks').update({'status': status}).eq('id', taskId);
+      debugPrint("Task $taskId status updated to $status.");
+    } catch (e) {
+      debugPrint("Error updating task $taskId status: $e");
+      rethrow;
+    }
+  }
+
   Future<int> getCurrentUserRole() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return 3; // Default to field agent

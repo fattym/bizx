@@ -37,6 +37,26 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
   PipelineStage _selectedStage = PipelineStage.lead;
   DateTime? _expectedCloseDate;
   DateTime? _nextActionDueDate;
+  Color _stageColor(PipelineStage stage) {
+    switch (stage) {
+      case PipelineStage.won:
+        return Colors.green;
+      case PipelineStage.lost:
+        return Colors.red;
+      case PipelineStage.negotiation:
+        return Colors.orange;
+      case PipelineStage.contacted:
+      case PipelineStage.meetingScheduled:
+      case PipelineStage.sampleIssued:
+      case PipelineStage.quotationSent:
+      case PipelineStage.decisionPending:
+        return Colors.blue;
+      case PipelineStage.dormant:
+        return Colors.grey;
+      default:
+        return AppColors.primaryGreen;
+    }
+  }
 
   @override
   void initState() {
@@ -348,6 +368,7 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
   @override
   Widget build(BuildContext context) {
     final schoolName = widget.school['name']?.toString() ?? 'School';
+    final stageColor = _stageColor(_selectedStage);
 
     return Scaffold(
       appBar: AppBar(
@@ -383,128 +404,194 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
-          const Text(
-            'Pipeline Stage',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<PipelineStage>(
-            value: _selectedStage,
-            decoration: const InputDecoration(
-              labelText: 'Pipeline Stage',
-              border: OutlineInputBorder(),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: stageColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: stageColor.withOpacity(0.35)),
             ),
-            items: PipelineStage.values
-                .map(
-                  (stage) => DropdownMenuItem(
-                    value: stage,
-                    child: Text(stage.label),
+            child: Row(
+              children: [
+                Icon(Icons.timeline, color: stageColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Current: ${_currentStage.label}  ->  Next: ${_selectedStage.label}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                )
-                .toList(),
-            onChanged: (_loadingPipeline || _isViewOnlyRole)
-                ? null
-                : (value) {
-                    if (value == null) return;
-                    setState(() => _selectedStage = value);
-                  },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Current: ${_currentStage.label} • Probability: ${_selectedStage.defaultProbability}%',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: stageColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_selectedStage.defaultProbability}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _isViewOnlyRole
-                ? null
-                : () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _expectedCloseDate ?? DateTime.now(),
-                firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                lastDate: DateTime.now().add(const Duration(days: 730)),
-              );
-              if (picked == null) return;
-              setState(() => _expectedCloseDate = picked);
-            },
-            icon: const Icon(Icons.event),
-            label: Text(
-              _expectedCloseDate == null
-                  ? 'Set Expected Close Date'
-                  : 'Expected Close: ${_expectedCloseDate!.year}-${_expectedCloseDate!.month.toString().padLeft(2, '0')}-${_expectedCloseDate!.day.toString().padLeft(2, '0')}',
+          _SectionCard(
+            title: 'Pipeline Stage',
+            child: Column(
+              children: [
+                DropdownButtonFormField<PipelineStage>(
+                  value: _selectedStage,
+                  decoration: const InputDecoration(
+                    labelText: 'Pipeline Stage',
+                    border: OutlineInputBorder(),
+                  ),
+                  items:
+                      PipelineStage.values
+                          .map(
+                            (stage) => DropdownMenuItem(
+                              value: stage,
+                              child: Text(stage.label),
+                            ),
+                          )
+                          .toList(),
+                  onChanged:
+                      (_loadingPipeline || _isViewOnlyRole)
+                          ? null
+                          : (value) {
+                            if (value == null) return;
+                            setState(() => _selectedStage = value);
+                          },
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed:
+                      _isViewOnlyRole
+                          ? null
+                          : () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _expectedCloseDate ?? DateTime.now(),
+                              firstDate: DateTime.now().subtract(
+                                const Duration(days: 365),
+                              ),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 730),
+                              ),
+                            );
+                            if (picked == null) return;
+                            setState(() => _expectedCloseDate = picked);
+                          },
+                  icon: const Icon(Icons.event),
+                  label: Text(
+                    _expectedCloseDate == null
+                        ? 'Set Expected Close Date'
+                        : 'Expected Close: ${_expectedCloseDate!.year}-${_expectedCloseDate!.month.toString().padLeft(2, '0')}-${_expectedCloseDate!.day.toString().padLeft(2, '0')}',
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
           if (_stageFields.isNotEmpty) ...[
-            const Text(
-              'Stage Details',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ..._stageFields.map(
-              (field) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: TextField(
-                  controller: field.controller,
-                  enabled: !_isViewOnlyRole,
-                  keyboardType:
-                      field.numeric ? TextInputType.number : TextInputType.text,
-                  decoration: InputDecoration(
-                    labelText: field.required ? '${field.label} *' : field.label,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
+            _SectionCard(
+              title: 'Stage Details',
+              child: Column(
+                children:
+                    _stageFields
+                        .map(
+                          (field) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: TextField(
+                              controller: field.controller,
+                              enabled: !_isViewOnlyRole,
+                              keyboardType:
+                                  field.numeric
+                                      ? TextInputType.number
+                                      : TextInputType.text,
+                              decoration: InputDecoration(
+                                labelText:
+                                    field.required
+                                        ? '${field.label} *'
+                                        : field.label,
+                                border: const OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
               ),
             ),
             const SizedBox(height: 8),
           ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: _nextActionController,
-            enabled: !_isViewOnlyRole,
-            decoration: const InputDecoration(
-              labelText: 'Next Action',
-              hintText: 'Required for active stages',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _isViewOnlyRole
-                ? null
-                : () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _nextActionDueDate ?? DateTime.now(),
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (picked == null) return;
-              setState(() => _nextActionDueDate = picked);
-            },
-            icon: const Icon(Icons.calendar_today),
-            label: Text(
-              _nextActionDueDate == null
-                  ? 'Set Next Action Due Date'
-                  : 'Next Action Due: ${_nextActionDueDate!.year}-${_nextActionDueDate!.month.toString().padLeft(2, '0')}-${_nextActionDueDate!.day.toString().padLeft(2, '0')}',
+          _SectionCard(
+            title: 'Follow Up Plan',
+            child: Column(
+              children: [
+                TextField(
+                  controller: _nextActionController,
+                  enabled: !_isViewOnlyRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Next Action',
+                    hintText: 'Required for active stages',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed:
+                      _isViewOnlyRole
+                          ? null
+                          : () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _nextActionDueDate ?? DateTime.now(),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked == null) return;
+                            setState(() => _nextActionDueDate = picked);
+                          },
+                  icon: const Icon(Icons.calendar_today),
+                  label: Text(
+                    _nextActionDueDate == null
+                        ? 'Set Next Action Due Date'
+                        : 'Next Action Due: ${_nextActionDueDate!.year}-${_nextActionDueDate!.month.toString().padLeft(2, '0')}-${_nextActionDueDate!.day.toString().padLeft(2, '0')}',
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
-          TextField(
-            controller: _packageController,
-            decoration: const InputDecoration(
-              labelText: 'Package or Offer (Optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _notesController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Notes (Optional)',
-              border: OutlineInputBorder(),
+          _SectionCard(
+            title: 'Offer Notes',
+            child: Column(
+              children: [
+                TextField(
+                  controller: _packageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Package or Offer (Optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (Optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -620,6 +707,42 @@ class _HeaderCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          child,
         ],
       ),
     );

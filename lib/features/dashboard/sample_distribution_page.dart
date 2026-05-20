@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 
 import '../../core/constants/colors.dart';
 import '../../features/database/database_service.dart';
@@ -27,6 +29,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
   final List<String> _distributionLog = [];
   List<CatalogItemModel> _samples = <CatalogItemModel>[];
   int _initialSampleTotal = 0;
+  XFile? _recoveredLostPhoto;
 
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     _schoolsFuture = _dbService.getAllSchools();
     _loadCurrentRole();
     _loadSamples();
+    _recoverLostCameraData();
   }
 
   @override
@@ -67,6 +71,54 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         );
       }
     });
+  }
+
+  Future<void> _recoverLostCameraData() async {
+    try {
+      final lostData = await _imagePicker.retrieveLostData();
+      if (lostData.isEmpty || lostData.file == null) return;
+      if (!mounted) return;
+      setState(() {
+        _recoveredLostPhoto = lostData.file;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recovered a previously captured photo.'),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to recover lost camera data: $e');
+    }
+  }
+
+  Future<XFile?> _takeProofPhoto() async {
+    try {
+      final photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 75,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      return photo;
+    } on PlatformException catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Camera error: ${e.message ?? e.code}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open camera: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
   }
 
   Future<void> _assignSample({
@@ -103,6 +155,20 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       sampleName: sample.name,
       schoolName: school.name,
     );
+    if ((receiptUpload['url'] ?? '').trim().isEmpty) {
+      if (!mounted) return;
+      final reason =
+          (receiptUpload['error'] ?? '').trim().isEmpty
+              ? 'Could not upload stamped receipt photo. Try again.'
+              : 'Photo upload failed: ${receiptUpload['error']}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reason),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       final index = _samples.indexWhere((item) => item.id == sample.id);
@@ -143,7 +209,14 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       );
       await _dbService.decrementCatalogStock(sample.id, 1);
     } catch (e) {
-      debugPrint('Sample stock update warning: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save distribution: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +231,12 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     required String sampleName,
     required String schoolName,
   }) async {
-    XFile? capturedPhoto;
+    XFile? capturedPhoto = _recoveredLostPhoto;
+    Uint8List? capturedPhotoBytes;
+    if (capturedPhoto != null) {
+      capturedPhotoBytes = await capturedPhoto.readAsBytes();
+      _recoveredLostPhoto = null;
+    }
 
     final result = await showDialog<XFile?>(
       context: context,
@@ -195,18 +273,58 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                       ),
                     )
                   else
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Photo captured. You can proceed.',
-                        textAlign: TextAlign.center,
-                      ),
+                    Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 180,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: Colors.grey.shade100,
+                          ),
+                          child:
+                              capturedPhotoBytes == null
+                                  ? const Center(
+                                    child: Text('Preview unavailable'),
+                                  )
+                                  : Image.memory(
+                                    capturedPhotoBytes!,
+                                    fit: BoxFit.cover,
+                                  ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed:
+                                capturedPhotoBytes == null
+                                    ? null
+                                    : () {
+                                      showDialog<void>(
+                                        context: context,
+                                        builder:
+                                            (_) => Dialog(
+                                              child: InteractiveViewer(
+                                                child: Image.memory(
+                                                  capturedPhotoBytes!,
+                                                  fit: BoxFit.contain,
+                                                ),
+                                              ),
+                                            ),
+                                      );
+                                    },
+                            icon: const Icon(Icons.open_in_full),
+                            label: const Text('View Photo'),
+                          ),
+                        ),
+                      ],
                     ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You can retake the photo before continuing.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
                 ],
               ),
               actions: [
@@ -216,22 +334,13 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                 ),
                 TextButton.icon(
                   onPressed: () async {
-                    try {
-                      final photo = await _imagePicker.pickImage(
-                        source: ImageSource.camera,
-                        imageQuality: 80,
-                      );
-                      if (photo == null) return;
-                      setModalState(() => capturedPhoto = photo);
-                    } catch (_) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Could not open camera.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
+                    final photo = await _takeProofPhoto();
+                    if (photo == null) return;
+                    final bytes = await photo.readAsBytes();
+                    setModalState(() {
+                      capturedPhoto = photo;
+                      capturedPhotoBytes = bytes;
+                    });
                   },
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: Text(capturedPhoto == null ? 'Capture Photo' : 'Retake'),
@@ -258,28 +367,44 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     required String sampleName,
     required String schoolName,
   }) async {
+    final supabase = Supabase.instance.client;
+    final rawExt = photo.path.split('.').last.toLowerCase();
+    final fileExt = rawExt.isEmpty || rawExt.length > 5 ? 'jpg' : rawExt;
+    final safeSchool = schoolName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+    final safeSample = sampleName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+    final fileName =
+        'sample_receipts/${safeSchool}_${safeSample}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+
     try {
-      final supabase = Supabase.instance.client;
-      final fileExt = photo.path.split('.').last.toLowerCase();
-      final safeSchool = schoolName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
-      final safeSample = sampleName.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
-      final fileName =
-          'sample_receipts/${safeSchool}_${safeSample}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
       final bytes = await photo.readAsBytes();
+      final candidateBuckets = ['schools', 'profiles'];
+      String? lastError;
 
-      await supabase.storage.from('schools').uploadBinary(
-        fileName,
-        bytes,
-        fileOptions: const FileOptions(upsert: true),
-      );
+      for (final bucket in candidateBuckets) {
+        try {
+          await supabase.storage.from(bucket).uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: 'image/$fileExt',
+            ),
+          );
 
-      return {
-        'url': supabase.storage.from('schools').getPublicUrl(fileName),
-        'path': fileName,
-      };
+          return {
+            'url': supabase.storage.from(bucket).getPublicUrl(fileName),
+            'path': fileName,
+            'error': null,
+          };
+        } catch (e) {
+          lastError = '$bucket: $e';
+        }
+      }
+
+      return {'url': null, 'path': null, 'error': lastError};
     } catch (e) {
       debugPrint('Stamped receipt upload failed: $e');
-      return {'url': null, 'path': photo.path};
+      return {'url': null, 'path': null, 'error': e.toString()};
     }
   }
 

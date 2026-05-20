@@ -293,7 +293,7 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 320,
+              height: 460,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: FlutterMap(

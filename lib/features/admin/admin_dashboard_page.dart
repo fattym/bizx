@@ -37,6 +37,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String? _selectedUserIdForTasks;
   DateTimeRange? _taskDateRange;
   String _taskTimeFilter = 'All'; // 'All', 'Daily', 'Weekly', 'Monthly'
+  String _taskStatusFilter = 'All'; // 'All', 'Open', 'In Progress', 'Closed'
   bool _isSidebarExpanded = true;
 
   @override
@@ -366,6 +367,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       }).toList();
                 }
 
+                if (_taskStatusFilter != 'All') {
+                  final expectedStatus =
+                      _taskStatusFilter == 'In Progress'
+                          ? 'in_progress'
+                          : _taskStatusFilter.toLowerCase();
+                  filteredTasks =
+                      filteredTasks.where((t) {
+                        return t.status.toLowerCase() == expectedStatus;
+                      }).toList();
+                }
+
                 return RefreshIndicator(
                   onRefresh: () async => _refreshDashboard(),
                   child: ListView(
@@ -459,6 +471,40 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               onChanged:
                                   (val) =>
                                       setState(() => _taskTimeFilter = val!),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _taskStatusFilter,
+                              decoration: InputDecoration(
+                                labelText: 'Status',
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                              ),
+                              items:
+                                  ['All', 'Open', 'In Progress', 'Closed']
+                                      .map(
+                                        (s) => DropdownMenuItem(
+                                          value: s,
+                                          child: Text(s),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged:
+                                  (val) => setState(
+                                    () => _taskStatusFilter = val ?? 'All',
+                                  ),
                             ),
                           ),
                         ],

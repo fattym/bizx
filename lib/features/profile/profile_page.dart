@@ -390,7 +390,7 @@ class SalesDashboard extends StatelessWidget {
                       if (tasks.isEmpty) {
                         return _buildEmptyTaskState();
                       }
-                      return _buildAssignedTasks(tasks);
+                      return _buildAssignedTasks(context, tasks);
                     },
                   ),
                   const SizedBox(height: 30),
@@ -711,7 +711,66 @@ class SalesDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildAssignedTasks(List<TaskModel> tasks) {
+  Future<void> _markTaskComplete(BuildContext context, TaskModel task) async {
+    try {
+      await _dbService.updateTaskStatus(task.id, 'closed');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task marked as complete.')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const SalesDashboard()),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update task: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteTask(BuildContext context, TaskModel task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Task'),
+            content: Text('Delete "${task.title}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _dbService.deleteTask(task.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task deleted.')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const SalesDashboard()),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete task: $e')));
+    }
+  }
+
+  Widget _buildAssignedTasks(BuildContext context, List<TaskModel> tasks) {
     return Column(
       children:
           tasks.map((task) {
@@ -806,6 +865,35 @@ class SalesDashboard extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (task.status.toLowerCase() != 'closed') ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: () => _markTaskComplete(context, task),
+                                icon: const Icon(Icons.check_circle_outline),
+                                label: const Text('Mark Complete'),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                onPressed: () => _deleteTask(context, task),
+                                icon: const Icon(Icons.delete_outline),
+                                label: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _deleteTask(context, task),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
