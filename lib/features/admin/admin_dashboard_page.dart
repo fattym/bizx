@@ -19,6 +19,7 @@ import 'admin_assign_task_screen.dart';
 import 'user_school_onboarding_page.dart';
 import 'sample_receipts_page.dart';
 import 'admin_crm_page.dart';
+import 'admin_social_pipeline_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -626,6 +627,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const AdminPipelineDataPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.campaign_outlined,
+                  'FB & WhatsApp Pipeline',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminSocialPipelinePage(),
                       ),
                     );
                   },

@@ -10,6 +10,7 @@ import 'assign_books_page.dart';
 import 'admin_geofence_map_screen.dart';
 import 'admin_agent_tracker_screen.dart';
 import 'admin_pipeline_data_page.dart';
+import 'admin_social_pipeline_page.dart';
 import 'sample_receipts_page.dart';
 import 'role3_supervision_dashboard_page.dart';
 import '../profile/messages_page.dart';
@@ -349,6 +350,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminPipelineDataPage(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildDashboardCard(
+              context: context,
+              icon: Icons.campaign_outlined,
+              title: 'FB & WhatsApp Pipeline',
+              subtitle: 'View leads and stages captured from Facebook and WhatsApp.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminSocialPipelinePage(),
                   ),
                 );
               },

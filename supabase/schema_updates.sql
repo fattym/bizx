@@ -281,3 +281,70 @@ DO $$ BEGIN
     USING (collected_by = auth.uid() OR public.is_manager_or_admin())
     WITH CHECK (collected_by = auth.uid() OR public.is_manager_or_admin());
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Social inbox sync tables for Facebook + WhatsApp bot
+CREATE TABLE IF NOT EXISTS public.social_conversations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    channel text NOT NULL CHECK (channel IN ('facebook', 'whatsapp')),
+    external_conversation_id text NOT NULL,
+    participant_display text,
+    participant_phone text,
+    last_message_preview text,
+    last_message_at timestamptz,
+    raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    updated_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    UNIQUE (channel, external_conversation_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.social_messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id uuid NOT NULL REFERENCES public.social_conversations(id) ON DELETE CASCADE,
+    channel text NOT NULL CHECK (channel IN ('facebook', 'whatsapp')),
+    external_message_id text NOT NULL,
+    sender_name text,
+    sender_id text,
+    body text,
+    sent_at timestamptz,
+    raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    updated_at timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    UNIQUE (channel, external_message_id)
+);
+
+ALTER TABLE public.social_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_messages ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    CREATE POLICY "authenticated_can_view_social_conversations"
+    ON public.social_conversations
+    FOR SELECT
+    TO authenticated
+    USING (public.is_manager_or_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "service_role_can_manage_social_conversations"
+    ON public.social_conversations
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "authenticated_can_view_social_messages"
+    ON public.social_messages
+    FOR SELECT
+    TO authenticated
+    USING (public.is_manager_or_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "service_role_can_manage_social_messages"
+    ON public.social_messages
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
