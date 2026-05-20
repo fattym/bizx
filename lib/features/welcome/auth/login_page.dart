@@ -157,81 +157,103 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
             ),
           ),
           child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: Column(
-                children: [
-                  const SizedBox(height: 60),
-                  // App Branding
-                  const Icon(
-                    Icons.shield_outlined,
-                    size: 60,
-                    color: AppColors.primaryLight,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "Agents Portal",
-                    style: TextStyle(
-                      color: AppColors.surfaceWhite,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const Text(
-                    "Log in to manage school accounts and publication workflows",
-                    style: TextStyle(
-                      color: AppColors.primaryPale,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 50),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final screenWidth = constraints.maxWidth;
+                final isTablet = screenWidth >= 768;
+                final isDesktop = screenWidth >= 1100;
+                final contentWidth =
+                    isDesktop ? 560.0 : (isTablet ? 520.0 : double.infinity);
+                final horizontalPadding =
+                    isDesktop ? 40.0 : (isTablet ? 32.0 : 22.0);
+                final minContentHeight = isTablet ? constraints.maxHeight : 0.0;
 
-                  // Login Card
-                  _buildLoginCard(),
-
-                  const SizedBox(height: 30),
-                  TextButton(
-                    onPressed: () {
-                      // Navigate to Register
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const DeHeusRegister(),
-                        ),
-                      );
-                    }, // Navigate to Register
-
-                    child: const Text(
-                      "Don't have an account? Register here",
-                      style: TextStyle(
-                        color: AppColors.primaryPale,
-                        fontWeight: FontWeight.w400,
+                return SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: contentWidth,
+                        minHeight: minContentHeight,
+                      ),
+                      child: Column(
+                        mainAxisAlignment:
+                            isTablet
+                                ? MainAxisAlignment.center
+                                : MainAxisAlignment.start,
+                        children: [
+                          SizedBox(height: isTablet ? 24 : 52),
+                          const Icon(
+                            Icons.shield_outlined,
+                            size: 60,
+                            color: AppColors.primaryLight,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Agents Portal",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.surfaceWhite,
+                              fontSize: isTablet ? 32 : 28,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const Text(
+                            "Log in to manage school accounts and publication workflows",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.primaryPale,
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: isTablet ? 44 : 34),
+                          _buildLoginCard(),
+                          const SizedBox(height: 30),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const DeHeusRegister(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              "Don't have an account? Register here",
+                              style: TextStyle(
+                                color: AppColors.primaryPale,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _openAdminLogin,
+                              icon: const Icon(Icons.admin_panel_settings_outlined),
+                              label: const Text('Login as Admin'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primaryPale,
+                                side: const BorderSide(
+                                  color: AppColors.primaryLight,
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: isTablet ? 0 : 20),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _openAdminLogin,
-                      icon: const Icon(Icons.admin_panel_settings_outlined),
-                      label: const Text('Login as Admin'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryPale,
-                        side: const BorderSide(
-                          color: AppColors.primaryLight,
-                          width: 1.5,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),

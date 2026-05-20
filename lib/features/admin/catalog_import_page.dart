@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../../models/catalog_item_model.dart';
 import '../database/database_service.dart';
+import 'utils/csv_download_stub.dart'
+    if (dart.library.html) 'utils/csv_download_web.dart'
+    if (dart.library.io) 'utils/csv_download_io.dart';
 
 class CatalogImportPage extends StatefulWidget {
   const CatalogImportPage({super.key});
@@ -30,14 +33,18 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
   }
 
   String _template(String type) {
+    if (type == 'sample') {
+      return [
+        'name,category,sku,stock_qty,description,is_active,sample_note',
+        'Grade 1 Reader Pack,Primary,SMPL-PR-01,120,Starter reading sample,true,For classroom demo',
+        'Teacher Guide Kit,Reference,SMPL-RF-02,54,Teacher support sample,true,Leave one at school office',
+      ].join('\n');
+    }
+
     return [
-      'name,category,sku,unit_price,stock_qty,description,is_active,item_type',
-      type == 'sample'
-          ? 'Grade 1 Reader Pack,Primary,SMPL-PR-01,0,120,Starter reading sample,true,sample'
-          : 'Grade 1 Reader Pack,Primary,SL-PR-01,2850,120,Core sale pack,true,sale',
-      type == 'sample'
-          ? 'Teacher Guide Kit,Reference,SMPL-RF-02,0,54,Teacher support sample,true,sample'
-          : 'Teacher Guide Kit,Reference,SL-RF-02,2700,60,Teacher support pack,true,sale',
+      'name,category,sku,unit_price,stock_qty,description,is_active',
+      'Grade 1 Reader Pack,Primary,SL-PR-01,2850,120,Core sale pack,true',
+      'Teacher Guide Kit,Reference,SL-RF-02,2700,60,Teacher support pack,true',
     ].join('\n');
   }
 
@@ -96,16 +103,26 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
       final sku = record['sku']?.trim() ?? '';
       if (name.isEmpty || sku.isEmpty) continue;
 
+      final stockRaw =
+          record['stock_qty']?.trim().isNotEmpty == true
+              ? record['stock_qty']!.trim()
+              : (record['qty']?.trim() ?? '');
+      final itemTypeRaw = record['item_type']?.trim() ?? '';
+      final resolvedType = itemTypeRaw.isNotEmpty ? itemTypeRaw : _itemType;
+      final unitPriceRaw = record['unit_price']?.trim() ?? '';
+      final double unitPrice =
+          unitPriceRaw.isNotEmpty
+              ? (double.tryParse(unitPriceRaw) ?? 0.0)
+              : (resolvedType == 'sample' ? 0.0 : 0.0);
+
       items.add(
         CatalogItemModel(
           name: name,
           category: category.isEmpty ? 'General' : category,
           sku: sku,
-          itemType: (record['item_type']?.trim().isNotEmpty ?? false)
-              ? record['item_type']!.trim()
-              : _itemType,
-          unitPrice: double.tryParse(record['unit_price']?.trim() ?? '') ?? 0,
-          stockQty: int.tryParse(record['stock_qty']?.trim() ?? '') ?? 0,
+          itemType: resolvedType,
+          unitPrice: unitPrice,
+          stockQty: int.tryParse(stockRaw) ?? 0,
           description: record['description']?.trim(),
           isActive:
               (record['is_active']?.trim().toLowerCase() ?? 'true') != 'false',
@@ -148,6 +165,34 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
     }
   }
 
+  Future<void> _downloadTemplate(String type) async {
+    final fileName =
+        type == 'sample'
+            ? 'sample_books_template.csv'
+            : 'sales_books_template.csv';
+    try {
+      await downloadCsvTemplate(fileName, _template(type));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Template download started: $fileName',
+          ),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Template download is not supported on this device. Use Load Template and copy it.',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -175,7 +220,8 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Paste a CSV with columns: name,category,sku,unit_price,stock_qty,description,is_active,item_type',
+                  'Sales template columns: name,category,sku,unit_price,stock_qty,description,is_active\n'
+                  'Sample template columns: name,category,sku,stock_qty,description,is_active,sample_note',
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -222,6 +268,16 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
                       },
                       icon: const Icon(Icons.format_align_left),
                       label: const Text('Load Template'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _downloadTemplate('sale'),
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download Sales Excel'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _downloadTemplate('sample'),
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download Sample Excel'),
                     ),
                     OutlinedButton.icon(
                       onPressed: () {

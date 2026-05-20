@@ -267,6 +267,16 @@ class DatabaseService {
     }
   }
 
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _supabase.from('tasks').delete().eq('id', taskId);
+      debugPrint("Task $taskId deleted from Supabase.");
+    } catch (e) {
+      debugPrint("Error deleting task $taskId from Supabase: $e");
+      rethrow;
+    }
+  }
+
   Future<int> getCurrentUserRole() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) return 3; // Default to field agent

@@ -33,8 +33,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   late Future<_AdminDashboardData> _dashboardFuture;
 
   String? _selectedUserIdForMap;
+  DateTimeRange? _mapDateRange;
   String? _selectedUserIdForTasks;
+  DateTimeRange? _taskDateRange;
   String _taskTimeFilter = 'All'; // 'All', 'Daily', 'Weekly', 'Monthly'
+  bool _isSidebarExpanded = true;
 
   @override
   void initState() {
@@ -121,12 +124,120 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _refreshDashboard();
   }
 
+  Future<void> _pickMapDateRange() async {
+    final now = DateTime.now();
+    final first = DateTime(now.year - 5, 1, 1);
+    final last = DateTime(now.year + 1, 12, 31);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      initialDateRange: _mapDateRange,
+      helpText: 'Filter Map By Date',
+    );
+    if (picked == null) return;
+    setState(() {
+      _mapDateRange = picked;
+    });
+  }
+
+  void _clearMapDateRange() {
+    if (_mapDateRange == null) return;
+    setState(() {
+      _mapDateRange = null;
+    });
+  }
+
+  Future<void> _pickTaskDateRange() async {
+    final now = DateTime.now();
+    final first = DateTime(now.year - 5, 1, 1);
+    final last = DateTime(now.year + 1, 12, 31);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      initialDateRange: _taskDateRange,
+      helpText: 'Filter Tasks By Date',
+    );
+    if (picked == null) return;
+    setState(() {
+      _taskDateRange = picked;
+    });
+  }
+
+  void _clearTaskDateRange() {
+    if (_taskDateRange == null) return;
+    setState(() {
+      _taskDateRange = null;
+    });
+  }
+
+  Future<void> _deleteTask(TaskModel task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Task'),
+            content: Text('Delete "${task.title}"? This cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _dbService.deleteTask(task.id);
+      _refreshDashboard();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Task deleted successfully.'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete task: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 800;
 
     return Scaffold(
       appBar: AppBar(
+        leading:
+            isDesktop
+                ? IconButton(
+                  icon: Icon(
+                    _isSidebarExpanded ? Icons.menu_open : Icons.menu,
+                  ),
+                  tooltip:
+                      _isSidebarExpanded
+                          ? 'Collapse sidebar'
+                          : 'Expand sidebar',
+                  onPressed: () {
+                    setState(() {
+                      _isSidebarExpanded = !_isSidebarExpanded;
+                    });
+                  },
+                )
+                : null,
         title: const Text("Admin Dashboard"),
         actions: [
           IconButton(
@@ -145,7 +256,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isDesktop) _buildSidebar(context),
+          if (isDesktop)
+            _buildSidebar(
+              context,
+              isCollapsed: !_isSidebarExpanded,
+            ),
           Expanded(
             child: FutureBuilder<_AdminDashboardData>(
               future: _dashboardFuture,
@@ -226,6 +341,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           return due.year == now.year && due.month == now.month;
                         }
                         return true;
+                      }).toList();
+                }
+
+                if (_taskDateRange != null) {
+                  final start = DateTime(
+                    _taskDateRange!.start.year,
+                    _taskDateRange!.start.month,
+                    _taskDateRange!.start.day,
+                  );
+                  final end = DateTime(
+                    _taskDateRange!.end.year,
+                    _taskDateRange!.end.month,
+                    _taskDateRange!.end.day,
+                    23,
+                    59,
+                    59,
+                  );
+                  filteredTasks =
+                      filteredTasks.where((t) {
+                        final due = t.dueAt;
+                        if (due == null) return false;
+                        return !due.isBefore(start) && !due.isAfter(end);
                       }).toList();
                 }
 
@@ -326,6 +463,29 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _pickTaskDateRange,
+                            icon: const Icon(Icons.calendar_month_outlined),
+                            label: Text(
+                              _taskDateRange == null
+                                  ? 'Task Date Filter'
+                                  : '${_taskDateRange!.start.year}-${_taskDateRange!.start.month.toString().padLeft(2, '0')}-${_taskDateRange!.start.day.toString().padLeft(2, '0')} -> ${_taskDateRange!.end.year}-${_taskDateRange!.end.month.toString().padLeft(2, '0')}-${_taskDateRange!.end.day.toString().padLeft(2, '0')}',
+                            ),
+                          ),
+                          if (_taskDateRange != null)
+                            IconButton(
+                              tooltip: 'Clear task date filter',
+                              onPressed: _clearTaskDateRange,
+                              icon: const Icon(Icons.clear),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
                       if (filteredTasks.isEmpty)
                         _buildEmptyCard("No tasks match the selected filters.")
@@ -333,7 +493,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ...filteredTasks.map(
                           (task) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _TaskCard(task: task),
+                            child: _TaskCard(
+                              task: task,
+                              onDelete: () => _deleteTask(task),
+                            ),
                           ),
                         ),
                       const SizedBox(height: 20),
@@ -439,39 +602,47 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 260,
+  Widget _buildSidebar(BuildContext context, {bool isCollapsed = false}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      width: isCollapsed ? 88 : 260,
       color: AppColors.primaryDark,
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: EdgeInsets.symmetric(
+              vertical: 30,
+              horizontal: isCollapsed ? 8 : 20,
+            ),
             width: double.infinity,
             color: AppColors.charcoalGrey.withValues(alpha: 0.2),
-            child: const SafeArea(
+            child: SafeArea(
               bottom: false,
               child: Column(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.admin_panel_settings,
                     size: 60,
                     color: Colors.white,
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Admin Portal',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  if (!isCollapsed) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Admin Portal',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Publisher Controls',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Publisher Controls',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -480,11 +651,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _buildSidebarItem(context, Icons.dashboard, 'Dashboard', () {
-                  if (MediaQuery.of(context).size.width < 800) {
-                    Navigator.pop(context);
-                  }
-                }),
+                _buildSidebarItem(
+                  context,
+                  Icons.dashboard,
+                  'Dashboard',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  isCollapsed: isCollapsed,
+                ),
                 _buildSidebarItem(
                   context,
                   Icons.analytics_outlined,
@@ -500,6 +677,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -517,6 +695,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     );
                     _refreshDashboard();
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -533,6 +712,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -549,6 +729,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -566,6 +747,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -582,6 +764,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -598,6 +781,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -614,6 +798,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -630,6 +815,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
                 _buildSidebarItem(
                   context,
@@ -646,6 +832,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     );
                   },
+                  isCollapsed: isCollapsed,
                 ),
               ],
             ),
@@ -660,6 +847,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 Icons.logout,
                 'Sign Out',
                 _signOut,
+                isCollapsed: isCollapsed,
               ),
             ),
           ),
@@ -672,13 +860,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     BuildContext context,
     IconData icon,
     String title,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    bool isCollapsed = false,
+  }) {
     return ListTile(
       leading: Icon(icon, color: Colors.white70),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      title:
+          isCollapsed
+              ? null
+              : Text(title, style: const TextStyle(color: Colors.white)),
+      minLeadingWidth: isCollapsed ? 0 : null,
+      horizontalTitleGap: isCollapsed ? 0 : 16,
+      contentPadding: EdgeInsets.symmetric(horizontal: isCollapsed ? 28 : 16),
       onTap: onTap,
       hoverColor: Colors.white.withValues(alpha: 0.1),
+      dense: isCollapsed,
     );
   }
 
@@ -695,6 +891,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               (school) => school.latitude != null && school.longitude != null,
             )
             .toList();
+
+    if (_mapDateRange != null) {
+      final start = DateTime(
+        _mapDateRange!.start.year,
+        _mapDateRange!.start.month,
+        _mapDateRange!.start.day,
+      );
+      final end = DateTime(
+        _mapDateRange!.end.year,
+        _mapDateRange!.end.month,
+        _mapDateRange!.end.day,
+        23,
+        59,
+        59,
+      );
+      mapSchools =
+          mapSchools.where((s) {
+            final createdAt = s.createdAt;
+            if (createdAt == null) return false;
+            return !createdAt.isBefore(start) && !createdAt.isAfter(end);
+          }).toList();
+    }
 
     List<Map<String, dynamic>> userRoutePlans = [];
     List<Map<String, dynamic>> userGeofences = geofences;
@@ -755,44 +973,68 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         const SizedBox(height: 12),
 
-        // Filter Dropdown
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: _selectedUserIdForMap,
-              hint: const Text('All Users (No Route Filter)'),
-              isExpanded: true,
-              icon: const Icon(Icons.filter_list),
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('All Users (No Route Filter)'),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: 360,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
-                ...{for (var u in users) u.id: u}.values.map(
-                  (u) => DropdownMenuItem(
-                    value: u.id,
-                    child: Text('${u.fullName ?? u.email} (Role ${u.role})'),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String?>(
+                    value: _selectedUserIdForMap,
+                    hint: const Text('All Users (No Route Filter)'),
+                    isExpanded: true,
+                    icon: const Icon(Icons.filter_list),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('All Users (No Route Filter)'),
+                      ),
+                      ...{for (var u in users) u.id: u}.values.map(
+                        (u) => DropdownMenuItem(
+                          value: u.id,
+                          child: Text('${u.fullName ?? u.email} (Role ${u.role})'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedUserIdForMap = val;
+                      });
+                    },
                   ),
                 ),
-              ],
-              onChanged: (val) {
-                setState(() {
-                  _selectedUserIdForMap = val;
-                });
-              },
+              ),
             ),
-          ),
+            OutlinedButton.icon(
+              onPressed: _pickMapDateRange,
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: Text(
+                _mapDateRange == null
+                    ? 'Date Filter'
+                    : '${_mapDateRange!.start.year}-${_mapDateRange!.start.month.toString().padLeft(2, '0')}-${_mapDateRange!.start.day.toString().padLeft(2, '0')} -> ${_mapDateRange!.end.year}-${_mapDateRange!.end.month.toString().padLeft(2, '0')}-${_mapDateRange!.end.day.toString().padLeft(2, '0')}',
+              ),
+            ),
+            if (_mapDateRange != null)
+              IconButton(
+                tooltip: 'Clear date filter',
+                onPressed: _clearMapDateRange,
+                icon: const Icon(Icons.clear),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
 
         Container(
-          height: 320,
+          height: 460,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
@@ -812,8 +1054,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         _selectedUserIdForMap == null
-                            ? 'No school GPS coordinates found yet.\nSave a school profile to see dots here.'
-                            : 'No mapped schools or areas found for this user.',
+                            ? (_mapDateRange == null
+                                ? 'No school GPS coordinates found yet.\nSave a school profile to see dots here.'
+                                : 'No schools found for the selected date range.')
+                            : 'No mapped schools or areas found for this filter.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey[700]),
                       ),
@@ -1254,9 +1498,10 @@ class _AdminDashboardData {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({required this.task});
+  const _TaskCard({required this.task, required this.onDelete});
 
   final TaskModel task;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1305,6 +1550,12 @@ class _TaskCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white),
                 ),
                 backgroundColor: AppColors.longhornMaroon,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Delete task',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
               ),
             ],
           ),

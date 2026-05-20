@@ -12,16 +12,35 @@ class AdminSocialPipelinePage extends StatefulWidget {
 
 class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   final _supabase = Supabase.instance.client;
+  final TextEditingController _searchController = TextEditingController();
+
   static const String _directFacebookUrl =
       'https://www.facebook.com/longhornpublishers/';
   static const String _directWhatsAppPhone = '0798734442';
+  static const List<String> _pipelineStages = <String>[
+    'all',
+    'lead',
+    'contacted',
+    'meeting_scheduled',
+    'negotiation',
+    'won',
+    'lost',
+  ];
+
   bool _isLoading = true;
   List<_SocialLead> _allLeads = <_SocialLead>[];
+  String _selectedStageFilter = 'all';
 
   @override
   void initState() {
     super.initState();
     _loadPipeline();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPipeline() async {
@@ -34,7 +53,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
       final salesRes = await _supabase
           .from('school_sales')
-          .select('school_id,sale_status,expected_value,stage_updated_at')
+          .select('id,school_id,sale_status,expected_value,stage_updated_at')
           .order('stage_updated_at', ascending: false);
 
       final latestSaleBySchool = <String, Map<String, dynamic>>{};
@@ -51,11 +70,15 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
         if (source != 'facebook' && source != 'whatsapp') {
           continue;
         }
+
         final schoolId = (school['id'] ?? '').toString();
         final sale = latestSaleBySchool[schoolId];
+
         leads.add(
           _SocialLead(
             schoolName: (school['name'] ?? 'Unknown school').toString(),
+            schoolId: schoolId,
+            saleId: (sale?['id'] ?? '').toString(),
             phone: (school['phone'] ?? '').toString(),
             source: source,
             stage: (sale?['sale_status'] ?? 'lead').toString(),
@@ -84,6 +107,11 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   Widget build(BuildContext context) {
     final facebookLeads = _allLeads.where((l) => l.source == 'facebook').toList();
     final whatsappLeads = _allLeads.where((l) => l.source == 'whatsapp').toList();
+    final totalExpectedValue = _allLeads.fold<double>(
+      0,
+      (sum, l) => sum + l.expectedValue,
+    );
+    final wonCount = _allLeads.where((l) => l.stage.toLowerCase() == 'won').length;
 
     return DefaultTabController(
       length: 2,
@@ -116,58 +144,128 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
             ),
           ],
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _countCard('Facebook Leads', facebookLeads.length),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _countCard('WhatsApp Leads', whatsappLeads.length),
-                        ),
-                      ],
+        body:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _countCard('Facebook Leads', facebookLeads.length),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _countCard('WhatsApp Leads', whatsappLeads.length),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _countCard(
+                              'Won Deals',
+                              wonCount,
+                              trailing:
+                                  'KES ${totalExpectedValue.toStringAsFixed(0)}',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilledButton.icon(
-                          onPressed: _openDirectWhatsApp,
-                          icon: const Icon(Icons.chat),
-                          label: const Text('Open Direct WhatsApp'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _openDirectFacebook,
-                          icon: const Icon(Icons.facebook),
-                          label: const Text('Open Direct Facebook'),
-                        ),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText: 'Search school, phone, or owner',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon:
+                                    _searchController.text.isEmpty
+                                        ? null
+                                        : IconButton(
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            setState(() {});
+                                          },
+                                          icon: const Icon(Icons.close),
+                                        ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedStageFilter,
+                              decoration: InputDecoration(
+                                labelText: 'Stage',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              items:
+                                  _pipelineStages
+                                      .map(
+                                        (stage) => DropdownMenuItem(
+                                          value: stage,
+                                          child: Text(_stageLabel(stage)),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (val) {
+                                if (val == null) return;
+                                setState(() => _selectedStageFilter = val);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildList(facebookLeads),
-                        _buildList(whatsappLeads),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _openDirectWhatsApp,
+                            icon: const Icon(Icons.chat),
+                            label: const Text('Open Direct WhatsApp'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _openDirectFacebook,
+                            icon: const Icon(Icons.facebook),
+                            label: const Text('Open Direct Facebook'),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildList(_applyFilters(facebookLeads)),
+                          _buildList(_applyFilters(whatsappLeads)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
       ),
     );
   }
 
-  Widget _countCard(String label, int count) {
+  Widget _countCard(String label, int count, {String? trailing}) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -177,6 +275,13 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
             Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
             const SizedBox(height: 6),
             Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            if (trailing != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                trailing,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
           ],
         ),
       ),
@@ -214,6 +319,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                     'Phone: ${lead.phone.isEmpty ? 'N/A' : lead.phone}',
                   ),
                   trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -230,6 +336,10 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                   ),
                   isThreeLine: true,
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _stageBadge(lead.stage),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -244,6 +354,14 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                       icon: const Icon(Icons.facebook, size: 18),
                       label: const Text('Facebook'),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => _showStagePicker(lead),
+                        icon: const Icon(Icons.sync_alt, size: 18),
+                        label: const Text('Update Stage'),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -255,7 +373,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   }
 
   Future<void> _openWhatsApp(_SocialLead lead) async {
-    final cleanPhone = lead.phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final cleanPhone = _normalizePhone(lead.phone);
     if (cleanPhone.isEmpty) {
       _showInfo('No phone number found for this lead.');
       return;
@@ -284,12 +402,10 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
   Future<void> _openDirectWhatsApp() async {
     final message = Uri.encodeComponent('Hello Longhorn Publishers');
-    final deepLink = Uri.parse(
-      'whatsapp://send?phone=$_directWhatsAppPhone&text=$message',
-    );
-    final webLink = Uri.parse(
-      'https://wa.me/$_directWhatsAppPhone?text=$message',
-    );
+    final directPhone = _normalizePhone(_directWhatsAppPhone);
+    final deepLink = Uri.parse('whatsapp://send?phone=$directPhone&text=$message');
+    final webLink = Uri.parse('https://wa.me/$directPhone?text=$message');
+
     final openedApp = await launchUrl(
       deepLink,
       mode: LaunchMode.externalApplication,
@@ -316,6 +432,120 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  List<_SocialLead> _applyFilters(List<_SocialLead> leads) {
+    final query = _searchController.text.trim().toLowerCase();
+    return leads.where((lead) {
+      final matchesStage =
+          _selectedStageFilter == 'all' ||
+          lead.stage.toLowerCase() == _selectedStageFilter;
+      if (!matchesStage) return false;
+      if (query.isEmpty) return true;
+      return lead.schoolName.toLowerCase().contains(query) ||
+          lead.phone.toLowerCase().contains(query) ||
+          lead.capturedBy.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  Future<void> _showStagePicker(_SocialLead lead) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder:
+          (context) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children:
+                  _pipelineStages
+                      .where((s) => s != 'all')
+                      .map(
+                        (stage) => ListTile(
+                          title: Text(_stageLabel(stage)),
+                          trailing:
+                              lead.stage.toLowerCase() == stage
+                                  ? const Icon(Icons.check)
+                                  : null,
+                          onTap: () => Navigator.pop(context, stage),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ),
+    );
+
+    if (picked == null || picked == lead.stage.toLowerCase()) return;
+    await _updateLeadStage(lead, picked);
+  }
+
+  Future<void> _updateLeadStage(_SocialLead lead, String nextStage) async {
+    try {
+      await _supabase.from('school_sales').upsert({
+        'id': lead.saleId.isEmpty ? null : lead.saleId,
+        'school_id': lead.schoolId,
+        'sale_status': nextStage,
+        'expected_value': lead.expectedValue,
+        'stage_updated_at': DateTime.now().toIso8601String(),
+      });
+
+      _showInfo('Stage updated to ${_stageLabel(nextStage)}');
+      await _loadPipeline();
+    } catch (e) {
+      _showInfo('Failed to update stage: $e');
+    }
+  }
+
+  String _normalizePhone(String input) {
+    final digitsOnly = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.isEmpty) return '';
+    if (digitsOnly.startsWith('0') && digitsOnly.length == 10) {
+      return '254${digitsOnly.substring(1)}';
+    }
+    if (digitsOnly.startsWith('254')) return digitsOnly;
+    return digitsOnly;
+  }
+
+  String _stageLabel(String stage) {
+    return stage.replaceAll('_', ' ').split(' ').map((part) {
+      if (part.isEmpty) return part;
+      return '${part[0].toUpperCase()}${part.substring(1)}';
+    }).join(' ');
+  }
+
+  Widget _stageBadge(String stage) {
+    final lower = stage.toLowerCase();
+    Color bg;
+    Color fg;
+
+    switch (lower) {
+      case 'won':
+        bg = Colors.green.shade100;
+        fg = Colors.green.shade800;
+        break;
+      case 'lost':
+        bg = Colors.red.shade100;
+        fg = Colors.red.shade800;
+        break;
+      case 'negotiation':
+        bg = Colors.orange.shade100;
+        fg = Colors.orange.shade800;
+        break;
+      case 'meeting_scheduled':
+        bg = Colors.blue.shade100;
+        fg = Colors.blue.shade800;
+        break;
+      default:
+        bg = Colors.grey.shade200;
+        fg = Colors.grey.shade800;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Text(
+        _stageLabel(lower),
+        style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   String _formatDate(DateTime? date) {
     if (date == null) return 'No date';
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -326,6 +556,8 @@ List<_SocialLead> _dummyLeads() {
   return const [
     _SocialLead(
       schoolName: 'Green Valley School',
+      schoolId: 'dummy-1',
+      saleId: 'dummy-sale-1',
       phone: '0798734442',
       source: 'facebook',
       stage: 'contacted',
@@ -335,6 +567,8 @@ List<_SocialLead> _dummyLeads() {
     ),
     _SocialLead(
       schoolName: 'Sunrise Academy',
+      schoolId: 'dummy-2',
+      saleId: 'dummy-sale-2',
       phone: '0712345678',
       source: 'facebook',
       stage: 'meeting_scheduled',
@@ -344,6 +578,8 @@ List<_SocialLead> _dummyLeads() {
     ),
     _SocialLead(
       schoolName: 'Hilltop Primary',
+      schoolId: 'dummy-3',
+      saleId: 'dummy-sale-3',
       phone: '0700111222',
       source: 'whatsapp',
       stage: 'lead',
@@ -353,6 +589,8 @@ List<_SocialLead> _dummyLeads() {
     ),
     _SocialLead(
       schoolName: 'Lakeview School',
+      schoolId: 'dummy-4',
+      saleId: 'dummy-sale-4',
       phone: '0722333444',
       source: 'whatsapp',
       stage: 'negotiation',
@@ -366,6 +604,8 @@ List<_SocialLead> _dummyLeads() {
 class _SocialLead {
   const _SocialLead({
     required this.schoolName,
+    required this.schoolId,
+    required this.saleId,
     required this.phone,
     required this.source,
     required this.stage,
@@ -375,6 +615,8 @@ class _SocialLead {
   });
 
   final String schoolName;
+  final String schoolId;
+  final String saleId;
   final String phone;
   final String source;
   final String stage;

@@ -114,93 +114,114 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
               ),
             ),
             SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 18,
-                ),
-                child: Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () {
-                          if (Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          } else {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const DeHeusLogin(),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
+                  final isTablet = screenWidth >= 768;
+                  final isDesktop = screenWidth >= 1100;
+                  final contentWidth =
+                      isDesktop ? 580.0 : (isTablet ? 540.0 : double.infinity);
+                  final horizontalPadding =
+                      isDesktop ? 40.0 : (isTablet ? 32.0 : 22.0);
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: 18,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: contentWidth),
+                        child: Column(
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  if (Navigator.canPop(context)) {
+                                    Navigator.pop(context);
+                                  } else {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (context) => const DeHeusLogin(),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                ),
+                                label: const Text(
+                                  'Back to normal login',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                               ),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        label: const Text(
-                          'Back to normal login',
-                          style: TextStyle(color: Colors.white),
+                            ),
+                            SizedBox(height: isTablet ? 24 : 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: const Text(
+                                'Admin Portal',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Icon(
+                              Icons.admin_panel_settings_rounded,
+                              size: 72,
+                              color: AppColors.leafGreen,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Administrator Sign In',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: isTablet ? 34 : 30,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Use your admin credentials to manage users and school GPS data.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+                            _buildLoginCard(),
+                            const SizedBox(height: 18),
+                            Text(
+                              'Only accounts with role 1 can access this portal.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Text(
-                        'Admin Portal',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    const Icon(
-                      Icons.admin_panel_settings_rounded,
-                      size: 72,
-                      color: AppColors.leafGreen,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Administrator Sign In',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Use your admin credentials to manage users and school GPS data.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    _buildLoginCard(),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Only accounts with role 1 can access this portal.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],

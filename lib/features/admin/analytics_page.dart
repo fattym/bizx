@@ -45,6 +45,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   List<FlSpot> _userGrowthSpots = [];
   double _maxUserCount = 0;
   List<_OnboarderStat> _topOnboarders = <_OnboarderStat>[];
+  DateTime? _lastUpdatedAt;
 
   @override
   void initState() {
@@ -53,6 +54,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Future<void> _fetchAnalyticsData() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       // Fetch Tasks
       final tasks = await _supabase.from('tasks').select('status');
@@ -180,6 +184,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           _userGrowthSpots = growthSpots;
           _maxUserCount = cumulative.toDouble();
           _topOnboarders = topOnboarders.take(5).toList();
+          _lastUpdatedAt = DateTime.now();
           _isLoading = false;
         });
       }
@@ -201,7 +206,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     final isTablet = width >= 700 && width < 1000;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Analytics'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Update Data',
+            onPressed: _fetchAnalyticsData,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -216,6 +231,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (_lastUpdatedAt != null)
+                            Text(
+                              'Last updated: ${_lastUpdatedAt!.year}-${_lastUpdatedAt!.month.toString().padLeft(2, '0')}-${_lastUpdatedAt!.day.toString().padLeft(2, '0')} ${_lastUpdatedAt!.hour.toString().padLeft(2, '0')}:${_lastUpdatedAt!.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 12,
+                              ),
+                            ),
+                          const SizedBox(height: 10),
                           _buildSummaryCards(width),
                           const SizedBox(height: 32),
                           if (isDesktop) ...[
