@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/colors.dart';
+import '../database/database_service.dart';
 
 class AssignBooksPage extends StatefulWidget {
   const AssignBooksPage({super.key});
@@ -11,6 +12,7 @@ class AssignBooksPage extends StatefulWidget {
 
 class _AssignBooksPageState extends State<AssignBooksPage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -93,24 +95,24 @@ class _AssignBooksPageState extends State<AssignBooksPage> {
 
     setState(() => _isSaving = true);
     try {
-      // Insert into the school_sample_distributions table which GroundsDeliveriesScreen reads from
-      await _supabase.from('school_sample_distributions').insert({
-        'agent_id': _selectedUserId,
-        'school_id': _selectedSchoolId,
-        'sample_name': _selectedBook!['name'],
-        'sample_category': _selectedBook!['category'] ?? 'Assigned Book',
-        'quantity': qty,
-        'notes':
+      await _dbService.recordSampleDistribution(
+        schoolId: _selectedSchoolId!,
+        sampleName: _selectedBook!['name'],
+        sampleCategory: _selectedBook!['category'] ?? 'Assigned Book',
+        agentId: _selectedUserId,
+        quantity: qty,
+        notes:
             _notesController.text.trim().isNotEmpty
                 ? _notesController.text.trim()
                 : 'Delivery Assignment',
-        'distributed_at': DateTime.now().toIso8601String(),
-      });
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Books assigned to Grounds personnel successfully!'),
+            content: Text(
+              'Books assigned to Grounds personnel (or queued offline)!',
+            ),
             backgroundColor: AppColors.primaryGreen,
           ),
         );
@@ -163,7 +165,7 @@ class _AssignBooksPageState extends State<AssignBooksPage> {
                         labelText: 'Select Grounds User (Role 5)',
                         border: OutlineInputBorder(),
                       ),
-                      value: _selectedUserId,
+                      initialValue: _selectedUserId,
                       items:
                           _groundsUsers.map((user) {
                             return DropdownMenuItem<String>(
@@ -181,7 +183,7 @@ class _AssignBooksPageState extends State<AssignBooksPage> {
                         labelText: 'Select Target School',
                         border: OutlineInputBorder(),
                       ),
-                      value: _selectedSchoolId,
+                      initialValue: _selectedSchoolId,
                       items:
                           _schools.map((school) {
                             return DropdownMenuItem<String>(
@@ -198,7 +200,7 @@ class _AssignBooksPageState extends State<AssignBooksPage> {
                         labelText: 'Select Book/Sample',
                         border: OutlineInputBorder(),
                       ),
-                      value: _selectedBook,
+                      initialValue: _selectedBook,
                       items:
                           _books.map((book) {
                             return DropdownMenuItem<Map<String, dynamic>>(

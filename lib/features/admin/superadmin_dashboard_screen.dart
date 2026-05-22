@@ -94,7 +94,7 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
               children: [
                 Expanded(
                   child: Card(
-                    color: Colors.deepPurple.withOpacity(0.1),
+                    color: Colors.deepPurple.withValues(alpha: 0.1),
                     elevation: 0,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -126,7 +126,7 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Card(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     elevation: 0,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -225,7 +225,7 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: Colors.deepPurple.withOpacity(0.1),
+          backgroundColor: Colors.deepPurple.withValues(alpha: 0.1),
           child: Icon(icon, color: Colors.deepPurple),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),

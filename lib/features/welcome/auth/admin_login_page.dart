@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
@@ -24,6 +27,16 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (error is SocketException) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+    if (error is TimeoutException) {
+      return 'Connection timed out. Please try again.';
+    }
+    return error.toString();
   }
 
   Future<void> _loginAdmin() async {
@@ -73,7 +86,10 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(_friendlyErrorMessage(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {

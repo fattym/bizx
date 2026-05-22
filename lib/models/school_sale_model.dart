@@ -63,7 +63,9 @@ class SchoolSaleModel {
       expectedValue: _toDouble(map['expected_value'] ?? map['expectedValue']),
       notes: map['notes'],
       stage: pipelineStageFromDb(map['sale_status'] ?? map['saleStatus']),
-      stageUpdatedAt: _parseDate(map['stage_updated_at'] ?? map['stageUpdatedAt']),
+      stageUpdatedAt: _parseDate(
+        map['stage_updated_at'] ?? map['stageUpdatedAt'],
+      ),
       expectedCloseDate: _parseDate(
         map['expected_close_date'] ?? map['expectedCloseDate'],
       ),

@@ -352,7 +352,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 drawVerticalLine: false,
                 getDrawingHorizontalLine:
                     (value) => FlLine(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       strokeWidth: 1,
                     ),
               ),
@@ -432,7 +432,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   dotData: const FlDotData(show: false),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: Colors.blue.withOpacity(0.2),
+                    color: Colors.blue.withValues(alpha: 0.2),
                   ),
                 ),
               ],
@@ -649,18 +649,20 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildSummaryCards(double width) {
-    final crossAxisCount = width >= 1200
-        ? 6
-        : width >= 900
+    final crossAxisCount =
+        width >= 1200
+            ? 6
+            : width >= 900
             ? 3
             : 2;
     return GridView.count(
       crossAxisCount: crossAxisCount,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: width >= 1200
-          ? 1.35
-          : width >= 900
+      childAspectRatio:
+          width >= 1200
+              ? 1.35
+              : width >= 900
               ? 1.4
               : 1.2,
       shrinkWrap: true,
@@ -722,10 +724,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildChartSection({
-    required String title,
-    required Widget chart,
-  }) {
+  Widget _buildChartSection({required String title, required Widget chart}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -754,7 +753,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               children: [
                 _insightChip('Manual', _manualSchools, Colors.indigo),
                 _insightChip('Google', _googleSchools, Colors.teal),
-                _insightChip('No Onboarder', _unattributedSchools, Colors.orange),
+                _insightChip(
+                  'No Onboarder',
+                  _unattributedSchools,
+                  Colors.orange,
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -799,15 +802,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         '$label: $value',
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(color: color, fontWeight: FontWeight.w600),
       ),
     );
   }

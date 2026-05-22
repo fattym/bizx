@@ -53,7 +53,7 @@ class _AdminAgentTrackerScreenState extends State<AdminAgentTrackerScreen> {
                 point: LatLng(lat, lng),
                 radius: radius,
                 useRadiusInMeter: true,
-                color: Colors.green.withOpacity(0.3),
+                color: Colors.green.withValues(alpha: 0.3),
                 borderColor: Colors.green,
                 borderStrokeWidth: 2,
               ),
@@ -145,7 +145,7 @@ class _AdminAgentTrackerScreenState extends State<AdminAgentTrackerScreen> {
                         labelText: 'Select Agent',
                         border: OutlineInputBorder(),
                       ),
-                      value: _selectedUserId,
+                      initialValue: _selectedUserId,
                       items:
                           _users.map((user) {
                             return DropdownMenuItem<String>(
@@ -273,36 +273,32 @@ class _AdminAgentTrackerScreenState extends State<AdminAgentTrackerScreen> {
                         const SizedBox(height: 8),
                         if (_routePlans.isEmpty)
                           const Text('No route plans assigned.'),
-                        ..._routePlans.map(
-                          (routePlan) {
-                            final routeDate =
-                                routePlan['route_date']?.toString() ?? '';
-                            final routeSchools =
-                                routePlan['school_ids'] is List
-                                    ? (routePlan['school_ids'] as List).length
-                                    : 0;
-                            return Card(
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.route,
-                                  color: Colors.orange,
-                                ),
-                                title: Text(
-                                  routePlan['title'] ?? 'Route Plan',
-                                ),
-                                subtitle: Text(
-                                  '${routePlan['notes'] ?? 'No notes'}\nRoute date: $routeDate',
-                                ),
-                                trailing: Text(
-                                  '$routeSchools stops',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                        ..._routePlans.map((routePlan) {
+                          final routeDate =
+                              routePlan['route_date']?.toString() ?? '';
+                          final routeSchools =
+                              routePlan['school_ids'] is List
+                                  ? (routePlan['school_ids'] as List).length
+                                  : 0;
+                          return Card(
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.route,
+                                color: Colors.orange,
+                              ),
+                              title: Text(routePlan['title'] ?? 'Route Plan'),
+                              subtitle: Text(
+                                '${routePlan['notes'] ?? 'No notes'}\nRoute date: $routeDate',
+                              ),
+                              trailing: Text(
+                                '$routeSchools stops',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        }),
                       ],
                     ),
           ),

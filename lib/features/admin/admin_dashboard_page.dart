@@ -20,6 +20,8 @@ import 'user_school_onboarding_page.dart';
 import 'sample_receipts_page.dart';
 import 'admin_crm_page.dart';
 import 'admin_social_pipeline_page.dart';
+import 'project_form_builder_page.dart';
+import 'project_form_responses_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -225,9 +227,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         leading:
             isDesktop
                 ? IconButton(
-                  icon: Icon(
-                    _isSidebarExpanded ? Icons.menu_open : Icons.menu,
-                  ),
+                  icon: Icon(_isSidebarExpanded ? Icons.menu_open : Icons.menu),
                   tooltip:
                       _isSidebarExpanded
                           ? 'Collapse sidebar'
@@ -258,10 +258,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isDesktop)
-            _buildSidebar(
-              context,
-              isCollapsed: !_isSidebarExpanded,
-            ),
+            _buildSidebar(context, isCollapsed: !_isSidebarExpanded),
           Expanded(
             child: FutureBuilder<_AdminDashboardData>(
               future: _dashboardFuture,
@@ -403,7 +400,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String?>(
-                              value: _selectedUserIdForTasks,
+                              initialValue: _selectedUserIdForTasks,
                               decoration: InputDecoration(
                                 labelText: 'Filter by Person',
                                 filled: true,
@@ -443,7 +440,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _taskTimeFilter,
+                              initialValue: _taskTimeFilter,
                               decoration: InputDecoration(
                                 labelText: 'Timeframe',
                                 filled: true,
@@ -476,7 +473,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _taskStatusFilter,
+                              initialValue: _taskStatusFilter,
                               decoration: InputDecoration(
                                 labelText: 'Status',
                                 filled: true,
@@ -697,17 +694,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _buildSidebarItem(
-                  context,
-                  Icons.dashboard,
-                  'Dashboard',
-                  () {
-                    if (MediaQuery.of(context).size.width < 800) {
-                      Navigator.pop(context);
-                    }
-                  },
-                  isCollapsed: isCollapsed,
-                ),
+                _buildSidebarItem(context, Icons.dashboard, 'Dashboard', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                }, isCollapsed: isCollapsed),
                 _buildSidebarItem(
                   context,
                   Icons.analytics_outlined,
@@ -788,8 +779,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder:
-                            (context) => const UserSchoolOnboardingPage(),
+                        builder: (context) => const UserSchoolOnboardingPage(),
                       ),
                     );
                   },
@@ -858,6 +848,40 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const AdminPipelineDataPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.assignment_outlined,
+                  'Project',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProjectFormBuilderPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.fact_check_outlined,
+                  'Project Responses',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProjectFormResponsesPage(),
                       ),
                     );
                   },
@@ -1027,7 +1051,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             SizedBox(
               width: 360,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
@@ -1047,7 +1074,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ...{for (var u in users) u.id: u}.values.map(
                         (u) => DropdownMenuItem(
                           value: u.id,
-                          child: Text('${u.fullName ?? u.email} (Role ${u.role})'),
+                          child: Text(
+                            '${u.fullName ?? u.email} (Role ${u.role})',
+                          ),
                         ),
                       ),
                     ],
@@ -1323,7 +1352,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     color: AppColors.primaryGreen,
                   ),
                   title: const Text('Phone Number'),
-                  subtitle: Text(school.phone ?? 'Not provided'),
+                  subtitle: Text(school.phone.isEmpty ? 'Not provided' : school.phone),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const Divider(),
@@ -1333,7 +1362,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     color: AppColors.primaryGreen,
                   ),
                   title: const Text('County'),
-                  subtitle: Text(school.county ?? 'Not provided'),
+                  subtitle: Text(school.county.isEmpty ? 'Not provided' : school.county),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const Divider(),
@@ -1486,7 +1515,7 @@ class _UserRoleCard extends StatelessWidget {
                     if (initialRole == null)
                       DropdownMenuItem(
                         value: null,
-                        child: Text('${roleValue ?? "None"} - Unknown'),
+                        child: Text('$roleValue - Unknown'),
                       ),
                     const DropdownMenuItem(value: 1, child: Text('1 - Admin')),
                     const DropdownMenuItem(

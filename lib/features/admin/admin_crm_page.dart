@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
+import '../profile/crm_notification_service.dart';
 
 class AdminCrmPage extends StatefulWidget {
   const AdminCrmPage({super.key});
@@ -10,6 +12,7 @@ class AdminCrmPage extends StatefulWidget {
 
 class _AdminCrmPageState extends State<AdminCrmPage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _schoolController = TextEditingController();
   final TextEditingController _contactController = TextEditingController();
@@ -61,16 +64,16 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
       _schoolsById
         ..clear()
         ..addEntries(
-          List<Map<String, dynamic>>.from(schoolsRes).map(
-            (s) => MapEntry(s['id'].toString(), s),
-          ),
+          List<Map<String, dynamic>>.from(
+            schoolsRes,
+          ).map((s) => MapEntry(s['id'].toString(), s)),
         );
       _usersById
         ..clear()
         ..addEntries(
-          List<Map<String, dynamic>>.from(usersRes).map(
-            (u) => MapEntry(u['id'].toString(), u),
-          ),
+          List<Map<String, dynamic>>.from(
+            usersRes,
+          ).map((u) => MapEntry(u['id'].toString(), u)),
         );
 
       _records
@@ -111,9 +114,11 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        await CrmNotificationService.showIfEnabled(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load CRM data: $e')));
+          message: 'Failed to load CRM data: $e',
+          backgroundColor: Colors.red,
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -191,7 +196,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                         _field(_contactController, 'Contact Person'),
                         _field(_phoneController, 'Phone'),
                         DropdownButtonFormField<String>(
-                          value: selectedStage,
+                          initialValue: selectedStage,
                           items:
                               _stages
                                   .where((stage) => stage != 'All')
@@ -252,23 +257,33 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                               _ownerController.text.trim().toLowerCase(),
                           orElse: () => const {},
                         );
-                        _supabase.from('school_sales').insert({
-                          'school_id': schoolEntry['id'],
-                          'agent_id': ownerEntry['id'],
-                          'package_name': 'CRM Opportunity',
-                          'expected_value': parsed,
-                          'notes': _notesController.text.trim(),
-                          'sale_status': _toDbStage(selectedStage),
-                          'probability': _probabilityByStage(selectedStage),
-                          'next_action': 'Follow up call',
-                          'next_action_date':
-                              DateTime.now().add(const Duration(days: 2)).toIso8601String(),
-                        }).then((_) async {
-                          if (mounted) {
-                            Navigator.pop(context, true);
-                            await _loadCrmData();
-                          }
-                        });
+                        _dbService
+                            .insertWithOfflineQueue(
+                              table: 'school_sales',
+                              payload: {
+                                'school_id': schoolEntry['id'],
+                                'agent_id': ownerEntry['id'],
+                                'package_name': 'CRM Opportunity',
+                                'expected_value': parsed,
+                                'notes': _notesController.text.trim(),
+                                'sale_status': _toDbStage(selectedStage),
+                                'probability': _probabilityByStage(
+                                  selectedStage,
+                                ),
+                                'next_action': 'Follow up call',
+                                'next_action_date':
+                                    DateTime.now()
+                                        .add(const Duration(days: 2))
+                                        .toIso8601String(),
+                              },
+                            )
+                            .then((_) {
+                              if (mounted) {
+                                // ignore: use_build_context_synchronously
+                                Navigator.pop(context, true);
+                                _loadCrmData();
+                              }
+                            });
                       },
                       child: const Text('Save'),
                     ),
@@ -278,8 +293,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
     );
 
     if (created == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CRM record added')),
+      await CrmNotificationService.showIfEnabled(
+        context,
+        message: 'CRM record added',
       );
     }
   }
@@ -308,7 +324,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                         _field(_contactController, 'Contact Person'),
                         _field(_phoneController, 'Phone'),
                         DropdownButtonFormField<String>(
-                          value: selectedStage,
+                          initialValue: selectedStage,
                           items:
                               _stages
                                   .where((stage) => stage != 'All')
@@ -356,10 +372,13 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                               'notes': _notesController.text.trim(),
                               'sale_status': _toDbStage(selectedStage),
                               'probability': _probabilityByStage(selectedStage),
-                              'stage_updated_at': DateTime.now().toIso8601String(),
+                              'stage_updated_at':
+                                  DateTime.now().toIso8601String(),
                               'next_action': 'Follow up call',
                               'next_action_date':
-                                  DateTime.now().add(const Duration(days: 2)).toIso8601String(),
+                                  DateTime.now()
+                                      .add(const Duration(days: 2))
+                                      .toIso8601String(),
                             })
                             .eq('id', record.id)
                             .then((_) async {
@@ -418,176 +437,209 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         icon: const Icon(Icons.add),
         label: const Text('New Record'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _MetricTile(label: 'Total Records', value: '${records.length}'),
-                _MetricTile(
-                  label: 'Pipeline Value',
-                  value: 'KES ${_pipelineValue.toStringAsFixed(0)}',
-                ),
-                _MetricTile(
-                  label: 'Weighted Forecast',
-                  value: 'KES ${_weightedForecast.toStringAsFixed(0)}',
-                ),
-                _MetricTile(label: 'Leads', value: '${_countByStage('Lead')}'),
-                _MetricTile(
-                  label: 'Proposals',
-                  value: '${_countByStage('Proposal')}',
-                ),
-                _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Search by school, contact, owner or notes',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _MetricTile(
+                          label: 'Total Records',
+                          value: '${records.length}',
+                        ),
+                        _MetricTile(
+                          label: 'Pipeline Value',
+                          value: 'KES ${_pipelineValue.toStringAsFixed(0)}',
+                        ),
+                        _MetricTile(
+                          label: 'Weighted Forecast',
+                          value: 'KES ${_weightedForecast.toStringAsFixed(0)}',
+                        ),
+                        _MetricTile(
+                          label: 'Leads',
+                          value: '${_countByStage('Lead')}',
+                        ),
+                        _MetricTile(
+                          label: 'Proposals',
+                          value: '${_countByStage('Proposal')}',
+                        ),
+                        _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
+                      ],
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedStage,
-                    items:
-                        _stages
-                            .map(
-                              (stage) => DropdownMenuItem(
-                                value: stage,
-                                child: Text(stage),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _selectedStage = value);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Stage',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child:
-                  records.isEmpty
-                      ? const Center(child: Text('No CRM records match filters'))
-                      : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SingleChildScrollView(
-                          child: DataTable(
-                            columns: const [
-                              DataColumn(label: Text('School')),
-                              DataColumn(label: Text('Contact')),
-                              DataColumn(label: Text('Phone')),
-                              DataColumn(label: Text('Stage')),
-                              DataColumn(label: Text('Owner')),
-                              DataColumn(label: Text('Deal Value')),
-                              DataColumn(label: Text('Prob%')),
-                              DataColumn(label: Text('Next Action')),
-                              DataColumn(label: Text('Risk')),
-                              DataColumn(label: Text('Last Contact')),
-                              DataColumn(label: Text('Actions')),
-                            ],
-                            rows:
-                                records
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'Search by school, contact, owner or notes',
+                              prefixIcon: Icon(Icons.search),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 180,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedStage,
+                            items:
+                                _stages
                                     .map(
-                                      (record) => DataRow(
-                                        cells: [
-                                          DataCell(Text(record.school)),
-                                          DataCell(Text(record.contact)),
-                                          DataCell(Text(record.phone)),
-                                          DataCell(_StageChip(stage: record.stage)),
-                                          DataCell(Text(record.owner)),
-                                          DataCell(
-                                            Text(
-                                              'KES ${record.dealValue.toStringAsFixed(0)}',
-                                            ),
-                                          ),
-                                          DataCell(Text('${record.probability}%')),
-                                          DataCell(
-                                            Text(
-                                              '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text(
-                                              record.riskLevel,
-                                              style: TextStyle(
-                                                color: record.riskLevel == 'High'
-                                                    ? Colors.red
-                                                    : record.riskLevel == 'Medium'
-                                                    ? Colors.orange
-                                                    : Colors.green,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text(
-                                              '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day.toString().padLeft(2, '0')}',
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Row(
-                                              children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.edit),
-                                                  tooltip: 'Edit',
-                                                  onPressed:
-                                                      () => _openEditDialog(
-                                                        record,
-                                                      ),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete_outline,
-                                                  ),
-                                                  tooltip: 'Delete',
-                                                  onPressed: () {
-                                                    _supabase
-                                                        .from('school_sales')
-                                                        .delete()
-                                                        .eq('id', record.id)
-                                                        .then((_) {
-                                                          _loadCrmData();
-                                                        });
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
+                                      (stage) => DropdownMenuItem(
+                                        value: stage,
+                                        child: Text(stage),
                                       ),
                                     )
                                     .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _selectedStage = value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Stage',
+                              border: OutlineInputBorder(),
+                            ),
                           ),
                         ),
-                      ),
-            ),
-          ],
-        ),
-      ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child:
+                          records.isEmpty
+                              ? const Center(
+                                child: Text('No CRM records match filters'),
+                              )
+                              : SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SingleChildScrollView(
+                                  child: DataTable(
+                                    columns: const [
+                                      DataColumn(label: Text('School')),
+                                      DataColumn(label: Text('Contact')),
+                                      DataColumn(label: Text('Phone')),
+                                      DataColumn(label: Text('Stage')),
+                                      DataColumn(label: Text('Owner')),
+                                      DataColumn(label: Text('Deal Value')),
+                                      DataColumn(label: Text('Prob%')),
+                                      DataColumn(label: Text('Next Action')),
+                                      DataColumn(label: Text('Risk')),
+                                      DataColumn(label: Text('Last Contact')),
+                                      DataColumn(label: Text('Actions')),
+                                    ],
+                                    rows:
+                                        records
+                                            .map(
+                                              (record) => DataRow(
+                                                cells: [
+                                                  DataCell(Text(record.school)),
+                                                  DataCell(
+                                                    Text(record.contact),
+                                                  ),
+                                                  DataCell(Text(record.phone)),
+                                                  DataCell(
+                                                    _StageChip(
+                                                      stage: record.stage,
+                                                    ),
+                                                  ),
+                                                  DataCell(Text(record.owner)),
+                                                  DataCell(
+                                                    Text(
+                                                      'KES ${record.dealValue.toStringAsFixed(0)}',
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '${record.probability}%',
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      record.riskLevel,
+                                                      style: TextStyle(
+                                                        color:
+                                                            record.riskLevel ==
+                                                                    'High'
+                                                                ? Colors.red
+                                                                : record.riskLevel ==
+                                                                    'Medium'
+                                                                ? Colors.orange
+                                                                : Colors.green,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day.toString().padLeft(2, '0')}',
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Row(
+                                                      children: [
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                            Icons.edit,
+                                                          ),
+                                                          tooltip: 'Edit',
+                                                          onPressed:
+                                                              () =>
+                                                                  _openEditDialog(
+                                                                    record,
+                                                                  ),
+                                                        ),
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .delete_outline,
+                                                          ),
+                                                          tooltip: 'Delete',
+                                                          onPressed: () {
+                                                            _supabase
+                                                                .from(
+                                                                  'school_sales',
+                                                                )
+                                                                .delete()
+                                                                .eq(
+                                                                  'id',
+                                                                  record.id,
+                                                                )
+                                                                .then((_) {
+                                                                  _loadCrmData();
+                                                                });
+                                                          },
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                            .toList(),
+                                  ),
+                                ),
+                              ),
+                    ),
+                  ],
+                ),
+              ),
     );
   }
 

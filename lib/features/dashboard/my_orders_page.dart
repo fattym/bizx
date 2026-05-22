@@ -139,7 +139,10 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       style: const TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 20),
-                    _detailRow('Payment Method', _paymentLabel(order.paymentMethod)),
+                    _detailRow(
+                      'Payment Method',
+                      _paymentLabel(order.paymentMethod),
+                    ),
                     _detailRow(
                       'Payment Ref',
                       order.paymentReference ?? 'Not provided',
@@ -255,10 +258,10 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   }
 
   Widget _statusBadge(String status) {
-    final statusLabel = status.toLowerCase() == 'paid' ||
-            status.toLowerCase() == 'completed'
-        ? 'Completed'
-        : status.toLowerCase() == 'draft'
+    final statusLabel =
+        status.toLowerCase() == 'paid' || status.toLowerCase() == 'completed'
+            ? 'Completed'
+            : status.toLowerCase() == 'draft'
             ? 'Drafts'
             : 'Pending';
 
@@ -266,7 +269,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

@@ -207,6 +207,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       capturedAt: DateTime.now(),
     );
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text("${_dealerType ?? "School"} onboarding collected"),
@@ -222,15 +223,12 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       if (_samplesLeft == 'Yes' &&
           (uploadedSampleProof['proofUrl'] ?? '').trim().isNotEmpty) {
         try {
-          await Supabase.instance.client.from('schools').upsert({
-            ...school.toMap(),
-            'captured_by': null,
-          });
           await _dbService.recordSampleDistribution(
             schoolId: school.id,
-            sampleName: _selectedSampleBook?.trim().isNotEmpty == true
-                ? _selectedSampleBook!.trim()
-                : 'Sample Book',
+            sampleName:
+                _selectedSampleBook?.trim().isNotEmpty == true
+                    ? _selectedSampleBook!.trim()
+                    : 'Sample Book',
             sampleCategory: 'Onboarding',
             quantity: 1,
             notes: 'Captured during onboarding',
@@ -321,7 +319,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -440,7 +440,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _selectedCounty,
+            initialValue: _selectedCounty,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: "County",
@@ -465,7 +465,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _dealerType,
+            initialValue: _dealerType,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: "Client Type",
@@ -833,7 +833,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }) {
     return DropdownButtonFormField<String>(
       isExpanded: true,
-      value: value,
+      initialValue: value,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1009,7 +1009,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             decoration: BoxDecoration(
               color:
                   hasLocation
-                      ? AppColors.primaryGreen.withOpacity(0.08)
+                      ? AppColors.primaryGreen.withValues(alpha: 0.08)
                       : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
@@ -1029,8 +1029,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                 ),
                 if (hasLocation) ...[
                   const SizedBox(height: 8),
-                  Text("Latitude: ${latitude!.toStringAsFixed(6)}"),
-                  Text("Longitude: ${longitude!.toStringAsFixed(6)}"),
+                  Text("Latitude: ${latitude.toStringAsFixed(6)}"),
+                  Text("Longitude: ${longitude.toStringAsFixed(6)}"),
                 ],
               ],
             ),

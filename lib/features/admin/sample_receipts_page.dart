@@ -17,7 +17,6 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
   String? _error;
   List<Map<String, dynamic>> _receiptRows = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _schoolRows = <Map<String, dynamic>>[];
-  List<_RoiRow> _roiRows = <_RoiRow>[];
   DateTimeRange? _dateRange;
   String? _countyFilter;
 
@@ -63,16 +62,6 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       final receiptRows = List<Map<String, dynamic>>.from(
         (receiptsRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
       );
-      final roiRows = _buildRoiRows(
-        receiptRows,
-        List<Map<String, dynamic>>.from(
-          (ordersRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        ),
-        List<Map<String, dynamic>>.from(
-          (salesRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        ),
-      );
-
       if (!mounted) return;
       setState(() {
         _receiptRows = receiptRows;
@@ -85,7 +74,6 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         _salesCache = List<Map<String, dynamic>>.from(
           (salesRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
         );
-        _roiRows = roiRows;
         _isLoading = false;
       });
     } catch (e) {
@@ -104,57 +92,71 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         if ((row['id']?.toString() ?? '').isNotEmpty) row['id'].toString(): row,
     };
 
-    final filteredReceipts = _receiptRows.where((row) {
-      final schoolId = row['school_id']?.toString() ?? '';
-      final school = schoolById[schoolId];
-      if (_countyFilter != null && _countyFilter!.trim().isNotEmpty) {
-        final county = school?['county']?.toString() ?? '';
-        if (county.toLowerCase() != _countyFilter!.toLowerCase()) return false;
-      }
-      if (_dateRange != null) {
-        final raw = row['distributed_at']?.toString();
-        final when = raw == null ? null : DateTime.tryParse(raw);
-        if (when == null) return false;
-        final start = DateTime(
-          _dateRange!.start.year,
-          _dateRange!.start.month,
-          _dateRange!.start.day,
-        );
-        final end = DateTime(
-          _dateRange!.end.year,
-          _dateRange!.end.month,
-          _dateRange!.end.day,
-          23,
-          59,
-          59,
-        );
-        if (when.isBefore(start) || when.isAfter(end)) return false;
-      }
-      return true;
-    }).toList();
+    final filteredReceipts =
+        _receiptRows.where((row) {
+          final schoolId = row['school_id']?.toString() ?? '';
+          final school = schoolById[schoolId];
+          if (_countyFilter != null && _countyFilter!.trim().isNotEmpty) {
+            final county = school?['county']?.toString() ?? '';
+            if (county.toLowerCase() != _countyFilter!.toLowerCase()) {
+              return false;
+            }
+          }
+          if (_dateRange != null) {
+            final raw = row['distributed_at']?.toString();
+            final when = raw == null ? null : DateTime.tryParse(raw);
+            if (when == null) return false;
+            final start = DateTime(
+              _dateRange!.start.year,
+              _dateRange!.start.month,
+              _dateRange!.start.day,
+            );
+            final end = DateTime(
+              _dateRange!.end.year,
+              _dateRange!.end.month,
+              _dateRange!.end.day,
+              23,
+              59,
+              59,
+            );
+            if (when.isBefore(start) || when.isAfter(end)) return false;
+          }
+          return true;
+        }).toList();
 
-    final filteredSchools = _schoolRows.where((row) {
-      if (_countyFilter == null || _countyFilter!.trim().isEmpty) return true;
-      final county = row['county']?.toString() ?? '';
-      return county.toLowerCase() == _countyFilter!.toLowerCase();
-    }).toList();
+    final filteredSchools =
+        _schoolRows.where((row) {
+          if (_countyFilter == null || _countyFilter!.trim().isEmpty) {
+            return true;
+          }
+          final county = row['county']?.toString() ?? '';
+          return county.toLowerCase() == _countyFilter!.toLowerCase();
+        }).toList();
 
-    final schoolPhotos = filteredSchools
-        .where((row) => (row['photo_url']?.toString().trim().isNotEmpty ?? false))
-        .toList();
-    final sampleProofPhotos = filteredSchools
-        .where((row) =>
-            (row['sample_proof_url']?.toString().trim().isNotEmpty ?? false))
-        .toList();
-    final stampedReceipts = filteredReceipts
-        .where((row) =>
-            (row['stamped_receipt_url']?.toString().trim().isNotEmpty ?? false))
-        .toList();
-    final roiRows = _buildRoiRows(
-      filteredReceipts,
-      _ordersCache,
-      _salesCache,
-    );
+    final schoolPhotos =
+        filteredSchools
+            .where(
+              (row) =>
+                  (row['photo_url']?.toString().trim().isNotEmpty ?? false),
+            )
+            .toList();
+    final sampleProofPhotos =
+        filteredSchools
+            .where(
+              (row) =>
+                  (row['sample_proof_url']?.toString().trim().isNotEmpty ??
+                      false),
+            )
+            .toList();
+    final stampedReceipts =
+        filteredReceipts
+            .where(
+              (row) =>
+                  (row['stamped_receipt_url']?.toString().trim().isNotEmpty ??
+                      false),
+            )
+            .toList();
+    final roiRows = _buildRoiRows(filteredReceipts, _ordersCache, _salesCache);
 
     return DefaultTabController(
       length: 3,
@@ -172,44 +174,49 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
             ],
           ),
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
+        body:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
                 ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red),
                     ),
-                  )
+                  ),
+                )
                 : Column(
-                    children: [
-                      _buildFiltersBar(),
-                      _buildRoiSection(roiRows),
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: _load,
-                          child: TabBarView(
-                            children: [
-                              _buildSchoolPhotoGrid(schoolPhotos),
-                              _buildSampleProofGrid(sampleProofPhotos),
-                              _buildReceiptsList(stampedReceipts),
-                            ],
-                          ),
+                  children: [
+                    _buildFiltersBar(),
+                    _buildRoiSection(roiRows),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _load,
+                        child: TabBarView(
+                          children: [
+                            _buildSchoolPhotoGrid(schoolPhotos),
+                            _buildSampleProofGrid(sampleProofPhotos),
+                            _buildReceiptsList(stampedReceipts),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
       ),
     );
   }
 
   Widget _buildFiltersBar() {
-    final counties = _schoolRows
-        .map((e) => (e['county']?.toString() ?? '').trim())
-        .where((c) => c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final counties =
+        _schoolRows
+            .map((e) => (e['county']?.toString() ?? '').trim())
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
       child: Wrap(
@@ -228,7 +235,7 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
           SizedBox(
             width: 210,
             child: DropdownButtonFormField<String?>(
-              value: _countyFilter,
+              initialValue: _countyFilter,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'County',
@@ -241,10 +248,7 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                   child: Text('All Counties'),
                 ),
                 ...counties.map(
-                  (c) => DropdownMenuItem<String?>(
-                    value: c,
-                    child: Text(c),
-                  ),
+                  (c) => DropdownMenuItem<String?>(value: c, child: Text(c)),
                 ),
               ],
               onChanged: (value) => setState(() => _countyFilter = value),
@@ -318,7 +322,10 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                 ),
                 trailing: Text(
                   'Won: ${row.wonValue.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -346,11 +353,7 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         final url = row['photo_url']?.toString() ?? '';
         final schoolName = row['name']?.toString() ?? 'School';
         final county = row['county']?.toString() ?? 'Unknown County';
-        return _photoCard(
-          url: url,
-          title: schoolName,
-          subtitle: county,
-        );
+        return _photoCard(url: url, title: schoolName, subtitle: county);
       },
     );
   }
@@ -392,7 +395,8 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       itemCount: rows.length,
       itemBuilder: (context, index) {
         final row = rows[index];
-        final schoolName = row['schools']?['name']?.toString() ?? 'Unknown School';
+        final schoolName =
+            row['schools']?['name']?.toString() ?? 'Unknown School';
         final sampleName = row['sample_name']?.toString() ?? 'Sample';
         final qty = row['quantity']?.toString() ?? '1';
         final url = row['stamped_receipt_url']?.toString() ?? '';
@@ -418,12 +422,13 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                     height: 180,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 120,
-                      color: Colors.grey.shade200,
-                      alignment: Alignment.center,
-                      child: const Text('Could not load receipt image'),
-                    ),
+                    errorBuilder:
+                        (_, __, ___) => Container(
+                          height: 120,
+                          color: Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: const Text('Could not load receipt image'),
+                        ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -457,11 +462,12 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                 url,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey.shade200,
-                  alignment: Alignment.center,
-                  child: const Text('Could not load'),
-                ),
+                errorBuilder:
+                    (_, __, ___) => Container(
+                      color: Colors.grey.shade200,
+                      alignment: Alignment.center,
+                      child: const Text('Could not load'),
+                    ),
               ),
             ),
             Padding(
@@ -495,11 +501,8 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
   void _openPreview(String url) {
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        child: InteractiveViewer(
-          child: Image.network(url),
-        ),
-      ),
+      builder:
+          (_) => Dialog(child: InteractiveViewer(child: Image.network(url))),
     );
   }
 
@@ -537,7 +540,10 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       final qty = (row['quantity'] as num?)?.toInt() ?? 1;
       final schoolId = row['school_id']?.toString() ?? '';
 
-      final acc = byAgent.putIfAbsent(agentId, () => _RoiAccumulator(displayName));
+      final acc = byAgent.putIfAbsent(
+        agentId,
+        () => _RoiAccumulator(displayName),
+      );
       acc.samples += qty;
       if (schoolId.isNotEmpty) {
         acc.schools.add(schoolId);

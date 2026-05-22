@@ -31,8 +31,8 @@ class SchoolActionMenuPage extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.primaryGreen.withOpacity(0.95),
-                  AppColors.primaryGreen.withOpacity(0.7),
+                  AppColors.primaryGreen.withValues(alpha: 0.95),
+                  AppColors.primaryGreen.withValues(alpha: 0.7),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -58,10 +58,7 @@ class SchoolActionMenuPage extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   'Recommended action: $actionPoint',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -80,7 +77,7 @@ class SchoolActionMenuPage extends StatelessWidget {
               ],
             ),
           ),
-                const SizedBox(height: 24),
+          const SizedBox(height: 24),
           if (_hasPhoneNumber()) ...[
             _ActionCard(
               title: 'Message on WhatsApp',
@@ -127,8 +124,7 @@ class SchoolActionMenuPage extends StatelessWidget {
           ),
           _ActionCard(
             title: 'Sales Pipeline & Checkout',
-            subtitle:
-                'Update stage, next action, and create order when ready.',
+            subtitle: 'Update stage, next action, and create order when ready.',
             icon: Icons.point_of_sale,
             color: Colors.green,
             onTap: () {
@@ -161,8 +157,8 @@ class SchoolActionMenuPage extends StatelessWidget {
 
   Widget _infoChip(String label, String? value) {
     return Chip(
-      backgroundColor: Colors.white.withOpacity(0.16),
-      side: BorderSide(color: Colors.white.withOpacity(0.2)),
+      backgroundColor: Colors.white.withValues(alpha: 0.16),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
       label: Text(
         '$label: ${value?.isNotEmpty == true ? value : "N/A"}',
         style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -216,7 +212,7 @@ class SchoolActionMenuPage extends StatelessWidget {
     final schoolName = school['name']?.toString() ?? 'school';
     final actionPoint = _deriveActionPoint();
     final message =
-        'Hello ${schoolName}, I am reaching out from Dehus regarding the $actionPoint action. '
+        'Hello $schoolName, I am reaching out from Dehus regarding the $actionPoint action. '
         'Please let me know the best time to continue.';
     final deepLink = Uri.parse(
       'whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}',
@@ -236,9 +232,9 @@ class SchoolActionMenuPage extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!openedWeb && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp.')));
     }
   }
 }
@@ -265,12 +261,12 @@ class _ActionCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: color.withOpacity(0.18)),
+        side: BorderSide(color: color.withValues(alpha: 0.18)),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
+          backgroundColor: color.withValues(alpha: 0.12),
           child: Icon(icon, color: color),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),

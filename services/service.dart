@@ -11,9 +11,7 @@ Future<void> createFarmer(Map<String, dynamic> farmerData) async {
     body: json.encode(farmerData), // Convert Dart Map to JSON String
   );
 
-  if (response.statusCode == 201) {
-    print("Successfully saved to custom backend");
-  } else {
+  if (response.statusCode != 201) {
     throw Exception("Failed to sync with API");
   }
 }

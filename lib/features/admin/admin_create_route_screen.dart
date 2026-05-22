@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
 
 class AdminCreateRouteScreen extends StatefulWidget {
   const AdminCreateRouteScreen({super.key});
@@ -10,6 +11,7 @@ class AdminCreateRouteScreen extends StatefulWidget {
 
 class _AdminCreateRouteScreenState extends State<AdminCreateRouteScreen> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
 
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
@@ -122,7 +124,12 @@ class _AdminCreateRouteScreenState extends State<AdminCreateRouteScreen> {
           }).toList();
 
       // Bulk insert all created route tasks
-      await _supabase.from('tasks').insert(tasksToInsert);
+      for (final taskPayload in tasksToInsert) {
+        await _dbService.insertWithOfflineQueue(
+          table: 'tasks',
+          payload: Map<String, dynamic>.from(taskPayload),
+        );
+      }
 
       final routeDate = _selectedDate!.toIso8601String().split('T').first;
       final routeSchoolIds = _selectedSchoolIds.toList();
@@ -134,15 +141,18 @@ class _AdminCreateRouteScreenState extends State<AdminCreateRouteScreen> {
             return school['name'] ?? 'Unknown School';
           }).toList();
 
-      await _supabase.from('route_plans').insert({
-        'title': 'Route Plan for $routeDate',
-        'route_date': routeDate,
-        'assigned_to': _selectedUserId,
-        'school_ids': routeSchoolIds,
-        'notes': 'Planned stops: ${routeSchoolNames.join(', ')}',
-        'status': 'assigned',
-        'created_by': _supabase.auth.currentUser?.id,
-      });
+      await _dbService.insertWithOfflineQueue(
+        table: 'route_plans',
+        payload: {
+          'title': 'Route Plan for $routeDate',
+          'route_date': routeDate,
+          'assigned_to': _selectedUserId,
+          'school_ids': routeSchoolIds,
+          'notes': 'Planned stops: ${routeSchoolNames.join(', ')}',
+          'status': 'assigned',
+          'created_by': _supabase.auth.currentUser?.id,
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -181,7 +191,7 @@ class _AdminCreateRouteScreenState extends State<AdminCreateRouteScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<int>(
-                            value: _selectedRoleFilter,
+                            initialValue: _selectedRoleFilter,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
                               isDense: true,
@@ -222,7 +232,7 @@ class _AdminCreateRouteScreenState extends State<AdminCreateRouteScreen> {
                         labelText: 'Select User',
                         border: OutlineInputBorder(),
                       ),
-                      value: _selectedUserId,
+                      initialValue: _selectedUserId,
                       items:
                           _filteredUsers.map((user) {
                             return DropdownMenuItem<String>(

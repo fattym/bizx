@@ -98,8 +98,12 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
                             _fullNameController,
                             validator: (value) {
                               final trimmed = value?.trim() ?? '';
-                              if (trimmed.isEmpty) return 'Full name is required';
-                              if (trimmed.length < 2) return 'Enter a valid full name';
+                              if (trimmed.isEmpty) {
+                                return 'Full name is required';
+                              }
+                              if (trimmed.length < 2) {
+                                return 'Enter a valid full name';
+                              }
                               return null;
                             },
                           ),
@@ -111,9 +115,16 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
                             keyboardType: TextInputType.phone,
                             validator: (value) {
                               final trimmed = value?.trim() ?? '';
-                              if (trimmed.isEmpty) return 'Phone number is required';
-                              final digits = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
-                              if (digits.length < 10) return 'Enter a valid phone number';
+                              if (trimmed.isEmpty) {
+                                return 'Phone number is required';
+                              }
+                              final digits = trimmed.replaceAll(
+                                RegExp(r'[^0-9+]'),
+                                '',
+                              );
+                              if (digits.length < 10) {
+                                return 'Enter a valid phone number';
+                              }
                               return null;
                             },
                           ),
@@ -126,8 +137,12 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
                             validator: (value) {
                               final trimmed = value?.trim() ?? '';
                               if (trimmed.isEmpty) return 'Email is required';
-                              final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                              if (!emailPattern.hasMatch(trimmed)) return 'Enter a valid email';
+                              final emailPattern = RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              );
+                              if (!emailPattern.hasMatch(trimmed)) {
+                                return 'Enter a valid email';
+                              }
                               return null;
                             },
                           ),
@@ -145,19 +160,22 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
+                            child:
+                                _isLoading
+                                    ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                    : const Text(
+                                      "CREATE ACCOUNT",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  )
-                                : const Text(
-                                    "CREATE ACCOUNT",
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
                           ),
                         ],
                       ),
@@ -209,7 +227,9 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
       validator: (value) {
         final password = value ?? '';
         if (password.isEmpty) return 'Password is required';
-        if (password.length < 6) return 'Password must be at least 6 characters';
+        if (password.length < 6) {
+          return 'Password must be at least 6 characters';
+        }
         return null;
       },
       decoration: InputDecoration(

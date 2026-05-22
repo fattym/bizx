@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/colors.dart';
+import '../database/database_service.dart';
 
 class CollectDebtPage extends StatefulWidget {
   const CollectDebtPage({super.key, required this.school});
@@ -13,7 +13,7 @@ class CollectDebtPage extends StatefulWidget {
 }
 
 class _CollectDebtPageState extends State<CollectDebtPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final DatabaseService _dbService = DatabaseService();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _referenceController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
@@ -54,24 +54,24 @@ class _CollectDebtPageState extends State<CollectDebtPage> {
 
     setState(() => _isSaving = true);
     try {
-      await _supabase.from('debt_collections').insert({
-        'school_id': schoolId,
-        'collected_by': _supabase.auth.currentUser?.id,
-        'amount': amount,
-        'payment_method': _paymentMethod,
-        'payment_reference': _referenceController.text.trim().isEmpty
-            ? null
-            : _referenceController.text.trim(),
-        'notes': _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-        'collected_at': DateTime.now().toIso8601String(),
-      });
+      await _dbService.saveDebtCollection(
+        schoolId: schoolId,
+        amount: amount,
+        paymentMethod: _paymentMethod,
+        paymentReference:
+            _referenceController.text.trim().isEmpty
+                ? null
+                : _referenceController.text.trim(),
+        notes:
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Debt collection saved.'),
+          content: Text('Debt collection saved (or queued offline).'),
           backgroundColor: AppColors.primaryGreen,
         ),
       );
@@ -116,7 +116,7 @@ class _CollectDebtPageState extends State<CollectDebtPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _paymentMethod,
+            initialValue: _paymentMethod,
             items: const [
               DropdownMenuItem(value: 'cash', child: Text('Cash')),
               DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),

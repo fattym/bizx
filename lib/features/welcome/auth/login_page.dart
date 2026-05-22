@@ -1,9 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'register_page.dart';
 import 'admin_login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/constants/colors.dart';
-import '../../database/database_service.dart';
 import '../../admin/admin_dashboard_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../admin/admin_dashboard_screen.dart';
@@ -23,13 +25,22 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  final DatabaseService _dbService = DatabaseService();
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (error is SocketException) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+    if (error is TimeoutException) {
+      return 'Connection timed out. Please try again.';
+    }
+    return error.toString();
   }
 
   Future<void> _loginUser() async {
@@ -61,11 +72,11 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
             5;
 
         // DEBUG: Check what values are being read upon login
-        print('--- LOGIN DEBUG ---');
-        print('Auth Metadata Role: $metadataRole');
-        print('Public DB Role: $dbRole');
-        print('Final Resolved Role: $resolvedRole');
-        print('-------------------');
+        debugPrint('--- LOGIN DEBUG ---');
+        debugPrint('Auth Metadata Role: $metadataRole');
+        debugPrint('Public DB Role: $dbRole');
+        debugPrint('Final Resolved Role: $resolvedRole');
+        debugPrint('-------------------');
 
         Widget destination;
         switch (resolvedRole) {
@@ -105,7 +116,10 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(_friendlyErrorMessage(e)),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -232,7 +246,9 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
                             width: double.infinity,
                             child: OutlinedButton.icon(
                               onPressed: _openAdminLogin,
-                              icon: const Icon(Icons.admin_panel_settings_outlined),
+                              icon: const Icon(
+                                Icons.admin_panel_settings_outlined,
+                              ),
                               label: const Text('Login as Admin'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primaryPale,
@@ -240,7 +256,9 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
                                   color: AppColors.primaryLight,
                                   width: 1.5,
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),

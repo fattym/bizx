@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:typed_data';
 import 'dart:io';
 
 import '../../core/constants/colors.dart';
@@ -159,9 +158,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         _recoveredLostPhoto = lostData.file;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recovered a previously captured photo.'),
-        ),
+        const SnackBar(content: Text('Recovered a previously captured photo.')),
       );
     } catch (e) {
       debugPrint('Failed to recover lost camera data: $e');
@@ -239,10 +236,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
               ? 'Could not upload stamped receipt photo. Try again.'
               : 'Photo upload failed: ${receiptUpload['error']}';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(reason),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(reason), backgroundColor: Colors.red),
       );
       return;
     }
@@ -296,6 +290,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       return;
     }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${sample.name} assigned to ${school.name}'),
@@ -315,6 +310,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       _recoveredLostPhoto = null;
     }
 
+    if (!mounted) return null;
     final result = await showDialog<XFile?>(
       context: context,
       barrierDismissible: false,
@@ -420,7 +416,9 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                     });
                   },
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: Text(capturedPhoto == null ? 'Capture Photo' : 'Retake'),
+                  label: Text(
+                    capturedPhoto == null ? 'Capture Photo' : 'Retake',
+                  ),
                 ),
                 ElevatedButton(
                   onPressed:
@@ -459,14 +457,16 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
 
       for (final bucket in candidateBuckets) {
         try {
-          await supabase.storage.from(bucket).uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: 'image/$fileExt',
-            ),
-          );
+          await supabase.storage
+              .from(bucket)
+              .uploadBinary(
+                fileName,
+                bytes,
+                fileOptions: FileOptions(
+                  upsert: true,
+                  contentType: 'image/$fileExt',
+                ),
+              );
 
           return {
             'url': supabase.storage.from(bucket).getPublicUrl(fileName),
@@ -521,6 +521,11 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         title: const Text('Sample Distribution'),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
         actions: [
           IconButton(
             tooltip: 'All Photos',
@@ -544,50 +549,53 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         future: _schoolsFuture,
         builder: (context, snapshot) {
           final schools = snapshot.data ?? const <SchoolModel>[];
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildHeader(roleLabel),
-              const SizedBox(height: 16),
-              _buildRoiSummaryCard(),
-              const SizedBox(height: 16),
-              _buildRemainingTracker(),
-              const SizedBox(height: 16),
-              _buildSchoolSelector(schools),
-              const SizedBox(height: 16),
-              _buildSearchBar(),
-              const SizedBox(height: 16),
-              _buildCategoryChips(),
-              const SizedBox(height: 20),
-              Text(
-                'Available Samples',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ..._filteredSamples().map(
-                (sample) => _buildSampleCard(sample, schools),
-              ),
-              const SizedBox(height: 24),
-              _buildHistory(),
-            ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 420;
+              final hGap = isCompact ? 12.0 : 16.0;
+              final vGap = isCompact ? 12.0 : 16.0;
+              return ListView(
+                padding: EdgeInsets.all(hGap),
+                children: [
+                  _buildHeader(roleLabel, compact: isCompact),
+                  SizedBox(height: vGap),
+                  _buildRoiSummaryCard(compact: isCompact),
+                  SizedBox(height: vGap),
+                  _buildRemainingTracker(compact: isCompact),
+                  SizedBox(height: vGap),
+                  _buildSchoolSelector(schools),
+                  SizedBox(height: vGap),
+                  _buildSearchBar(),
+                  SizedBox(height: vGap),
+                  _buildCategoryChips(),
+                  SizedBox(height: isCompact ? 16 : 20),
+                  Text(
+                    'Available Samples',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: isCompact ? 15 : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._filteredSamples().map(
+                    (sample) => _buildSampleCard(sample, schools),
+                  ),
+                  SizedBox(height: isCompact ? 16 : 24),
+                  _buildHistory(),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildHeader(String roleLabel) {
+  Widget _buildHeader(String roleLabel, {required bool compact}) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(compact ? 14 : 18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primaryGreen, Color(0xFF004D2E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.accentOrange,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -595,14 +603,17 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
         children: [
           Text(
             'Role: $roleLabel',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: compact ? 12 : 13,
+            ),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: compact ? 6 : 8),
+          Text(
             'Select a school, pick a sample, and hand it over from one screen.',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: compact ? 16 : 18,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -611,15 +622,15 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     );
   }
 
-  Widget _buildRoiSummaryCard() {
+  Widget _buildRoiSummaryCard({required bool compact}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
@@ -638,15 +649,21 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                     'My Sample ROI',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: compact ? 8 : 10),
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: compact ? 8 : 10,
+                    runSpacing: compact ? 8 : 10,
                     children: [
                       _roiChip('Samples Given', '$_roiSamplesGiven'),
                       _roiChip('Schools Reached', '$_roiSchoolsReached'),
-                      _roiChip('Revenue Earned', 'KES ${_roiRevenue.toStringAsFixed(0)}'),
-                      _roiChip('Won Value', 'KES ${_roiWonValue.toStringAsFixed(0)}'),
+                      _roiChip(
+                        'Revenue Earned',
+                        'KES ${_roiRevenue.toStringAsFixed(0)}',
+                      ),
+                      _roiChip(
+                        'Won Value',
+                        'KES ${_roiWonValue.toStringAsFixed(0)}',
+                      ),
                     ],
                   ),
                 ],
@@ -669,10 +686,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
             style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -687,7 +701,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       ),
       child: DropdownButtonFormField<String>(
         isExpanded: true,
-        value: _selectedSchoolId,
+        initialValue: _selectedSchoolId,
         decoration: InputDecoration(
           labelText: 'Select School',
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -711,7 +725,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     );
   }
 
-  Widget _buildRemainingTracker() {
+  Widget _buildRemainingTracker({required bool compact}) {
     final progress =
         (_remainingSampleTotal + _distributedSampleTotal) == 0
             ? 0.0
@@ -719,13 +733,13 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                 (_remainingSampleTotal + _distributedSampleTotal);
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(compact ? 14 : 18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
@@ -734,16 +748,21 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
+              SizedBox(
+                width: compact ? double.infinity : 220,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Samples Remaining',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: compact ? 12 : 13,
                         color: Colors.black54,
                         fontWeight: FontWeight.w600,
                       ),
@@ -751,8 +770,8 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                     const SizedBox(height: 6),
                     Text(
                       '$_remainingSampleTotal left',
-                      style: const TextStyle(
-                        fontSize: 24,
+                      style: TextStyle(
+                        fontSize: compact ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: AppColors.primaryGreen,
                       ),
@@ -761,17 +780,20 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 10 : 12,
+                  vertical: compact ? 6 : 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.12),
+                  color: AppColors.primaryGreen.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '$_distributedSampleTotal distributed',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: compact ? 12 : 14,
+                  ),
                 ),
               ),
             ],
@@ -829,16 +851,13 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
               label: Text(category),
               selected: selected,
               onSelected: (_) => setState(() => _selectedCategory = category),
-              selectedColor: AppColors.primaryGreen.withOpacity(0.18),
+              selectedColor: AppColors.primaryGreen.withValues(alpha: 0.18),
             );
           }).toList(),
     );
   }
 
-  Widget _buildSampleCard(
-    CatalogItemModel sample,
-    List<SchoolModel> schools,
-  ) {
+  Widget _buildSampleCard(CatalogItemModel sample, List<SchoolModel> schools) {
     final stock = sample.stockQty;
     SchoolModel? selectedSchool;
     for (final school in schools) {
@@ -850,126 +869,151 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 420;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sample.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      sample.description ?? '',
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      selectedSchool == null
-                          ? 'Select a school to see its SOP details.'
-                          : '${selectedSchool.bookCategory ?? "No SOP"} • ${selectedSchool.focusAreas.isEmpty ? "General" : selectedSchool.focusAreas.join(", ")}',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (selectedSchool?.sampleProofUrl != null &&
-                        selectedSchool!.sampleProofUrl!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          showDialog<void>(
-                            context: context,
-                            builder:
-                                (_) => Dialog(
-                                  child: InteractiveViewer(
-                                    child: Image.network(
-                                      selectedSchool?.sampleProofUrl ?? '',
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                          );
-                        },
-                        icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                        label: const Text('View Stamped Document'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              child: Text(
-                  '$stock remaining',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(
-                Icons.category_outlined,
-                size: 18,
-                color: Colors.grey[700],
-              ),
-              const SizedBox(width: 6),
-              Text(sample.category),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed:
-                    selectedSchool == null
-                        ? () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Select a school first.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                        : () async => await _assignSample(
-                          sample: sample,
-                          school: selectedSchool!,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  SizedBox(
+                    width:
+                        isCompact
+                            ? constraints.maxWidth
+                            : constraints.maxWidth - 140,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          sample.name,
+                          style: TextStyle(
+                            fontSize: isCompact ? 15 : 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Give to School'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  foregroundColor: Colors.white,
-                ),
+                        const SizedBox(height: 4),
+                        Text(
+                          sample.description ?? '',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          selectedSchool == null
+                              ? 'Select a school to see its SOP details.'
+                              : '${selectedSchool.bookCategory ?? "No SOP"} • ${selectedSchool.focusAreas.isEmpty ? "General" : selectedSchool.focusAreas.join(", ")}',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (selectedSchool?.sampleProofUrl != null &&
+                            selectedSchool!.sampleProofUrl!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              showDialog<void>(
+                                context: context,
+                                builder:
+                                    (_) => Dialog(
+                                      child: InteractiveViewer(
+                                        child: Image.network(
+                                          selectedSchool?.sampleProofUrl ?? '',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.receipt_long_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('View Stamped Document'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGreen.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$stock remaining',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.category_outlined,
+                        size: 18,
+                        color: Colors.grey[700],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(sample.category),
+                    ],
+                  ),
+                  SizedBox(
+                    width: isCompact ? constraints.maxWidth : null,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          selectedSchool == null
+                              ? () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Select a school first.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                              : () async => await _assignSample(
+                                sample: sample,
+                                school: selectedSchool!,
+                              ),
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('Give to School'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -980,9 +1024,9 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       children: [
         Text(
           'Recent Distribution',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         if (_distributionLog.isEmpty)
@@ -1026,7 +1070,8 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
   String? _error;
   List<Map<String, dynamic>> _receiptRows = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _proofRows = <Map<String, dynamic>>[];
-  List<Map<String, dynamic>> _onboardingReceiptProofRows = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _onboardingReceiptProofRows =
+      <Map<String, dynamic>>[];
   List<SchoolModel> _localProofSchools = <SchoolModel>[];
 
   @override
@@ -1052,7 +1097,9 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
           .limit(300);
       final proofResponse = await _supabase
           .from('schools')
-          .select('id,name,county,sample_proof_url,sample_proof_path,created_at')
+          .select(
+            'id,name,county,sample_proof_url,sample_proof_path,created_at',
+          )
           .not('sample_proof_url', 'is', null)
           .order('created_at', ascending: false)
           .limit(300);
@@ -1069,22 +1116,30 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
       final localSchools = await _dbService.getAllSchoolProfiles();
       setState(() {
         _receiptRows = List<Map<String, dynamic>>.from(
-          (receiptResponse as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          (receiptResponse as List).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
         );
         _proofRows = List<Map<String, dynamic>>.from(
-          (proofResponse as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          (proofResponse as List).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
         );
         _onboardingReceiptProofRows = List<Map<String, dynamic>>.from(
-          (onboardingReceiptProofResponse as List)
-              .map((e) => Map<String, dynamic>.from(e as Map)),
+          (onboardingReceiptProofResponse as List).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
         );
-        _localProofSchools = localSchools
-            .where(
-              (s) =>
-                  (s.sampleProofUrl == null || s.sampleProofUrl!.trim().isEmpty) &&
-                  (s.sampleProofPath != null && s.sampleProofPath!.trim().isNotEmpty),
-            )
-            .toList();
+        _localProofSchools =
+            localSchools
+                .where(
+                  (s) =>
+                      (s.sampleProofUrl == null ||
+                          s.sampleProofUrl!.trim().isEmpty) &&
+                      (s.sampleProofPath != null &&
+                          s.sampleProofPath!.trim().isNotEmpty),
+                )
+                .toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -1103,7 +1158,9 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Sample Photos'),
-          actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+          actions: [
+            IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Onboarding Proofs'),
@@ -1111,32 +1168,47 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
             ],
           ),
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
+        body:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
                 ? Center(
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                  )
-                : TabBarView(
-                    children: [
-                      _buildOnboardingProofGrid(),
-                      _buildStampedReceiptGrid(),
-                    ],
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
                   ),
+                )
+                : TabBarView(
+                  children: [
+                    _buildOnboardingProofGrid(),
+                    _buildStampedReceiptGrid(),
+                  ],
+                ),
       ),
     );
   }
 
   Widget _buildOnboardingProofGrid() {
-    final fromSchools = _proofRows
-        .where((row) => (row['sample_proof_url']?.toString().trim().isNotEmpty ?? false))
-        .toList();
-    final fromReceipts = _onboardingReceiptProofRows
-        .where((row) =>
-            (row['stamped_receipt_url']?.toString().trim().isNotEmpty ?? false))
-        .toList();
+    final fromSchools =
+        _proofRows
+            .where(
+              (row) =>
+                  (row['sample_proof_url']?.toString().trim().isNotEmpty ??
+                      false),
+            )
+            .toList();
+    final fromReceipts =
+        _onboardingReceiptProofRows
+            .where(
+              (row) =>
+                  (row['stamped_receipt_url']?.toString().trim().isNotEmpty ??
+                      false),
+            )
+            .toList();
 
-    if (fromSchools.isEmpty && fromReceipts.isEmpty && _localProofSchools.isEmpty) {
+    if (fromSchools.isEmpty &&
+        fromReceipts.isEmpty &&
+        _localProofSchools.isEmpty) {
       return const Center(child: Text('No onboarding proof photos yet.'));
     }
 
@@ -1160,7 +1232,10 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
           return _buildPhotoCard(
             url: url,
             title: schoolName,
-            subtitle: county.isEmpty ? 'Onboarding proof' : '$county • Onboarding proof',
+            subtitle:
+                county.isEmpty
+                    ? 'Onboarding proof'
+                    : '$county • Onboarding proof',
             onDelete: () => _deleteSchoolProof(row),
           );
         }
@@ -1173,24 +1248,28 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
           return _buildPhotoCard(
             url: url,
             title: schoolName,
-            subtitle: county.isEmpty
-                ? 'Onboarding proof (receipt)'
-                : '$county • Onboarding proof (receipt)',
+            subtitle:
+                county.isEmpty
+                    ? 'Onboarding proof (receipt)'
+                    : '$county • Onboarding proof (receipt)',
             onDelete: () => _deleteReceiptProof(row),
           );
         }
 
         final localSchool =
-            _localProofSchools[index - fromSchools.length - fromReceipts.length];
+            _localProofSchools[index -
+                fromSchools.length -
+                fromReceipts.length];
         final localPath = localSchool.sampleProofPath?.toString() ?? '';
         final county = localSchool.county;
         return _buildPhotoCard(
           url: '',
           localPath: localPath,
           title: localSchool.name,
-          subtitle: county.isEmpty
-              ? 'Onboarding proof (local unsynced)'
-              : '$county • Onboarding proof (local unsynced)',
+          subtitle:
+              county.isEmpty
+                  ? 'Onboarding proof (local unsynced)'
+                  : '$county • Onboarding proof (local unsynced)',
           onDelete: () => _deleteLocalSchoolProof(localSchool.id),
         );
       },
@@ -1236,11 +1315,12 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
       onTap: () {
         showDialog<void>(
           context: context,
-          builder: (_) => Dialog(
-            child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
-            ),
-          ),
+          builder:
+              (_) => Dialog(
+                child: InteractiveViewer(
+                  child: Image.network(url, fit: BoxFit.contain),
+                ),
+              ),
         );
       },
       child: Card(
@@ -1249,27 +1329,30 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: (localPath != null && localPath.trim().isNotEmpty)
-                  ? Image.file(
-                      File(localPath),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey.shade200,
-                        alignment: Alignment.center,
-                        child: const Text('Could not load'),
+              child:
+                  (localPath != null && localPath.trim().isNotEmpty)
+                      ? Image.file(
+                        File(localPath),
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              color: Colors.grey.shade200,
+                              alignment: Alignment.center,
+                              child: const Text('Could not load'),
+                            ),
+                      )
+                      : Image.network(
+                        url,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              color: Colors.grey.shade200,
+                              alignment: Alignment.center,
+                              child: const Text('Could not load'),
+                            ),
                       ),
-                    )
-                  : Image.network(
-                      url,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey.shade200,
-                        alignment: Alignment.center,
-                        child: const Text('Could not load'),
-                      ),
-                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(8),
@@ -1399,20 +1482,21 @@ class _SampleProofGalleryPageState extends State<SampleProofGalleryPage> {
   Future<bool> _confirmDelete() async {
     final answer = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete Photo'),
-        content: const Text('Are you sure you want to delete this photo?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (_) => AlertDialog(
+            title: const Text('Delete Photo'),
+            content: const Text('Are you sure you want to delete this photo?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
     return answer == true;
   }

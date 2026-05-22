@@ -7,7 +7,6 @@ import '../../models/order_item_model.dart';
 import '../../services/invoice_service.dart';
 import '../../models/catalog_item_model.dart';
 
-
 class AddOrderPage extends StatefulWidget {
   const AddOrderPage({
     super.key,
@@ -80,7 +79,9 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
   Future<void> _bootstrap() async {
     final schools = await _databaseService.getAllSchools();
-    final catalogItems = await _databaseService.getCatalogItems(itemType: 'sale');
+    final catalogItems = await _databaseService.getCatalogItems(
+      itemType: 'sale',
+    );
     if (!mounted) return;
 
     setState(() {
@@ -117,9 +118,10 @@ class _AddOrderPageState extends State<AddOrderPage> {
     final packageName = widget.initialPackageName?.trim();
     if (packageName == null || packageName.isEmpty) return;
 
-    final matchingProduct = _catalogItems.where((item) {
-      return item.name.toLowerCase() == packageName.toLowerCase();
-    }).toList();
+    final matchingProduct =
+        _catalogItems.where((item) {
+          return item.name.toLowerCase() == packageName.toLowerCase();
+        }).toList();
 
     if (matchingProduct.isNotEmpty) {
       _addToCart(_catalogToCartMap(matchingProduct.first));
@@ -136,8 +138,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
     }
 
     if (_amountController.text.trim().isEmpty) {
-      final fallbackAmount =
-          widget.initialCheckoutAmount ?? totalAmount;
+      final fallbackAmount = widget.initialCheckoutAmount ?? totalAmount;
       if (fallbackAmount > 0) {
         _amountController.text = fallbackAmount.toStringAsFixed(0);
       }
@@ -151,13 +152,11 @@ class _AddOrderPageState extends State<AddOrderPage> {
     return null;
   }
 
-  double get totalAmount =>
-      _cart.fold<double>(
-        0.0,
-        (sum, item) =>
-            sum +
-            ((item['price'] as num).toDouble() * (item['qty'] as int)),
-      );
+  double get totalAmount => _cart.fold<double>(
+    0.0,
+    (sum, item) =>
+        sum + ((item['price'] as num).toDouble() * (item['qty'] as int)),
+  );
 
   void _addToCart(Map<String, dynamic> product) {
     setState(() {
@@ -227,28 +226,20 @@ class _AddOrderPageState extends State<AddOrderPage> {
               children: [
                 TextField(
                   controller: _customNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Name',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Item Name'),
                 ),
                 TextField(
                   controller: _customCategoryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Category'),
                 ),
                 TextField(
                   controller: _customSkuController,
-                  decoration: const InputDecoration(
-                    labelText: 'SKU / Code',
-                  ),
+                  decoration: const InputDecoration(labelText: 'SKU / Code'),
                 ),
                 TextField(
                   controller: _customQtyController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Quantity'),
                 ),
                 TextField(
                   controller: _customPriceController,
@@ -346,8 +337,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
       return;
     }
 
-    if (_paymentMethod != 'cash' &&
-        _referenceController.text.trim().isEmpty) {
+    if (_paymentMethod != 'cash' && _referenceController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Add the payment reference for M-Pesa or bank.'),
@@ -368,23 +358,25 @@ class _AddOrderPageState extends State<AddOrderPage> {
           _paymentMethod == 'cash' ? null : _referenceController.text.trim(),
       checkoutAmount: checkoutAmount,
       status: _resolveOrderStatus(_paymentMethod!),
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
+      notes:
+          _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
       submittedAt: DateTime.now(),
     );
 
-    final items = _cart.map((item) {
-      return OrderItemModel(
-        orderId: order.id,
-        productName: item['name'].toString(),
-        category: item['category']?.toString(),
-        sku: item['sku']?.toString(),
-        quantity: item['qty'] as int,
-        unitPrice: (item['price'] as num).toDouble(),
-        lineTotal: (item['price'] as num).toDouble() * (item['qty'] as int),
-      );
-    }).toList();
+    final items =
+        _cart.map((item) {
+          return OrderItemModel(
+            orderId: order.id,
+            productName: item['name'].toString(),
+            category: item['category']?.toString(),
+            sku: item['sku']?.toString(),
+            quantity: item['qty'] as int,
+            unitPrice: (item['price'] as num).toDouble(),
+            lineTotal: (item['price'] as num).toDouble() * (item['qty'] as int),
+          );
+        }).toList();
 
     try {
       final savedOrder = await _databaseService.createOrder(
@@ -420,13 +412,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(
-        context,
-        {
-          'order': savedOrder,
-          'invoicePath': invoicePath,
-        },
-      );
+      Navigator.pop(context, {'order': savedOrder, 'invoicePath': invoicePath});
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -473,108 +459,113 @@ class _AddOrderPageState extends State<AddOrderPage> {
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        color: Colors.white,
-                        child: DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          value: _selectedSchoolId,
-                          decoration: InputDecoration(
-                            labelText: 'Select School / Customer',
-                            prefixIcon: const Icon(
-                              Icons.school_outlined,
-                              color: AppColors.primaryGreen,
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          color: Colors.white,
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _selectedSchoolId,
+                            decoration: InputDecoration(
+                              labelText: 'Select School / Customer',
+                              prefixIcon: const Icon(
+                                Icons.school_outlined,
+                                color: AppColors.primaryGreen,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          items:
-                              _schools
-                                  .map(
-                                    (school) => DropdownMenuItem(
-                                      value: school.id,
-                                      child: Text(
-                                        '${school.name} • ${school.county}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                            items:
+                                _schools
+                                    .map(
+                                      (school) => DropdownMenuItem(
+                                        value: school.id,
+                                        child: Text(
+                                          '${school.name} • ${school.county}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (val) => setState(() => _selectedSchoolId = val),
-                        ),
-                      ),
-                      if (_selectedSchool != null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                          child: _SummaryCard(
-                            title: _selectedSchool!.name,
-                            subtitle:
-                                '${_selectedSchool!.county} • ${_selectedSchool!.phone}',
-                            trailing: _paymentLabel(_paymentMethod),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (val) =>
+                                    setState(() => _selectedSchoolId = val),
                           ),
                         ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'SELECT PRODUCTS',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
+                        if (_selectedSchool != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                            child: _SummaryCard(
+                              title: _selectedSchool!.name,
+                              subtitle:
+                                  '${_selectedSchool!.county} • ${_selectedSchool!.phone}',
+                              trailing: _paymentLabel(_paymentMethod),
+                            ),
+                          ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'SELECT PRODUCTS',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: _showCustomItemDialog,
-                            icon: const Icon(Icons.add_box_outlined),
-                            label: const Text('Add Custom Item'),
-                          ),
-                        ),
-                      ),
-                      if (_catalogItems.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'No catalog items found. Ask an admin to import the CSV for sale books.',
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _showCustomItemDialog,
+                              icon: const Icon(Icons.add_box_outlined),
+                              label: const Text('Add Custom Item'),
                             ),
                           ),
                         ),
-                    ],
+                        if (_catalogItems.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'No catalog items found. Ask an admin to import the CSV for sale books.',
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
                         if (index == 0) {
                           if (_cart.isEmpty) {
                             return Card(
                               elevation: 0,
-                              color: Colors.green.withOpacity(0.05),
+                              color: Colors.green.withValues(alpha: 0.05),
                               margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -584,7 +575,9 @@ class _AddOrderPageState extends State<AddOrderPage> {
                                 padding: const EdgeInsets.all(16),
                                 child: Text(
                                   'Add products from the catalog below, then confirm payment details to create the order.',
-                                  style: TextStyle(color: Colors.green.shade900),
+                                  style: TextStyle(
+                                    color: Colors.green.shade900,
+                                  ),
                                 ),
                               ),
                             );
@@ -608,7 +601,9 @@ class _AddOrderPageState extends State<AddOrderPage> {
                           child: ListTile(
                             title: Text(
                               p.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             subtitle: Text(
                               '${p.category} • ${p.sku} • KES ${p.unitPrice.toStringAsFixed(0)} • Stock ${p.stockQty}',
@@ -631,23 +626,19 @@ class _AddOrderPageState extends State<AddOrderPage> {
                             ),
                           ),
                         );
-                      },
-                      childCount: _catalogItems.length + 1,
+                      }, childCount: _catalogItems.length + 1),
                     ),
                   ),
-                ),
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  fillOverscroll: false,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _buildOrderSummary(),
-                    ],
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    fillOverscroll: false,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [_buildOrderSummary()],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
     );
   }
 
@@ -658,7 +649,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -693,7 +684,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _paymentMethod,
+              initialValue: _paymentMethod,
               decoration: const InputDecoration(
                 labelText: 'Method of Payment',
                 border: OutlineInputBorder(),
@@ -754,7 +745,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -837,7 +828,7 @@ class _SummaryCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 26,
-            backgroundColor: Colors.green.withOpacity(0.15),
+            backgroundColor: Colors.green.withValues(alpha: 0.15),
             child: const Icon(Icons.storefront, color: Colors.green),
           ),
           const SizedBox(width: 14),

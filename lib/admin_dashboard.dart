@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'features/admin/project_form_builder_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -132,6 +133,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return const Text('Schools Management');
       case 3:
         return const Text('Orders Management');
+      case 4:
+        return const Text('Project Forms');
       default:
         return const Text('Admin Panel');
     }
@@ -147,6 +150,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return const Center(child: Text('Schools Management - Coming Soon'));
       case 3:
         return const Center(child: Text('Orders Management - Coming Soon'));
+      case 4:
+        return const ProjectFormBuilderPage();
       default:
         return _buildDashboardContent();
     }
@@ -263,6 +268,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 _buildNavItem(Icons.people, 'Users', 1),
                 _buildNavItem(Icons.school, 'Schools', 2),
                 _buildNavItem(Icons.shopping_cart, 'Orders', 3),
+                _buildNavItem(Icons.assignment_outlined, 'Project', 4),
               ],
             ),
           ),
@@ -309,6 +315,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 _buildNavItem(Icons.people, 'Users', 1, isMobile: true),
                 _buildNavItem(Icons.school, 'Schools', 2, isMobile: true),
                 _buildNavItem(Icons.shopping_cart, 'Orders', 3, isMobile: true),
+                _buildNavItem(
+                  Icons.assignment_outlined,
+                  'Project',
+                  4,
+                  isMobile: true,
+                ),
               ],
             ),
           ),
@@ -344,7 +356,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
       ),
       selected: isSelected,
-      selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.1),
+      selectedTileColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
       onTap: () {
         setState(() => _selectedIndex = index);
         if (isMobile) {

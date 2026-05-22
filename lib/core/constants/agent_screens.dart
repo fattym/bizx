@@ -265,8 +265,10 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
                 itemCount: _schools.length,
                 itemBuilder: (context, index) {
                   final school = _schools[index];
-                  final schoolName = school['name']?.toString() ?? 'Unknown School';
-                  final county = school['county']?.toString() ?? 'Unknown County';
+                  final schoolName =
+                      school['name']?.toString() ?? 'Unknown School';
+                  final county =
+                      school['county']?.toString() ?? 'Unknown County';
                   final phone = school['phone']?.toString();
                   final category = school['book_category']?.toString();
                   final source =
@@ -294,7 +296,8 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => SchoolSellPage(school: school),
+                            builder:
+                                (context) => SchoolSellPage(school: school),
                           ),
                         );
                       },
@@ -329,7 +332,10 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _schoolMetaChip(Icons.location_on_outlined, county),
+                                _schoolMetaChip(
+                                  Icons.location_on_outlined,
+                                  county,
+                                ),
                                 _schoolMetaChip(
                                   Icons.phone_outlined,
                                   (phone != null && phone.trim().isNotEmpty)
@@ -338,7 +344,8 @@ class _AgentSubmitOrderScreenState extends State<AgentSubmitOrderScreen> {
                                 ),
                                 _schoolMetaChip(
                                   Icons.menu_book_outlined,
-                                  (category != null && category.trim().isNotEmpty)
+                                  (category != null &&
+                                          category.trim().isNotEmpty)
                                       ? category
                                       : 'General',
                                 ),

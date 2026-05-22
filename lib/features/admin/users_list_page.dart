@@ -57,7 +57,7 @@ class _UsersListPageState extends State<UsersListPage> {
         _filteredUsers =
             _users.where((user) {
               final name = (user.fullName ?? '').toLowerCase();
-              final email = (user.email ?? '').toLowerCase();
+              final email = user.email.toLowerCase();
               return name.contains(query.toLowerCase()) ||
                   email.contains(query.toLowerCase());
             }).toList();
@@ -66,7 +66,7 @@ class _UsersListPageState extends State<UsersListPage> {
   }
 
   void _showUserProfile(BuildContext context, UserModel user) {
-    final name = user.fullName ?? user.email ?? 'Unknown User';
+    final name = user.fullName ?? user.email;
 
     showModalBottomSheet(
       context: context,
@@ -84,7 +84,9 @@ class _UsersListPageState extends State<UsersListPage> {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                    backgroundColor: AppColors.primaryGreen.withValues(
+                      alpha: 0.1,
+                    ),
                     child: Text(
                       name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: const TextStyle(
@@ -104,7 +106,7 @@ class _UsersListPageState extends State<UsersListPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    user.email ?? 'No email provided',
+                    user.email,
                     style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                   const Divider(height: 32),
@@ -140,7 +142,7 @@ class _UsersListPageState extends State<UsersListPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildMetricsGrid(user),
+                  _buildPerformanceSection(user),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -228,6 +230,76 @@ class _UsersListPageState extends State<UsersListPage> {
     );
   }
 
+  Widget _buildPerformanceSection(UserModel user) {
+    if (user.role == 5) {
+      return _buildRole5PerformanceOverview();
+    }
+    return _buildMetricsGrid(user);
+  }
+
+  Widget _buildRole5PerformanceOverview() {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.18,
+      children: const [
+        _PeriodPerformanceCard(
+          period: 'Daily',
+          score: '87%',
+          icon: Icons.today_outlined,
+          accentColor: AppColors.primaryGreen,
+          schoolTarget: '15',
+          weeklyTarget: '80',
+          institutionLeads: '08',
+          weeklyVisits: '12',
+        ),
+        _PeriodPerformanceCard(
+          period: 'Weekly',
+          score: '90%',
+          icon: Icons.view_week_outlined,
+          accentColor: AppColors.primaryDark,
+          schoolTarget: '35',
+          weeklyTarget: '200',
+          institutionLeads: '20',
+          weeklyVisits: '30',
+        ),
+        _PeriodPerformanceCard(
+          period: 'Monthly',
+          score: '91%',
+          icon: Icons.calendar_month_outlined,
+          accentColor: AppColors.secondaryOrange,
+          schoolTarget: '60',
+          weeklyTarget: '320',
+          institutionLeads: '34',
+          weeklyVisits: '48',
+        ),
+        _PeriodPerformanceCard(
+          period: 'Quarterly',
+          score: '89%',
+          icon: Icons.date_range_outlined,
+          accentColor: AppColors.primaryGreen,
+          schoolTarget: '180',
+          weeklyTarget: '960',
+          institutionLeads: '102',
+          weeklyVisits: '144',
+        ),
+        _PeriodPerformanceCard(
+          period: 'Yearly',
+          score: '93%',
+          icon: Icons.insights_outlined,
+          accentColor: AppColors.secondaryOrange,
+          schoolTarget: '720',
+          weeklyTarget: '3840',
+          institutionLeads: '408',
+          weeklyVisits: '576',
+        ),
+      ],
+    );
+  }
+
   Widget _metricCard(String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -236,7 +308,7 @@ class _UsersListPageState extends State<UsersListPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -306,8 +378,7 @@ class _UsersListPageState extends State<UsersListPage> {
                               itemCount: _filteredUsers.length,
                               itemBuilder: (context, index) {
                                 final user = _filteredUsers[index];
-                                final name =
-                                    user.fullName ?? user.email ?? 'Unknown';
+                                final name = user.fullName ?? user.email;
 
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -338,7 +409,7 @@ class _UsersListPageState extends State<UsersListPage> {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    subtitle: Text(user.email ?? 'No email'),
+                                    subtitle: Text(user.email),
                                     trailing: const Icon(
                                       Icons.person_search_outlined,
                                       color: AppColors.textMuted,
@@ -352,6 +423,105 @@ class _UsersListPageState extends State<UsersListPage> {
                   ),
                 ],
               ),
+    );
+  }
+}
+
+class _PeriodPerformanceCard extends StatelessWidget {
+  const _PeriodPerformanceCard({
+    required this.period,
+    required this.score,
+    required this.icon,
+    required this.accentColor,
+    required this.schoolTarget,
+    required this.weeklyTarget,
+    required this.institutionLeads,
+    required this.weeklyVisits,
+  });
+
+  final String period;
+  final String score;
+  final IconData icon;
+  final Color accentColor;
+  final String schoolTarget;
+  final String weeklyTarget;
+  final String institutionLeads;
+  final String weeklyVisits;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                period,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryDark,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            score,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          _metricRow('School Target', schoolTarget),
+          _metricRow('Weekly Target', weeklyTarget),
+          _metricRow('Institution Leads', institutionLeads),
+          _metricRow('Weekly Visits', weeklyVisits),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryDark,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

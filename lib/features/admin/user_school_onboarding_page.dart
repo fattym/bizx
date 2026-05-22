@@ -41,10 +41,7 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
       appBar: AppBar(
         title: const Text('User Onboarding Tracker'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
         ],
       ),
       body: FutureBuilder<_UserSchoolData>(
@@ -61,20 +58,25 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
 
           final data =
               snapshot.data ??
-              const _UserSchoolData(users: <UserModel>[], schools: <SchoolModel>[]);
+              const _UserSchoolData(
+                users: <UserModel>[],
+                schools: <SchoolModel>[],
+              );
 
           final schoolsByUser = <String, List<SchoolModel>>{};
           for (final school in data.schools) {
             final userId = (school.capturedBy ?? '').trim();
             if (userId.isEmpty) continue;
-            schoolsByUser.putIfAbsent(userId, () => <SchoolModel>[]).add(school);
+            schoolsByUser
+                .putIfAbsent(userId, () => <SchoolModel>[])
+                .add(school);
           }
 
           final userRows =
               data.users.map((user) {
-                final userSchools = schoolsByUser[user.id] ?? <SchoolModel>[];
-                return _UserSchoolRow(user: user, schools: userSchools);
-              }).toList()
+                  final userSchools = schoolsByUser[user.id] ?? <SchoolModel>[];
+                  return _UserSchoolRow(user: user, schools: userSchools);
+                }).toList()
                 ..sort((a, b) => b.schools.length.compareTo(a.schools.length));
 
           return RefreshIndicator(
@@ -106,12 +108,8 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _metric('Users', '$userCount'),
-          ),
-          Expanded(
-            child: _metric('Onboarded Schools', '$schoolCount'),
-          ),
+          Expanded(child: _metric('Users', '$userCount')),
+          Expanded(child: _metric('Onboarded Schools', '$schoolCount')),
         ],
       ),
     );
@@ -136,9 +134,10 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
   }
 
   Widget _buildUserCard(_UserSchoolRow row) {
-    final name = (row.user.fullName?.trim().isNotEmpty ?? false)
-        ? row.user.fullName!.trim()
-        : row.user.email;
+    final name =
+        (row.user.fullName?.trim().isNotEmpty ?? false)
+            ? row.user.fullName!.trim()
+            : row.user.email;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -154,9 +153,7 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
         subtitle: Text('Role ${row.user.role} • ${row.schools.length} schools'),
         children: [
           if (row.schools.isEmpty)
-            const ListTile(
-              title: Text('No schools onboarded yet.'),
-            )
+            const ListTile(title: Text('No schools onboarded yet.'))
           else
             ...row.schools.map(
               (school) => ListTile(
@@ -166,7 +163,9 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
                   school.isSynced ? 'Synced' : 'Pending',
                   style: TextStyle(
                     color:
-                        school.isSynced ? AppColors.primaryGreen : Colors.orange,
+                        school.isSynced
+                            ? AppColors.primaryGreen
+                            : Colors.orange,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -190,22 +189,15 @@ class _UserSchoolOnboardingPageState extends State<UserSchoolOnboardingPage> {
 }
 
 class _UserSchoolData {
-  const _UserSchoolData({
-    required this.users,
-    required this.schools,
-  });
+  const _UserSchoolData({required this.users, required this.schools});
 
   final List<UserModel> users;
   final List<SchoolModel> schools;
 }
 
 class _UserSchoolRow {
-  const _UserSchoolRow({
-    required this.user,
-    required this.schools,
-  });
+  const _UserSchoolRow({required this.user, required this.schools});
 
   final UserModel user;
   final List<SchoolModel> schools;
 }
-

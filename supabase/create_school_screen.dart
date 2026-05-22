@@ -133,7 +133,7 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedCounty,
+              initialValue: _selectedCounty,
               decoration: const InputDecoration(
                 labelText: 'County',
                 border: OutlineInputBorder(),
@@ -165,7 +165,7 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedBookCategory,
+              initialValue: _selectedBookCategory,
               decoration: const InputDecoration(
                 labelText: 'SOP Selection (Optional)',
                 border: OutlineInputBorder(),
@@ -185,7 +185,7 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
                     value: category,
                     child: Text(category),
                   );
-                }).toList(),
+                }),
               ],
               onChanged: (value) {
                 setState(() {

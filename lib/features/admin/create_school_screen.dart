@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/farmer_model.dart';
+import '../database/database_service.dart';
 
 class CreateSchoolScreen extends StatefulWidget {
   const CreateSchoolScreen({super.key});
@@ -9,6 +10,7 @@ class CreateSchoolScreen extends StatefulWidget {
 }
 
 class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
+  final DatabaseService _dbService = DatabaseService();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -84,45 +86,37 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
     });
 
     try {
-      await Supabase.instance.client.from('schools').insert({
-        'name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'county': _selectedCounty,
-        'focusAreas': focusAreas,
-        'book_category': _selectedBookCategory,
-        'latitude': latitude,
-        'longitude': longitude,
-        'photo_url':
+      final school = SchoolModel(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        county: _selectedCounty ?? 'Unknown',
+        focusAreas: focusAreas,
+        bookCategory: _selectedBookCategory,
+        latitude: latitude,
+        longitude: longitude,
+        photoUrl:
             _photoUrlController.text.trim().isEmpty
                 ? null
                 : _photoUrlController.text.trim(),
-        'photo_path':
+        photoPath:
             _photoPathController.text.trim().isEmpty
                 ? null
                 : _photoPathController.text.trim(),
-        'captured_by': Supabase.instance.client.auth.currentUser?.id,
-        'captured_at': DateTime.now().toIso8601String(),
-        'capture_status': captureStatus,
-        'isSynced': true,
-      });
+        capturedBy: _dbService.getCurrentUserId(),
+        capturedAt: DateTime.now(),
+        captureStatus: captureStatus,
+        isSynced: false,
+      );
+      await _dbService.saveSchoolProfile(school);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('School onboarded successfully!'),
+            content: Text('School onboarded (or queued offline)!'),
             backgroundColor: Colors.green,
           ),
         );
         Navigator.of(context).pop();
-      }
-    } on PostgrestException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${error.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (error) {
       if (mounted) {
@@ -153,16 +147,16 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
           children: [
             Text(
               'School Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
               'Capture the school record using the same fields stored in Supabase.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[700],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 20),
             TextFormField(
@@ -251,7 +245,7 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedCounty,
+              initialValue: _selectedCounty,
               decoration: const InputDecoration(
                 labelText: 'County',
                 border: OutlineInputBorder(),
@@ -284,7 +278,7 @@ class _CreateSchoolScreenState extends State<CreateSchoolScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedBookCategory,
+              initialValue: _selectedBookCategory,
               decoration: const InputDecoration(
                 labelText: 'Book Category (Optional)',
                 border: OutlineInputBorder(),

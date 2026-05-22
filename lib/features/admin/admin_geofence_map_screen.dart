@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
 
 class AdminGeofenceMapScreen extends StatefulWidget {
   const AdminGeofenceMapScreen({super.key});
@@ -13,6 +14,7 @@ class AdminGeofenceMapScreen extends StatefulWidget {
 
 class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   final MapController _mapController = MapController();
 
   List<Map<String, dynamic>> _users = [];
@@ -152,7 +154,8 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
   }
 
   bool _geofenceMatchesCounty(Map<String, dynamic> geo) {
-    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+    if (_selectedCountyFilter == null ||
+        _selectedCountyFilter!.trim().isEmpty) {
       return true;
     }
     final selected = _selectedCountyFilter!.toLowerCase();
@@ -190,7 +193,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                 point: LatLng(lat, lng),
                 radius: radius,
                 useRadiusInMeter: true,
-                color: countyColor.withOpacity(0.22),
+                color: countyColor.withValues(alpha: 0.22),
                 borderColor: countyColor,
                 borderStrokeWidth: 3,
               ),
@@ -224,7 +227,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                   child: Container(
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: _countyColor(county), width: 2),
                     ),
@@ -248,7 +251,8 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
   }
 
   List<LatLng> _countyAreaPoints() {
-    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+    if (_selectedCountyFilter == null ||
+        _selectedCountyFilter!.trim().isEmpty) {
       return const [];
     }
     final selected = _selectedCountyFilter!.toLowerCase();
@@ -313,7 +317,8 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
 
   void _zoomToSelectedCountyGeofences() {
     if (!_isMapReady) return;
-    if (_selectedCountyFilter == null || _selectedCountyFilter!.trim().isEmpty) {
+    if (_selectedCountyFilter == null ||
+        _selectedCountyFilter!.trim().isEmpty) {
       return;
     }
 
@@ -339,10 +344,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
 
     final bounds = LatLngBounds.fromPoints(points);
     _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.all(48),
-      ),
+      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
     );
   }
 
@@ -422,19 +424,22 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
     }
 
     try {
-      await _supabase.from('geofences').insert({
-        'name': 'Cover Geofenced Area',
-        'description': 'Please cover the assigned geographic area.',
-        'assigned_to': _selectedUserId,
-        'region': _selectedCountyFilter,
-        'coordinates': [
-          {
-            'lat': _selectedLocation!.latitude,
-            'lng': _selectedLocation!.longitude,
-            'radius': _geofenceRadiusMeters,
-          },
-        ],
-      });
+      await _dbService.insertWithOfflineQueue(
+        table: 'geofences',
+        payload: {
+          'name': 'Cover Geofenced Area',
+          'description': 'Please cover the assigned geographic area.',
+          'assigned_to': _selectedUserId,
+          'region': _selectedCountyFilter,
+          'coordinates': [
+            {
+              'lat': _selectedLocation!.latitude,
+              'lng': _selectedLocation!.longitude,
+              'radius': _geofenceRadiusMeters,
+            },
+          ],
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -494,7 +499,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                     point: _selectedLocation!,
                     radius: _geofenceRadiusMeters,
                     useRadiusInMeter: true,
-                    color: Colors.blue.withOpacity(0.3),
+                    color: Colors.blue.withValues(alpha: 0.3),
                     borderColor: Colors.blue,
                     borderStrokeWidth: 2,
                   ),
@@ -523,7 +528,9 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                 polygons: [
                   Polygon(
                     points: _countyBoundaryPolygon(),
-                    color: _countyColor(_selectedCountyFilter).withOpacity(0.12),
+                    color: _countyColor(
+                      _selectedCountyFilter,
+                    ).withValues(alpha: 0.12),
                     borderColor: _countyColor(_selectedCountyFilter),
                     borderStrokeWidth: 3,
                   ),
@@ -641,7 +648,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            value: _selectedCountyFilter,
+            initialValue: _selectedCountyFilter,
             items: [
               const DropdownMenuItem<String>(
                 value: null,
@@ -671,7 +678,7 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
                   isDense: true,
                 ),
                 hint: const Text('Choose a user...'),
-                value: _selectedUserId,
+                initialValue: _selectedUserId,
                 items:
                     _filteredUsers.map((user) {
                       return DropdownMenuItem<String>(
@@ -699,14 +706,10 @@ class _AdminGeofenceMapScreenState extends State<AdminGeofenceMapScreen> {
           isDesktop
               ? Column(
                 children: [
-                  Expanded(
-                    child: mapContent,
-                  ),
+                  Expanded(child: mapContent),
                   SizedBox(
                     height: 300,
-                    child: SingleChildScrollView(
-                      child: controlPanel,
-                    ),
+                    child: SingleChildScrollView(child: controlPanel),
                   ),
                 ],
               )

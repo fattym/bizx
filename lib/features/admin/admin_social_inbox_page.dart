@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../database/database_service.dart';
 
 class AdminSocialInboxPage extends StatefulWidget {
   const AdminSocialInboxPage({super.key});
@@ -11,6 +12,7 @@ class AdminSocialInboxPage extends StatefulWidget {
 
 class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   final _replyController = TextEditingController();
   final _uuid = const Uuid();
 
@@ -75,10 +77,11 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
       if (!mounted) return;
       final dbMessages = List<Map<String, dynamic>>.from(rows);
       setState(
-        () => _messages =
-            dbMessages.isEmpty
-                ? _dummyMessages(_selectedConversationId!)
-                : dbMessages,
+        () =>
+            _messages =
+                dbMessages.isEmpty
+                    ? _dummyMessages(_selectedConversationId!)
+                    : dbMessages,
       );
     } catch (e) {
       _showInfo('Failed to load messages: $e');
@@ -87,26 +90,28 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
 
   Future<void> _sendReply() async {
     final text = _replyController.text.trim();
-    if (text.isEmpty || _selectedConversationId == null || _selectedChannel == null) {
+    if (text.isEmpty ||
+        _selectedConversationId == null ||
+        _selectedChannel == null) {
       return;
     }
 
     setState(() => _isSending = true);
     try {
       final user = _supabase.auth.currentUser;
-      await _supabase.from('social_messages').insert({
-        'conversation_id': _selectedConversationId,
-        'channel': _selectedChannel,
-        'external_message_id': 'local-${_uuid.v4()}',
-        'sender_name': (user?.email ?? 'Admin'),
-        'sender_id': user?.id,
-        'body': text,
-        'sent_at': DateTime.now().toUtc().toIso8601String(),
-        'raw_payload': {
-          'origin': 'admin_ui',
-          'status': 'pending_dispatch',
+      await _dbService.insertWithOfflineQueue(
+        table: 'social_messages',
+        payload: {
+          'conversation_id': _selectedConversationId,
+          'channel': _selectedChannel,
+          'external_message_id': 'local-${_uuid.v4()}',
+          'sender_name': (user?.email ?? 'Admin'),
+          'sender_id': user?.id,
+          'body': text,
+          'sent_at': DateTime.now().toUtc().toIso8601String(),
+          'raw_payload': {'origin': 'admin_ui', 'status': 'pending_dispatch'},
         },
-      });
+      );
 
       await _supabase
           .from('social_conversations')
@@ -134,21 +139,22 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
       appBar: AppBar(
         title: const Text('Social Inbox'),
         actions: [
-          IconButton(onPressed: _loadConversations, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: _loadConversations,
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Row(
-              children: [
-                SizedBox(
-                  width: 340,
-                  child: _buildConversationList(),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(child: _buildThread()),
-              ],
-            ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Row(
+                children: [
+                  SizedBox(width: 340, child: _buildConversationList()),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _buildThread()),
+                ],
+              ),
     );
   }
 
@@ -166,10 +172,15 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
         return ListTile(
           selected: selected,
           leading: Icon(
-            (c['channel'] ?? '').toString() == 'facebook' ? Icons.facebook : Icons.chat,
+            (c['channel'] ?? '').toString() == 'facebook'
+                ? Icons.facebook
+                : Icons.chat,
           ),
           title: Text((c['participant_display'] ?? 'Unknown').toString()),
-          subtitle: Text((c['last_message_preview'] ?? 'No message').toString(), maxLines: 1),
+          subtitle: Text(
+            (c['last_message_preview'] ?? 'No message').toString(),
+            maxLines: 1,
+          ),
           onTap: () async {
             setState(() {
               _selectedConversationId = id;
@@ -189,44 +200,51 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
     return Column(
       children: [
         Expanded(
-          child: _messages.isEmpty
-              ? const Center(child: Text('No messages yet.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    final m = _messages[index];
-                    final isMine = (m['sender_id'] ?? '').toString() ==
-                        (_supabase.auth.currentUser?.id ?? '');
-                    return Align(
-                      alignment:
-                          isMine ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(10),
-                        constraints: const BoxConstraints(maxWidth: 520),
-                        decoration: BoxDecoration(
-                          color: isMine ? Colors.blue.shade50 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              (m['sender_name'] ?? 'Unknown').toString(),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+          child:
+              _messages.isEmpty
+                  ? const Center(child: Text('No messages yet.'))
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final m = _messages[index];
+                      final isMine =
+                          (m['sender_id'] ?? '').toString() ==
+                          (_supabase.auth.currentUser?.id ?? '');
+                      return Align(
+                        alignment:
+                            isMine
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          decoration: BoxDecoration(
+                            color:
+                                isMine
+                                    ? Colors.blue.shade50
+                                    : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (m['sender_name'] ?? 'Unknown').toString(),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text((m['body'] ?? '').toString()),
-                          ],
+                              const SizedBox(height: 4),
+                              Text((m['body'] ?? '').toString()),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
         ),
         const Divider(height: 1),
         Padding(
@@ -247,13 +265,14 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: _isSending ? null : _sendReply,
-                child: _isSending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Reply'),
+                child:
+                    _isSending
+                        ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Reply'),
               ),
             ],
           ),
@@ -264,7 +283,9 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
 
   void _showInfo(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   List<Map<String, dynamic>> _dummyConversations() {
@@ -300,7 +321,11 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
           'sender_name': 'Longhorn Publishers Page',
           'sender_id': 'fb-user-1',
           'body': 'Hello, we are interested in your school pipeline report.',
-          'sent_at': DateTime.now().toUtc().subtract(const Duration(hours: 2)).toIso8601String(),
+          'sent_at':
+              DateTime.now()
+                  .toUtc()
+                  .subtract(const Duration(hours: 2))
+                  .toIso8601String(),
           'created_at': DateTime.now().toUtc().toIso8601String(),
         },
         {
@@ -308,7 +333,11 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
           'sender_name': 'Admin',
           'sender_id': me,
           'body': 'Sure, I can share that. Which region do you need first?',
-          'sent_at': DateTime.now().toUtc().subtract(const Duration(hours: 1)).toIso8601String(),
+          'sent_at':
+              DateTime.now()
+                  .toUtc()
+                  .subtract(const Duration(hours: 1))
+                  .toIso8601String(),
           'created_at': DateTime.now().toUtc().toIso8601String(),
         },
       ];
@@ -319,7 +348,11 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
         'sender_name': '0798734442',
         'sender_id': 'wa-user-1',
         'body': 'Please send brochure and order process.',
-        'sent_at': DateTime.now().toUtc().subtract(const Duration(hours: 3)).toIso8601String(),
+        'sent_at':
+            DateTime.now()
+                .toUtc()
+                .subtract(const Duration(hours: 3))
+                .toIso8601String(),
         'created_at': DateTime.now().toUtc().toIso8601String(),
       },
       {
@@ -327,7 +360,11 @@ class _AdminSocialInboxPageState extends State<AdminSocialInboxPage> {
         'sender_name': 'Admin',
         'sender_id': me,
         'body': 'Shared. I can also book a call tomorrow morning.',
-        'sent_at': DateTime.now().toUtc().subtract(const Duration(hours: 2)).toIso8601String(),
+        'sent_at':
+            DateTime.now()
+                .toUtc()
+                .subtract(const Duration(hours: 2))
+                .toIso8601String(),
         'created_at': DateTime.now().toUtc().toIso8601String(),
       },
     ];

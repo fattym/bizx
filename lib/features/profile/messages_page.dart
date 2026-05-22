@@ -57,10 +57,8 @@ class _MessagesPageState extends State<MessagesPage> {
         _users =
             users.where((user) => user.id != currentUser?.id).toList()
               ..sort((a, b) {
-                final left =
-                    (a.fullName ?? a.email).toLowerCase();
-                final right =
-                    (b.fullName ?? b.email).toLowerCase();
+                final left = (a.fullName ?? a.email).toLowerCase();
+                final right = (b.fullName ?? b.email).toLowerCase();
                 return left.compareTo(right);
               });
         _userDisplayById = userDisplayById;
@@ -73,9 +71,9 @@ class _MessagesPageState extends State<MessagesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load messages: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load messages: $e')));
     }
   }
 
@@ -114,21 +112,22 @@ class _MessagesPageState extends State<MessagesPage> {
       await _loadData();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message sent.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
 
   Future<void> _openMessage(MessageModel message) async {
-    if (!message.isRead && message.recipientId == Supabase.instance.client.auth.currentUser?.id) {
+    if (!message.isRead &&
+        message.recipientId == Supabase.instance.client.auth.currentUser?.id) {
       await _dbService.markMessageRead(message.id);
       await _loadData();
     }
@@ -192,20 +191,21 @@ class _MessagesPageState extends State<MessagesPage> {
   Future<void> _deleteMessage(MessageModel message) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Message'),
-        content: const Text('Delete this message from your inbox?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Message'),
+            content: const Text('Delete this message from your inbox?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
@@ -230,25 +230,23 @@ class _MessagesPageState extends State<MessagesPage> {
       appBar: AppBar(
         title: const Text('Messages'),
         actions: [
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildComposeCard(),
-                  const SizedBox(height: 16),
-                  _buildInboxCard(),
-                ],
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildComposeCard(),
+                    const SizedBox(height: 16),
+                    _buildInboxCard(),
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -266,24 +264,22 @@ class _MessagesPageState extends State<MessagesPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedRecipientId,
+              initialValue: _selectedRecipientId,
               decoration: const InputDecoration(
                 labelText: 'Recipient',
                 border: OutlineInputBorder(),
               ),
-              items: _users
-                  .map(
-                    (user) => DropdownMenuItem<String>(
-                      value: user.id,
-                      child: Text(
-                        user.fullName ??
-                            user.email ??
-                            'Unknown User',
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedRecipientId = value),
+              items:
+                  _users
+                      .map(
+                        (user) => DropdownMenuItem<String>(
+                          value: user.id,
+                          child: Text(user.fullName ?? user.email),
+                        ),
+                      )
+                      .toList(),
+              onChanged:
+                  (value) => setState(() => _selectedRecipientId = value),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -307,13 +303,14 @@ class _MessagesPageState extends State<MessagesPage> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _isSending ? null : _sendMessage,
-                icon: _isSending
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
+                icon:
+                    _isSending
+                        ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.send),
                 label: const Text('Send Message'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryGreen,
@@ -350,24 +347,28 @@ class _MessagesPageState extends State<MessagesPage> {
               final isIncoming =
                   message.recipientId ==
                   Supabase.instance.client.auth.currentUser?.id;
-              final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+              final currentUserId =
+                  Supabase.instance.client.auth.currentUser?.id;
               final senderLabel =
                   message.senderId == currentUserId
                       ? 'You'
-                      : (_userDisplayById[message.senderId] ?? 'Unknown Sender');
+                      : (_userDisplayById[message.senderId] ??
+                          'Unknown Sender');
               return Card(
                 elevation: 0,
                 color: message.isRead ? Colors.white : Colors.green.shade50,
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: isIncoming
-                        ? AppColors.primaryGreen.withOpacity(0.12)
-                        : AppColors.secondaryOrange.withOpacity(0.12),
+                    backgroundColor:
+                        isIncoming
+                            ? AppColors.primaryGreen.withValues(alpha: 0.12)
+                            : AppColors.secondaryOrange.withValues(alpha: 0.12),
                     child: Icon(
                       isIncoming ? Icons.mark_email_unread : Icons.outbox,
-                      color: isIncoming
-                          ? AppColors.primaryGreen
-                          : AppColors.secondaryOrange,
+                      color:
+                          isIncoming
+                              ? AppColors.primaryGreen
+                              : AppColors.secondaryOrange,
                     ),
                   ),
                   title: Text(

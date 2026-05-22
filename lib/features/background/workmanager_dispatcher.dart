@@ -21,7 +21,9 @@ void callbackDispatcher() {
 
     for (var school in unsynced) {
       try {
-        await supabase.from('schools').upsert(Map<String, dynamic>.from(school));
+        await supabase
+            .from('schools')
+            .upsert(Map<String, dynamic>.from(school));
 
         school['isSynced'] = true;
         await box.put(school['id'], school);

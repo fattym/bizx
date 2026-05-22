@@ -16,7 +16,10 @@ class InvoiceService {
       await invoiceDir.create(recursive: true);
     }
 
-    final safeNumber = order.orderNumber.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final safeNumber = order.orderNumber.replaceAll(
+      RegExp(r'[^A-Za-z0-9_-]'),
+      '_',
+    );
     final file = File('${invoiceDir.path}/invoice_$safeNumber.txt');
     await file.writeAsString(_buildInvoiceText(order, items));
     return file.path;
@@ -31,7 +34,9 @@ class InvoiceService {
     buffer.writeln('Payment Method: ${_paymentLabel(order.paymentMethod)}');
     buffer.writeln('Payment Reference: ${order.paymentReference ?? 'N/A'}');
     buffer.writeln('Status: ${order.status.toUpperCase()}');
-    buffer.writeln('Submitted At: ${order.submittedAt?.toIso8601String() ?? 'N/A'}');
+    buffer.writeln(
+      'Submitted At: ${order.submittedAt?.toIso8601String() ?? 'N/A'}',
+    );
     buffer.writeln('');
     buffer.writeln('ITEMS');
     buffer.writeln('----------------------------------------');
@@ -48,9 +53,7 @@ class InvoiceService {
     }
 
     buffer.writeln('----------------------------------------');
-    buffer.writeln(
-      'Total: KES ${order.checkoutAmount.toStringAsFixed(2)}',
-    );
+    buffer.writeln('Total: KES ${order.checkoutAmount.toStringAsFixed(2)}');
     if ((order.notes ?? '').isNotEmpty) {
       buffer.writeln('');
       buffer.writeln('Notes: ${order.notes}');

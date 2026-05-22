@@ -106,14 +106,14 @@ class _HeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.primaryGreen.withOpacity(0.08),
+        color: AppColors.primaryGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 26,
-            backgroundColor: AppColors.primaryGreen.withOpacity(0.12),
+            backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.12),
             child: Icon(icon, color: AppColors.primaryGreen),
           ),
           const SizedBox(width: 14),

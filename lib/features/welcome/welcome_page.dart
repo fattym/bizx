@@ -8,29 +8,32 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: NetworkImage(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.network(
               'https://www.longhornpublishers.com/wp-content/uploads/2024/01/schoolgirl-hero-1-1536x950.png',
-            ),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppColors.primaryGreen.withValues(alpha: 0.85),
-                AppColors.textDark.withValues(alpha: 0.95),
-              ],
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) {
+                return Container(color: AppColors.primaryGreen);
+              },
             ),
           ),
-          child: SafeArea(
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.primaryGreen.withValues(alpha: 0.85),
+                    AppColors.textDark.withValues(alpha: 0.95),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30),
               child: Column(
@@ -38,9 +41,8 @@ class WelcomePage extends StatelessWidget {
                 children: [
                   const Spacer(),
 
-                  // App Branding
                   const Text(
-                    "Welcome to",
+                    'Welcome to',
                     style: TextStyle(
                       color: AppColors.surfaceWhite,
                       fontSize: 28,
@@ -72,7 +74,7 @@ class WelcomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    "Your complete publisher portal for managing school accounts, tasks, and workflows.",
+                    'Your complete publisher portal for managing school accounts, tasks, and workflows.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.primaryPale,
@@ -83,7 +85,6 @@ class WelcomePage extends StatelessWidget {
 
                   const Spacer(),
 
-                  // Get Started Button
                   ElevatedButton(
                     onPressed: () {
                       Navigator.push(
@@ -103,7 +104,7 @@ class WelcomePage extends StatelessWidget {
                       elevation: 0,
                     ),
                     child: const Text(
-                      "Get Started",
+                      'Get Started',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -112,7 +113,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // About Button
                   OutlinedButton.icon(
                     onPressed: () {
                       showAboutDialog(
@@ -153,7 +153,7 @@ class WelcomePage extends StatelessWidget {
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

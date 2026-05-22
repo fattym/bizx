@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../database/database_service.dart';
+import '../profile/crm_notification_service.dart';
 import '../../models/pipeline_stage.dart';
 import '../../models/school_sale_model.dart';
 import 'add_order_page.dart';
@@ -231,7 +232,10 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
       }
     }
 
-    final transitionAllowed = canMovePipelineStage(_currentStage, _selectedStage);
+    final transitionAllowed = canMovePipelineStage(
+      _currentStage,
+      _selectedStage,
+    );
     if (!transitionAllowed && !_isCheckoutStage) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -246,9 +250,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     for (final field in _stageFields) {
       final value = field.controller.text.trim();
       if (field.required && value.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${field.label} is required.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${field.label} is required.')));
         return;
       }
       if (field.numeric && value.isNotEmpty && int.tryParse(value) == null) {
@@ -260,7 +264,8 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     }
 
     if (_selectedStage.isActive &&
-        (_nextActionController.text.trim().isEmpty || _nextActionDueDate == null)) {
+        (_nextActionController.text.trim().isEmpty ||
+            _nextActionDueDate == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Set a next action and due date for active stages.'),
@@ -277,7 +282,8 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
       try {
         final contextNotes = _buildStageContextNotes();
         final mergedNotes = [
-          if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+          if (_notesController.text.trim().isNotEmpty)
+            _notesController.text.trim(),
           if (contextNotes.isNotEmpty) contextNotes,
         ].join('\n');
         final sale = SchoolSaleModel(
@@ -315,8 +321,10 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
       } catch (e) {
         if (!mounted) return;
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save pipeline stage: $e')),
+        await CrmNotificationService.showIfEnabled(
+          context,
+          message: 'Failed to save pipeline stage: $e',
+          backgroundColor: Colors.red,
         );
         return;
       }
@@ -325,12 +333,14 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     if (!_isCheckoutStage) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pipeline stage saved.')),
+      await CrmNotificationService.showIfEnabled(
+        context,
+        message: 'Pipeline stage saved.',
       );
       return;
     }
 
+    if (!mounted) return;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -342,9 +352,10 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
               initialPaymentReference: _receiptController.text.trim(),
               initialCheckoutAmount: checkoutAmount!,
               initialNotes: _notesController.text.trim(),
-              initialPackageName: _packageController.text.trim().isEmpty
-                  ? null
-                  : _packageController.text.trim(),
+              initialPackageName:
+                  _packageController.text.trim().isEmpty
+                      ? null
+                      : _packageController.text.trim(),
             ),
       ),
     );
@@ -356,9 +367,7 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '${widget.school['name']} order created successfully.',
-          ),
+          content: Text('${widget.school['name']} order created successfully.'),
           backgroundColor: Colors.green,
         ),
       );
@@ -396,7 +405,7 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.08),
+                color: Colors.blue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -407,9 +416,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: stageColor.withOpacity(0.08),
+              color: stageColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: stageColor.withOpacity(0.35)),
+              border: Border.all(color: stageColor.withValues(alpha: 0.35)),
             ),
             child: Row(
               children: [
@@ -447,7 +456,7 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
             child: Column(
               children: [
                 DropdownButtonFormField<PipelineStage>(
-                  value: _selectedStage,
+                  initialValue: _selectedStage,
                   decoration: const InputDecoration(
                     labelText: 'Pipeline Stage',
                     border: OutlineInputBorder(),
@@ -602,7 +611,7 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _paymentMethod,
+              initialValue: _paymentMethod,
               decoration: const InputDecoration(
                 labelText: 'Method of Payment',
                 border: OutlineInputBorder(),
@@ -656,7 +665,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                     : const Icon(Icons.shopping_cart_checkout),
-            label: Text(_isCheckoutStage ? 'Proceed to Checkout' : 'Save Pipeline'),
+            label: Text(
+              _isCheckoutStage ? 'Proceed to Checkout' : 'Save Pipeline',
+            ),
           ),
         ],
       ),
@@ -680,14 +691,14 @@ class _HeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.1),
+        color: Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 26,
-            backgroundColor: Colors.green.withOpacity(0.15),
+            backgroundColor: Colors.green.withValues(alpha: 0.15),
             child: Icon(icon, color: Colors.green),
           ),
           const SizedBox(width: 14),
@@ -728,7 +739,7 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),

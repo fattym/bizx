@@ -15,17 +15,49 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 class DatabaseService {
   static Future<Box<dynamic>>? _schoolBoxFuture;
   static Future<Box<dynamic>>? _catalogBoxFuture;
+  static Future<Box<dynamic>>? _pendingOpsBoxFuture;
+  final Future<List<ConnectivityResult>> Function()? _connectivityCheck;
+  final Future<Box<dynamic>> Function()? _schoolBoxProvider;
+  final Future<Box<dynamic>> Function()? _catalogBoxProvider;
+  final Future<Box<dynamic>> Function()? _pendingOpsBoxProvider;
+  final Future<void> Function(Map<String, dynamic>)? _upsertSchoolOverride;
+  final Future<void> Function(SchoolModel)? _syncEngagementOverride;
+  final Future<void> Function(Map<String, dynamic>)? _upsertCatalogOverride;
+
+  DatabaseService({
+    Future<List<ConnectivityResult>> Function()? connectivityCheck,
+    Future<Box<dynamic>> Function()? schoolBoxProvider,
+    Future<Box<dynamic>> Function()? catalogBoxProvider,
+    Future<Box<dynamic>> Function()? pendingOpsBoxProvider,
+    Future<void> Function(Map<String, dynamic>)? upsertSchoolOverride,
+    Future<void> Function(SchoolModel)? syncEngagementOverride,
+    Future<void> Function(Map<String, dynamic>)? upsertCatalogOverride,
+  }) : _connectivityCheck = connectivityCheck,
+       _schoolBoxProvider = schoolBoxProvider,
+       _catalogBoxProvider = catalogBoxProvider,
+       _pendingOpsBoxProvider = pendingOpsBoxProvider,
+       _upsertSchoolOverride = upsertSchoolOverride,
+       _syncEngagementOverride = syncEngagementOverride,
+       _upsertCatalogOverride = upsertCatalogOverride;
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
   Future<Box<dynamic>> get _box async {
+    if (_schoolBoxProvider != null) return _schoolBoxProvider();
     _schoolBoxFuture ??= Hive.openBox('school_box');
     return _schoolBoxFuture!;
   }
 
   Future<Box<dynamic>> get _catalogBox async {
+    if (_catalogBoxProvider != null) return _catalogBoxProvider();
     _catalogBoxFuture ??= Hive.openBox('catalog_box');
     return _catalogBoxFuture!;
+  }
+
+  Future<Box<dynamic>> get _pendingOpsBox async {
+    if (_pendingOpsBoxProvider != null) return _pendingOpsBoxProvider();
+    _pendingOpsBoxFuture ??= Hive.openBox('pending_ops_box');
+    return _pendingOpsBoxFuture!;
   }
 
   // User management methods
@@ -125,7 +157,7 @@ class DatabaseService {
     final box = await _box;
     await box.delete(schoolId);
     try {
-      await _supabase.from('schools').delete().eq('id', schoolId);
+      await deleteByIdWithOfflineQueue(table: 'schools', id: schoolId);
     } catch (e) {
       debugPrint("Error deleting school $schoolId from Supabase: $e");
     }
@@ -133,7 +165,10 @@ class DatabaseService {
 
   // 2. Sync pending data to Supabase
   Future<void> syncData() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
+    final connectivityResult =
+        _connectivityCheck != null
+            ? await _connectivityCheck()
+            : await Connectivity().checkConnectivity();
     if (connectivityResult.contains(ConnectivityResult.none)) return;
 
     final box = await _box;
@@ -142,8 +177,16 @@ class DatabaseService {
 
     for (var school in unsynced) {
       try {
-        await _supabase.from('schools').upsert(school.toMap());
-        await _syncEngagementToPipeline(school);
+        if (_upsertSchoolOverride != null) {
+          await _upsertSchoolOverride(school.toMap());
+        } else {
+          await _supabase.from('schools').upsert(school.toMap());
+        }
+        if (_syncEngagementOverride != null) {
+          await _syncEngagementOverride(school);
+        } else {
+          await _syncEngagementToPipeline(school);
+        }
 
         // Preserve all existing fields and only flip sync state.
         final updatedSchool = school.copyWithSynced(true);
@@ -163,9 +206,13 @@ class DatabaseService {
 
     for (var catalog in unsyncedCatalogs) {
       try {
-        await _supabase
-            .from('catalog_items')
-            .upsert(catalog.toMap(), onConflict: 'sku');
+        if (_upsertCatalogOverride != null) {
+          await _upsertCatalogOverride(catalog.toMap());
+        } else {
+          await _supabase
+              .from('catalog_items')
+              .upsert(catalog.toMap(), onConflict: 'sku');
+        }
 
         // Update local status to synced
         final updatedCatalog = CatalogItemModel(
@@ -185,6 +232,8 @@ class DatabaseService {
         debugPrint("Sync Error for Catalog ${catalog.sku}: $e");
       }
     }
+
+    await _syncPendingOps();
   }
 
   // 3. Get all school contacts for UI
@@ -248,9 +297,7 @@ class DatabaseService {
       final data = await _supabase
           .from('tasks')
           .select()
-          .or(
-            'target_role.eq.$role,assigned_to.eq.$currentUserId',
-          )
+          .or('target_role.eq.$role,assigned_to.eq.$currentUserId')
           .order('created_at', ascending: false);
       return (data as List)
           .map((item) => TaskModel.fromMap(Map<String, dynamic>.from(item)))
@@ -273,7 +320,7 @@ class DatabaseService {
 
   Future<void> deleteTask(String taskId) async {
     try {
-      await _supabase.from('tasks').delete().eq('id', taskId);
+      await deleteByIdWithOfflineQueue(table: 'tasks', id: taskId);
       debugPrint("Task $taskId deleted from Supabase.");
     } catch (e) {
       debugPrint("Error deleting task $taskId from Supabase: $e");
@@ -283,7 +330,11 @@ class DatabaseService {
 
   Future<void> updateTaskStatus(String taskId, String status) async {
     try {
-      await _supabase.from('tasks').update({'status': status}).eq('id', taskId);
+      await updateByIdWithOfflineQueue(
+        table: 'tasks',
+        id: taskId,
+        payload: {'status': status},
+      );
       debugPrint("Task $taskId status updated to $status.");
     } catch (e) {
       debugPrint("Error updating task $taskId status: $e");
@@ -428,7 +479,7 @@ class DatabaseService {
               .eq('id', itemId)
               .maybeSingle();
       final currentStock = (current?['stock_qty'] as num?)?.toInt() ?? 0;
-      final newStock = (currentStock - quantity).clamp(0, 1 << 30) as int;
+      final newStock = (currentStock - quantity).clamp(0, 1 << 30);
       await _supabase
           .from('catalog_items')
           .update({'stock_qty': newStock})
@@ -443,15 +494,16 @@ class DatabaseService {
     required String schoolId,
     required String sampleName,
     required String sampleCategory,
+    String? agentId,
     int quantity = 1,
     String? notes,
     String? stampedReceiptUrl,
     String? stampedReceiptPath,
   }) async {
     try {
-      await _supabase.from('school_sample_distributions').insert({
+      final payload = <String, dynamic>{
         'school_id': schoolId,
-        'agent_id': getCurrentUserId(),
+        'agent_id': agentId ?? getCurrentUserId(),
         'sample_name': sampleName,
         'sample_category': sampleCategory,
         'quantity': quantity,
@@ -459,10 +511,170 @@ class DatabaseService {
         'stamped_receipt_path': stampedReceiptPath,
         'notes': notes,
         'distributed_at': DateTime.now().toIso8601String(),
-      });
+      };
+      await _insertWithOfflineQueue(
+        table: 'school_sample_distributions',
+        payload: payload,
+      );
     } catch (e) {
       debugPrint("Error saving sample distribution record: $e");
       rethrow;
+    }
+  }
+
+  Future<void> saveDebtCollection({
+    required String schoolId,
+    required double amount,
+    required String paymentMethod,
+    String? paymentReference,
+    String? notes,
+    DateTime? collectedAt,
+  }) async {
+    final payload = <String, dynamic>{
+      'school_id': schoolId,
+      'collected_by': getCurrentUserId(),
+      'amount': amount,
+      'payment_method': paymentMethod,
+      'payment_reference': paymentReference,
+      'notes': notes,
+      'collected_at': (collectedAt ?? DateTime.now()).toIso8601String(),
+    };
+    await _insertWithOfflineQueue(table: 'debt_collections', payload: payload);
+  }
+
+  Future<void> _insertWithOfflineQueue({
+    required String table,
+    required Map<String, dynamic> payload,
+  }) async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
+      await _supabase.from(table).insert(payload);
+      return;
+    }
+    final pendingBox = await _pendingOpsBox;
+    final op = <String, dynamic>{
+      'table': table,
+      'payload': payload,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    await pendingBox.add(op);
+  }
+
+  Future<void> insertWithOfflineQueue({
+    required String table,
+    required Map<String, dynamic> payload,
+  }) async {
+    await _insertWithOfflineQueue(table: table, payload: payload);
+  }
+
+  Future<void> upsertWithOfflineQueue({
+    required String table,
+    required Map<String, dynamic> payload,
+    String? onConflict,
+  }) async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
+      await _supabase.from(table).upsert(payload, onConflict: onConflict);
+      return;
+    }
+    final pendingBox = await _pendingOpsBox;
+    final op = <String, dynamic>{
+      'op': 'upsert',
+      'table': table,
+      'payload': payload,
+      'on_conflict': onConflict,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    await pendingBox.add(op);
+  }
+
+  Future<void> updateByIdWithOfflineQueue({
+    required String table,
+    required String id,
+    required Map<String, dynamic> payload,
+  }) async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
+      await _supabase.from(table).update(payload).eq('id', id);
+      return;
+    }
+    final pendingBox = await _pendingOpsBox;
+    await pendingBox.add({
+      'op': 'update',
+      'table': table,
+      'id': id,
+      'payload': payload,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> deleteByIdWithOfflineQueue({
+    required String table,
+    required String id,
+  }) async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
+      await _supabase.from(table).delete().eq('id', id);
+      return;
+    }
+    final pendingBox = await _pendingOpsBox;
+    await pendingBox.add({
+      'op': 'delete',
+      'table': table,
+      'id': id,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> _syncPendingOps() async {
+    final pendingBox = await _pendingOpsBox;
+    final keys = pendingBox.keys.toList();
+    for (final key in keys) {
+      final raw = pendingBox.get(key);
+      if (raw is! Map) continue;
+      final table = raw['table']?.toString();
+      final opType = raw['op']?.toString() ?? 'insert';
+      final rowId = raw['id']?.toString();
+      final payloadRaw = raw['payload'];
+      if (table == null) {
+        await pendingBox.delete(key);
+        continue;
+      }
+      try {
+        if (opType == 'upsert') {
+          if (payloadRaw is! Map) {
+            await pendingBox.delete(key);
+            continue;
+          }
+          final payload = Map<String, dynamic>.from(payloadRaw);
+          await _supabase
+              .from(table)
+              .upsert(payload, onConflict: raw['on_conflict']?.toString());
+        } else if (opType == 'update') {
+          if (rowId == null || payloadRaw is! Map) {
+            await pendingBox.delete(key);
+            continue;
+          }
+          final payload = Map<String, dynamic>.from(payloadRaw);
+          await _supabase.from(table).update(payload).eq('id', rowId);
+        } else if (opType == 'delete') {
+          if (rowId == null) {
+            await pendingBox.delete(key);
+            continue;
+          }
+          await _supabase.from(table).delete().eq('id', rowId);
+        } else {
+          if (payloadRaw is! Map) {
+            await pendingBox.delete(key);
+            continue;
+          }
+          final payload = Map<String, dynamic>.from(payloadRaw);
+          await _supabase.from(table).insert(payload);
+        }
+        await pendingBox.delete(key);
+      } catch (e) {
+        debugPrint("Pending op sync failed for $table: $e");
+      }
     }
   }
 
@@ -520,7 +732,7 @@ class DatabaseService {
         final payload =
             items.map((item) {
               final map = item.toMap();
-              map['order_id'] = currentSavedOrder!.id;
+              map['order_id'] = currentSavedOrder.id;
               return map;
             }).toList();
         await _supabase.from('order_items').insert(payload);
@@ -545,7 +757,11 @@ class DatabaseService {
 
   Future<void> markMessageRead(String id) async {
     try {
-      await _supabase.from('messages').update({'is_read': true}).eq('id', id);
+      await updateByIdWithOfflineQueue(
+        table: 'messages',
+        id: id,
+        payload: {'is_read': true},
+      );
     } catch (e) {
       debugPrint("Error marking message read: $e");
       rethrow;
@@ -554,7 +770,7 @@ class DatabaseService {
 
   Future<void> deleteMessage(String id) async {
     try {
-      await _supabase.from('messages').delete().eq('id', id);
+      await deleteByIdWithOfflineQueue(table: 'messages', id: id);
     } catch (e) {
       debugPrint("Error deleting message: $e");
       rethrow;
@@ -563,13 +779,14 @@ class DatabaseService {
 
   Future<SchoolSaleModel?> getLatestSchoolSale(String schoolId) async {
     try {
-      final data = await _supabase
-          .from('school_sales')
-          .select()
-          .eq('school_id', schoolId)
-          .order('updated_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+      final data =
+          await _supabase
+              .from('school_sales')
+              .select()
+              .eq('school_id', schoolId)
+              .order('updated_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
       if (data == null) return null;
       return SchoolSaleModel.fromMap(Map<String, dynamic>.from(data));
     } catch (e) {
@@ -635,9 +852,10 @@ class DatabaseService {
       id: latestSale.id,
       schoolId: latestSale.schoolId,
       agentId: latestSale.agentId ?? getCurrentUserId(),
-      packageName: latestSale.packageName.isNotEmpty
-          ? latestSale.packageName
-          : engagement,
+      packageName:
+          latestSale.packageName.isNotEmpty
+              ? latestSale.packageName
+              : engagement,
       expectedValue: latestSale.expectedValue,
       notes: latestSale.notes,
       stage: mappedStage,

@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'colors.dart';
 // Include all pages from dashboard for grounds operations here:
-import '../../features/dashboard/school_sell_page.dart';
 // import '../../features/dashboard/your_other_page.dart';
 
 class GroundsRoutePlanScreen extends StatefulWidget {

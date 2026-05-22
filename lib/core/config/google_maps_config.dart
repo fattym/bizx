@@ -3,4 +3,3 @@ class GoogleMapsConfig {
 
   static bool get isConfigured => apiKey.isNotEmpty;
 }
-

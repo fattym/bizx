@@ -118,7 +118,7 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
                   point: LatLng(lat, lng),
                   radius: radius,
                   useRadiusInMeter: true,
-                  color: Colors.green.withOpacity(0.25),
+                  color: Colors.green.withValues(alpha: 0.25),
                   borderColor: Colors.green.shade700,
                   borderStrokeWidth: 2,
                 ),
@@ -141,9 +141,9 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
     final orderedPoints = <LatLng>[];
     for (final schoolId in rawSchoolIds) {
       final school = _schools.cast<Map<String, dynamic>>().firstWhere(
-            (school) => school['id'].toString() == schoolId.toString(),
-            orElse: () => <String, dynamic>{},
-          );
+        (school) => school['id'].toString() == schoolId.toString(),
+        orElse: () => <String, dynamic>{},
+      );
       final lat = (school['latitude'] as num?)?.toDouble();
       final lng = (school['longitude'] as num?)?.toDouble();
       if (lat != null && lng != null) {
@@ -181,7 +181,8 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
   }
 
   String _formatDate(dynamic value) {
-    final parsed = value is String ? DateTime.tryParse(value) : value as DateTime?;
+    final parsed =
+        value is String ? DateTime.tryParse(value) : value as DateTime?;
     if (parsed == null) return 'No date';
     return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
   }
@@ -192,40 +193,38 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
       appBar: AppBar(
         title: const Text('Alerts'),
         actions: [
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      _errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _buildSummaryCard(),
-                      const SizedBox(height: 16),
-                      _buildMapCard(),
-                      const SizedBox(height: 16),
-                      _buildRoutePlanCard(),
-                      const SizedBox(height: 16),
-                      _buildGeofenceListCard(),
-                    ],
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
                   ),
                 ),
+              )
+              : RefreshIndicator(
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildSummaryCard(),
+                    const SizedBox(height: 16),
+                    _buildMapCard(),
+                    const SizedBox(height: 16),
+                    _buildRoutePlanCard(),
+                    const SizedBox(height: 16),
+                    _buildGeofenceListCard(),
+                  ],
+                ),
+              ),
     );
   }
 
@@ -249,7 +248,9 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
             const SizedBox(height: 12),
             Text(routePlan?['title'] ?? 'No route plan assigned yet.'),
             const SizedBox(height: 8),
-            Text('Route date: ${routePlan == null ? 'No date' : _formatDate(routePlan['route_date'])}'),
+            Text(
+              'Route date: ${routePlan == null ? 'No date' : _formatDate(routePlan['route_date'])}',
+            ),
             Text('Geofences assigned: $geofenceCount'),
             Text('Tasks assigned: $taskCount'),
           ],
@@ -271,11 +272,7 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
           point: LatLng(lat, lng),
           width: 42,
           height: 42,
-          child: const Icon(
-            Icons.location_pin,
-            color: Colors.red,
-            size: 38,
-          ),
+          child: const Icon(Icons.location_pin, color: Colors.red, size: 38),
         );
       }).whereType<Marker>(),
     ];
@@ -297,13 +294,11 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: center,
-                    initialZoom: 11.5,
-                  ),
+                  options: MapOptions(initialCenter: center, initialZoom: 11.5),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.longhorn.dehus',
                     ),
                     CircleLayer(circles: _buildGeofenceCircles()),
@@ -340,7 +335,10 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
 
     final routePlan = _routePlans.first;
     final rawSchoolIds = routePlan['school_ids'];
-    final schoolIdList = rawSchoolIds is List ? rawSchoolIds.map((e) => e.toString()).toList() : <String>[];
+    final schoolIdList =
+        rawSchoolIds is List
+            ? rawSchoolIds.map((e) => e.toString()).toList()
+            : <String>[];
 
     return Card(
       child: Padding(
@@ -359,9 +357,9 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
             const SizedBox(height: 12),
             ...schoolIdList.asMap().entries.map((entry) {
               final school = _schools.cast<Map<String, dynamic>>().firstWhere(
-                    (school) => school['id'].toString() == entry.value,
-                    orElse: () => <String, dynamic>{},
-                  );
+                (school) => school['id'].toString() == entry.value,
+                orElse: () => <String, dynamic>{},
+              );
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(

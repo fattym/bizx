@@ -30,8 +30,8 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   List<String> _categories(List<CatalogItemModel> items) {
-    final categories = items.map((item) => item.category).toSet().toList()
-      ..sort();
+    final categories =
+        items.map((item) => item.category).toSet().toList()..sort();
     return ['All', ...categories];
   }
 
@@ -57,7 +57,9 @@ class _InventoryPageState extends State<InventoryPage> {
           final visibleItems =
               selectedCategory == "All"
                   ? items
-                  : items.where((item) => item.category == selectedCategory).toList();
+                  : items
+                      .where((item) => item.category == selectedCategory)
+                      .toList();
 
           return Column(
             children: [
@@ -67,9 +69,7 @@ class _InventoryPageState extends State<InventoryPage> {
                     snapshot.connectionState == ConnectionState.waiting
                         ? const Center(child: CircularProgressIndicator())
                         : visibleItems.isEmpty
-                        ? const Center(
-                          child: Text('No catalog items found.'),
-                        )
+                        ? const Center(child: Text('No catalog items found.'))
                         : ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: visibleItems.length,

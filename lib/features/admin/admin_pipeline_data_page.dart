@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
+import '../profile/crm_notification_service.dart';
 
 class AdminPipelineDataPage extends StatefulWidget {
   const AdminPipelineDataPage({super.key});
@@ -10,6 +12,7 @@ class AdminPipelineDataPage extends StatefulWidget {
 
 class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   bool _loading = true;
   String _stageFilter = 'all';
   List<Map<String, dynamic>> _rows = [];
@@ -64,7 +67,9 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      Future<List<Map<String, dynamic>>> runSalesQuery(String selectClause) async {
+      Future<List<Map<String, dynamic>>> runSalesQuery(
+        String selectClause,
+      ) async {
         dynamic query = _supabase.from('school_sales').select(selectClause);
         if (_stageFilter != 'all') {
           query = query.eq('sale_status', _stageFilter.trim().toLowerCase());
@@ -77,7 +82,9 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
         if (_stageFilter != 'all') {
           final wanted = _stageFilter.trim().toLowerCase();
           rows =
-              rows.where((row) => _normalizeStage(row['sale_status']) == wanted).toList();
+              rows
+                  .where((row) => _normalizeStage(row['sale_status']) == wanted)
+                  .toList();
         }
         return rows;
       }
@@ -140,10 +147,15 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
           final schoolRows = await _supabase
               .from('schools')
               .select('id,name')
-              .filter('id', 'in', '(${schoolIds.map((e) => '"$e"').join(',')})');
+              .filter(
+                'id',
+                'in',
+                '(${schoolIds.map((e) => '"$e"').join(',')})',
+              );
           for (final item in schoolRows as List) {
             final map = Map<String, dynamic>.from(item as Map);
-            schoolNamesById[map['id'].toString()] = map['name']?.toString() ?? '-';
+            schoolNamesById[map['id'].toString()] =
+                map['name']?.toString() ?? '-';
           }
         } catch (_) {}
       }
@@ -183,10 +195,10 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(
+      await CrmNotificationService.showIfEnabled(
         context,
-      ).showSnackBar(
-        SnackBar(content: Text('Failed to load pipeline data. Details: $e')),
+        message: 'Failed to load pipeline data. Details: $e',
+        backgroundColor: Colors.red,
       );
     }
   }
@@ -201,13 +213,17 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
           content: StatefulBuilder(
             builder: (_, setDialog) {
               return DropdownButtonFormField<String>(
-                value: selected,
-                items: _stages
-                    .where((s) => s != 'all')
-                    .map(
-                      (s) => DropdownMenuItem(value: s, child: Text(_stageLabel(s))),
-                    )
-                    .toList(),
+                initialValue: selected,
+                items:
+                    _stages
+                        .where((s) => s != 'all')
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(_stageLabel(s)),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (value) {
                   if (value == null) return;
                   setDialog(() => selected = value);
@@ -230,12 +246,16 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
     );
     if (updated == null) return;
 
-    await _supabase.from('school_sales').update({
-      'sale_status': updated,
-      'probability': _probabilityForStage(updated),
-      'stage_updated_at': DateTime.now().toIso8601String(),
-      'closed_at': updated == 'won' ? DateTime.now().toIso8601String() : null,
-    }).eq('id', row['id']);
+    await _supabase
+        .from('school_sales')
+        .update({
+          'sale_status': updated,
+          'probability': _probabilityForStage(updated),
+          'stage_updated_at': DateTime.now().toIso8601String(),
+          'closed_at':
+              updated == 'won' ? DateTime.now().toIso8601String() : null,
+        })
+        .eq('id', row['id']);
     await _load();
   }
 
@@ -272,17 +292,18 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
           content: StatefulBuilder(
             builder: (_, setDialog) {
               return DropdownButtonFormField<String>(
-                value: selected,
-                items: _owners
-                    .map(
-                      (o) => DropdownMenuItem(
-                        value: o['id']?.toString(),
-                        child: Text(
-                          '${o['full_name'] ?? o['email']} (Role ${o['role']})',
-                        ),
-                      ),
-                    )
-                    .toList(),
+                initialValue: selected,
+                items:
+                    _owners
+                        .map(
+                          (o) => DropdownMenuItem(
+                            value: o['id']?.toString(),
+                            child: Text(
+                              '${o['full_name'] ?? o['email']} (Role ${o['role']})',
+                            ),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (value) => setDialog(() => selected = value),
               );
             },
@@ -293,7 +314,10 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: selected == null ? null : () => Navigator.pop(context, selected),
+              onPressed:
+                  selected == null
+                      ? null
+                      : () => Navigator.pop(context, selected),
               child: const Text('Assign'),
             ),
           ],
@@ -301,7 +325,10 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
       },
     );
     if (updated == null) return;
-    await _supabase.from('school_sales').update({'agent_id': updated}).eq('id', row['id']);
+    await _supabase
+        .from('school_sales')
+        .update({'agent_id': updated})
+        .eq('id', row['id']);
     await _load();
   }
 
@@ -367,14 +394,17 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
       return;
     }
 
-    await _supabase.from('school_follow_ups').insert({
-      'school_id': row['school_id'],
-      'agent_id': row['agent_id'],
-      'next_step': nextStepController.text.trim(),
-      'due_at': dueDate!.toIso8601String(),
-      'notes': 'Added by admin from pipeline view',
-      'follow_up_status': 'open',
-    });
+    await _dbService.insertWithOfflineQueue(
+      table: 'school_follow_ups',
+      payload: {
+        'school_id': row['school_id'],
+        'agent_id': row['agent_id'],
+        'next_step': nextStepController.text.trim(),
+        'due_at': dueDate!.toIso8601String(),
+        'notes': 'Added by admin from pipeline view',
+        'follow_up_status': 'open',
+      },
+    );
   }
 
   Future<void> _viewTimeline(Map<String, dynamic> row) async {
@@ -407,13 +437,18 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
                 children: [
                   Text(
                     'Timeline • ${_schoolNamesById[schoolId] ?? 'School'}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: Text('Stage: ${_stageLabel(_normalizeStage(row['sale_status']))}'),
+                    title: Text(
+                      'Stage: ${_stageLabel(_normalizeStage(row['sale_status']))}',
+                    ),
                     subtitle: Text(
                       'Updated: ${row['stage_updated_at'] ?? row['created_at'] ?? '-'}',
                     ),
@@ -425,22 +460,27 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: timelineItems.isEmpty
-                        ? const Center(child: Text('No follow-up items.'))
-                        : ListView.builder(
-                            itemCount: timelineItems.length,
-                            itemBuilder: (_, i) {
-                              final f = timelineItems[i];
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.event_note_outlined),
-                                title: Text(f['next_step']?.toString() ?? '-'),
-                                subtitle: Text(
-                                  'Due: ${f['due_at'] ?? '-'} • ${f['follow_up_status'] ?? '-'}',
-                                ),
-                              );
-                            },
-                          ),
+                    child:
+                        timelineItems.isEmpty
+                            ? const Center(child: Text('No follow-up items.'))
+                            : ListView.builder(
+                              itemCount: timelineItems.length,
+                              itemBuilder: (_, i) {
+                                final f = timelineItems[i];
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(
+                                    Icons.event_note_outlined,
+                                  ),
+                                  title: Text(
+                                    f['next_step']?.toString() ?? '-',
+                                  ),
+                                  subtitle: Text(
+                                    'Due: ${f['due_at'] ?? '-'} • ${f['follow_up_status'] ?? '-'}',
+                                  ),
+                                );
+                              },
+                            ),
                   ),
                 ],
               ),
@@ -471,7 +511,9 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pipeline Data'),
-        actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+        actions: [
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -490,19 +532,22 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _stageFilter,
+                      initialValue: _stageFilter,
                       decoration: const InputDecoration(
                         isDense: true,
                         border: OutlineInputBorder(),
                       ),
-                      items: _stages
-                          .map(
-                            (s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s == 'all' ? 'All' : _stageLabel(s)),
-                            ),
-                          )
-                          .toList(),
+                      items:
+                          _stages
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text(
+                                    s == 'all' ? 'All' : _stageLabel(s),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (value) {
                         if (value == null) return;
                         setState(() => _stageFilter = value);
@@ -515,121 +560,131 @@ class _AdminPipelineDataPageState extends State<AdminPipelineDataPage> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _rows.isEmpty
+              child:
+                  _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _rows.isEmpty
                       ? const Center(child: Text('No pipeline data found.'))
                       : ListView.separated(
-                          itemCount: _rows.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final row = _rows[index];
-                            final stage = _normalizeStage(row['sale_status']);
-                            final school =
-                                _schoolNamesById[row['school_id']?.toString()] ??
-                                'Unknown School';
-                            final owner =
-                                _userNamesById[row['agent_id']?.toString()] ??
-                                'Unassigned';
+                        itemCount: _rows.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final row = _rows[index];
+                          final stage = _normalizeStage(row['sale_status']);
+                          final school =
+                              _schoolNamesById[row['school_id']?.toString()] ??
+                              'Unknown School';
+                          final owner =
+                              _userNamesById[row['agent_id']?.toString()] ??
+                              'Unassigned';
 
-                            return Card(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                school,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 15,
-                                                ),
+                          return Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              school,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
                                               ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                row['package_name']?.toString() ?? '-',
-                                                style: const TextStyle(color: Colors.black87),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _stageColor(stage).withOpacity(0.14),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            _stageLabel(stage),
-                                            style: TextStyle(
-                                              color: _stageColor(stage),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 11,
                                             ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              row['package_name']?.toString() ??
+                                                  '-',
+                                              style: const TextStyle(
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _stageColor(
+                                            stage,
+                                          ).withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Wrap(
-                                      spacing: 10,
-                                      runSpacing: 4,
-                                      children: [
-                                        Text('Owner: $owner'),
-                                        Text(
-                                          'Value: KES ${(row['expected_value'] ?? 0).toString()}',
+                                        child: Text(
+                                          _stageLabel(stage),
+                                          style: TextStyle(
+                                            color: _stageColor(stage),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
                                         ),
-                                        Text(
-                                          'Probability: ${(row['probability'] ?? 0)}%',
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _actionButton(
-                                          icon: Icons.alt_route,
-                                          label: 'Edit Stage',
-                                          onTap: () => _updateStage(row),
-                                        ),
-                                        _actionButton(
-                                          icon: Icons.person_outline,
-                                          label: 'Assign Owner',
-                                          onTap: () => _assignOwner(row),
-                                        ),
-                                        _actionButton(
-                                          icon: Icons.add_task,
-                                          label: 'Add Follow-up',
-                                          onTap: () => _addFollowUp(row),
-                                        ),
-                                        _actionButton(
-                                          icon: Icons.history,
-                                          label: 'View Timeline',
-                                          onTap: () => _viewTimeline(row),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 4,
+                                    children: [
+                                      Text('Owner: $owner'),
+                                      Text(
+                                        'Value: KES ${(row['expected_value'] ?? 0).toString()}',
+                                      ),
+                                      Text(
+                                        'Probability: ${(row['probability'] ?? 0)}%',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _actionButton(
+                                        icon: Icons.alt_route,
+                                        label: 'Edit Stage',
+                                        onTap: () => _updateStage(row),
+                                      ),
+                                      _actionButton(
+                                        icon: Icons.person_outline,
+                                        label: 'Assign Owner',
+                                        onTap: () => _assignOwner(row),
+                                      ),
+                                      _actionButton(
+                                        icon: Icons.add_task,
+                                        label: 'Add Follow-up',
+                                        onTap: () => _addFollowUp(row),
+                                      ),
+                                      _actionButton(
+                                        icon: Icons.history,
+                                        label: 'View Timeline',
+                                        onTap: () => _viewTimeline(row),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
+                      ),
             ),
           ],
         ),

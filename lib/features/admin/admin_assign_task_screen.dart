@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
 
 class AdminAssignTaskScreen extends StatefulWidget {
   const AdminAssignTaskScreen({super.key});
@@ -10,6 +11,7 @@ class AdminAssignTaskScreen extends StatefulWidget {
 
 class _AdminAssignTaskScreenState extends State<AdminAssignTaskScreen> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
@@ -83,34 +85,6 @@ class _AdminAssignTaskScreenState extends State<AdminAssignTaskScreen> {
     });
   }
 
-  Future<void> _pickDueDate() async {
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDueDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-    );
-
-    if (pickedDate != null) {
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-
-      if (pickedTime != null) {
-        setState(() {
-          _selectedDueDate = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
-    }
-  }
-
   Future<void> _createTask() async {
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,14 +107,17 @@ class _AdminAssignTaskScreenState extends State<AdminAssignTaskScreen> {
       // This ensures NO ONE else in the role sees it, only the strictly assigned user.
       final int finalTargetRole = _assignToAllInRole ? _selectedTargetRole : -1;
 
-      await _supabase.from('tasks').insert({
-        'title': _titleController.text.trim(),
-        'description': _descController.text.trim(),
-        'target_role': finalTargetRole,
-        'assigned_to': _assignToAllInRole ? null : _selectedUserId,
-        if (_selectedDueDate != null)
-          'due_at': _selectedDueDate!.toIso8601String(),
-      });
+      await _dbService.insertWithOfflineQueue(
+        table: 'tasks',
+        payload: {
+          'title': _titleController.text.trim(),
+          'description': _descController.text.trim(),
+          'target_role': finalTargetRole,
+          'assigned_to': _assignToAllInRole ? null : _selectedUserId,
+          if (_selectedDueDate != null)
+            'due_at': _selectedDueDate!.toIso8601String(),
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

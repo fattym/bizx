@@ -191,7 +191,7 @@ class _ClockInPageState extends State<ClockInPage> {
               color: (_isClockedIn
                       ? AppColors.secondaryOrange
                       : AppColors.primaryGreen)
-                  .withOpacity(0.2),
+                  .withValues(alpha: 0.2),
               blurRadius: 30,
               spreadRadius: 10,
             ),

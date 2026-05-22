@@ -87,7 +87,9 @@ class _MyShopsPageState extends State<MyShopsPage> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -196,8 +198,8 @@ class _MyShopsPageState extends State<MyShopsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primaryGreen,
-        child: const Icon(Icons.add_business, color: Colors.white),
         onPressed: _openOnboarding,
+        child: const Icon(Icons.add_business, color: Colors.white),
       ),
     );
   }
@@ -231,7 +233,8 @@ class _MyShopsPageState extends State<MyShopsPage> {
         children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: _isSearchingGoogle ? null : _searchSchoolsAroundMeFromGoogle,
+              onPressed:
+                  _isSearchingGoogle ? null : _searchSchoolsAroundMeFromGoogle,
               icon: const Icon(Icons.travel_explore),
               label: Text(
                 _isSearchingGoogle
@@ -249,8 +252,10 @@ class _MyShopsPageState extends State<MyShopsPage> {
     final nextAction = _deriveAction(school);
     final focusAreas = school.focusAreas;
     final canVisit = _canVisitSchool(school);
-    final hasRemotePhoto = school.photoUrl != null && school.photoUrl!.isNotEmpty;
-    final hasLocalPhotoPath = school.photoPath != null && school.photoPath!.isNotEmpty;
+    final hasRemotePhoto =
+        school.photoUrl != null && school.photoUrl!.isNotEmpty;
+    final hasLocalPhotoPath =
+        school.photoPath != null && school.photoPath!.isNotEmpty;
     final hasPhoto = hasRemotePhoto || hasLocalPhotoPath;
     final schoolPayload = {
       'id': school.id,
@@ -285,9 +290,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SchoolActionMenuPage(
-                school: schoolPayload,
-              ),
+              builder: (context) => SchoolActionMenuPage(school: schoolPayload),
             ),
           );
         },
@@ -296,7 +299,9 @@ class _MyShopsPageState extends State<MyShopsPage> {
           children: [
             if (hasPhoto)
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(15),
+                ),
                 child: AspectRatio(
                   aspectRatio: 16 / 7,
                   child: _buildSchoolImage(
@@ -308,9 +313,12 @@ class _MyShopsPageState extends State<MyShopsPage> {
             else
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.06),
+                  color: AppColors.primaryGreen.withValues(alpha: 0.06),
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(15),
                   ),
@@ -318,8 +326,13 @@ class _MyShopsPageState extends State<MyShopsPage> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
-                      child: const Icon(Icons.school_outlined, color: AppColors.primaryGreen),
+                      backgroundColor: AppColors.primaryGreen.withValues(
+                        alpha: 0.1,
+                      ),
+                      child: const Icon(
+                        Icons.school_outlined,
+                        color: AppColors.primaryGreen,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -354,8 +367,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
                             ),
                           ),
                         ),
-                      if (!hasPhoto)
-                        const Spacer(),
+                      if (!hasPhoto) const Spacer(),
                       if (!school.id.startsWith('google_'))
                         PopupMenuButton<String>(
                           tooltip: 'School actions',
@@ -368,16 +380,17 @@ class _MyShopsPageState extends State<MyShopsPage> {
                               _confirmDeleteSchool(school);
                             }
                           },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem<String>(
-                              value: 'edit',
-                              child: Text('Edit'),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'delete',
-                              child: Text('Delete'),
-                            ),
-                          ],
+                          itemBuilder:
+                              (context) => const [
+                                PopupMenuItem<String>(
+                                  value: 'edit',
+                                  child: Text('Edit'),
+                                ),
+                                PopupMenuItem<String>(
+                                  value: 'delete',
+                                  child: Text('Delete'),
+                                ),
+                              ],
                         ),
                     ],
                   ),
@@ -401,10 +414,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
                     children: [
                       _chip('Book', school.bookCategory ?? 'None'),
                       _chip('Sync', school.isSynced ? 'Synced' : 'Pending'),
-                      _chip(
-                        'Capture',
-                        school.captureStatus ?? 'Not captured',
-                      ),
+                      _chip('Capture', school.captureStatus ?? 'Not captured'),
                       _chip('Next', nextAction),
                     ],
                   ),
@@ -422,10 +432,11 @@ class _MyShopsPageState extends State<MyShopsPage> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: focusAreas
-                          .take(3)
-                          .map((area) => _chip('Area', area))
-                          .toList(),
+                      children:
+                          focusAreas
+                              .take(3)
+                              .map((area) => _chip('Area', area))
+                              .toList(),
                     ),
                   ],
                   if (school.latitude != null && school.longitude != null) ...[
@@ -514,7 +525,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
 
   Widget _buildImageFallback() {
     return Container(
-      color: AppColors.primaryGreen.withOpacity(0.08),
+      color: AppColors.primaryGreen.withValues(alpha: 0.08),
       alignment: Alignment.center,
       child: const Icon(
         Icons.school_outlined,
@@ -538,15 +549,12 @@ class _MyShopsPageState extends State<MyShopsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primaryGreen.withOpacity(0.1),
+        color: AppColors.primaryGreen.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -712,43 +720,54 @@ class _MyShopsPageState extends State<MyShopsPage> {
       );
       final response = await http.get(uri);
       if (response.statusCode != 200) {
-        throw Exception('Google Places request failed (${response.statusCode}).');
+        throw Exception(
+          'Google Places request failed (${response.statusCode}).',
+        );
       }
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final status = body['status']?.toString() ?? '';
       if (status != 'OK' && status != 'ZERO_RESULTS') {
-        throw Exception(body['error_message']?.toString() ?? 'Places API status: $status');
+        throw Exception(
+          body['error_message']?.toString() ?? 'Places API status: $status',
+        );
       }
 
       final results = (body['results'] as List<dynamic>? ?? const <dynamic>[]);
-      final mapped = results.map((item) {
-        final map = Map<String, dynamic>.from(item as Map);
-        final placeId = map['place_id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString();
-        final name = map['name']?.toString() ?? 'School';
-        final vicinity = map['vicinity']?.toString() ?? '';
-        final county = _deriveCountyFromVicinity(vicinity);
-        final geometry = Map<String, dynamic>.from(map['geometry'] as Map? ?? const {});
-        final location = Map<String, dynamic>.from(geometry['location'] as Map? ?? const {});
-        final schoolLat = (location['lat'] as num?)?.toDouble();
-        final schoolLng = (location['lng'] as num?)?.toDouble();
+      final mapped =
+          results.map((item) {
+            final map = Map<String, dynamic>.from(item as Map);
+            final placeId =
+                map['place_id']?.toString() ??
+                DateTime.now().microsecondsSinceEpoch.toString();
+            final name = map['name']?.toString() ?? 'School';
+            final vicinity = map['vicinity']?.toString() ?? '';
+            final county = _deriveCountyFromVicinity(vicinity);
+            final geometry = Map<String, dynamic>.from(
+              map['geometry'] as Map? ?? const {},
+            );
+            final location = Map<String, dynamic>.from(
+              geometry['location'] as Map? ?? const {},
+            );
+            final schoolLat = (location['lat'] as num?)?.toDouble();
+            final schoolLng = (location['lng'] as num?)?.toDouble();
 
-        return SchoolModel(
-          id: 'google_$placeId',
-          name: name,
-          phone: 'Not captured',
-          county: county,
-          focusAreas: const ['Discovered from Google Maps'],
-          latitude: schoolLat,
-          longitude: schoolLng,
-          captureStatus: 'Not onboarded',
-          schoolOwnership: null,
-          schoolOwnershipOther: null,
-          schoolPopulation: null,
-          schoolLifecycleStatus: null,
-          isSynced: false,
-        );
-      }).toList();
+            return SchoolModel(
+              id: 'google_$placeId',
+              name: name,
+              phone: 'Not captured',
+              county: county,
+              focusAreas: const ['Discovered from Google Maps'],
+              latitude: schoolLat,
+              longitude: schoolLng,
+              captureStatus: 'Not onboarded',
+              schoolOwnership: null,
+              schoolOwnershipOther: null,
+              schoolPopulation: null,
+              schoolLifecycleStatus: null,
+              isSynced: false,
+            );
+          }).toList();
 
       final existingNames =
           (await _schoolsFuture)
@@ -756,7 +775,9 @@ class _MyShopsPageState extends State<MyShopsPage> {
               .toSet();
       final filteredGoogle =
           mapped
-              .where((s) => !existingNames.contains(s.name.trim().toLowerCase()))
+              .where(
+                (s) => !existingNames.contains(s.name.trim().toLowerCase()),
+              )
               .toList();
 
       if (!mounted) return;
@@ -928,5 +949,4 @@ class _MyShopsPageState extends State<MyShopsPage> {
       ),
     );
   }
-
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/farmer_model.dart';
 import '../../core/constants/colors.dart';
+import '../database/database_service.dart';
 
 class ImportSchoolsPage extends StatefulWidget {
   const ImportSchoolsPage({super.key});
@@ -11,6 +13,7 @@ class ImportSchoolsPage extends StatefulWidget {
 
 class _ImportSchoolsPageState extends State<ImportSchoolsPage> {
   final _csvController = TextEditingController();
+  final _dbService = DatabaseService();
   bool _importing = false;
 
   @override
@@ -75,8 +78,8 @@ class _ImportSchoolsPageState extends State<ImportSchoolsPage> {
     setState(() => _importing = true);
     try {
       final headers = rows.first.map((h) => h.trim().toLowerCase()).toList();
-      final items = <Map<String, dynamic>>[];
       final currentUser = Supabase.instance.client.auth.currentUser;
+      final schools = <SchoolModel>[];
 
       for (final row in rows.skip(1)) {
         final record = <String, String>{};
@@ -91,24 +94,22 @@ class _ImportSchoolsPageState extends State<ImportSchoolsPage> {
         // Skip rows without the required name or phone
         if (name.isEmpty || phone.isEmpty) continue;
 
-        items.add({
-          'name': name,
-          'phone': phone,
-          'county': county,
-          'focusAreas': <String>[],
-          'book_category': record['book_category']?.trim(),
-          'latitude': null,
-          'longitude': null,
-          'photo_url': null,
-          'photo_path': null,
-          'isSynced': true,
-          'captured_by': currentUser?.id,
-          'captured_at': DateTime.now().toIso8601String(),
-          'capture_status': 'Imported via CSV',
-        });
+        schools.add(
+          SchoolModel(
+            name: name,
+            phone: phone,
+            county: county,
+            focusAreas: const [],
+            bookCategory: record['book_category']?.trim(),
+            capturedBy: currentUser?.id,
+            capturedAt: DateTime.now(),
+            captureStatus: 'Imported via CSV',
+            isSynced: false,
+          ),
+        );
       }
 
-      if (items.isEmpty) {
+      if (schools.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -118,12 +119,16 @@ class _ImportSchoolsPageState extends State<ImportSchoolsPage> {
         return;
       }
 
-      await Supabase.instance.client.from('schools').insert(items);
+      for (final school in schools) {
+        await _dbService.saveSchoolProfile(school);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Successfully imported ${items.length} schools.'),
+          content: Text(
+            'Imported ${schools.length} schools (synced or queued offline).',
+          ),
           backgroundColor: AppColors.primaryGreen,
         ),
       );

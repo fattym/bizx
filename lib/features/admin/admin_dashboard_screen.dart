@@ -12,6 +12,7 @@ import 'admin_agent_tracker_screen.dart';
 import 'admin_pipeline_data_page.dart';
 import 'admin_social_pipeline_page.dart';
 import 'sample_receipts_page.dart';
+import 'project_form_builder_page.dart';
 import 'role3_supervision_dashboard_page.dart';
 import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
@@ -102,7 +103,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 Expanded(
                   child: Card(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.1),
                     elevation: 0,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -134,7 +137,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Card(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     elevation: 0,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -166,6 +169,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
             const SizedBox(height: 24),
+            _buildDashboardCard(
+              context: context,
+              icon: Icons.assignment_outlined,
+              title: 'Project',
+              subtitle: 'Create a Google Form-style project form.',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProjectFormBuilderPage(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
             _buildDashboardCard(
               context: context,
               icon: Icons.school_outlined,
@@ -272,8 +290,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        const Role3SupervisionDashboardPage(),
+                    builder: (context) => const Role3SupervisionDashboardPage(),
                   ),
                 );
                 _refreshData();
@@ -359,7 +376,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               context: context,
               icon: Icons.campaign_outlined,
               title: 'FB & WhatsApp Pipeline',
-              subtitle: 'View leads and stages captured from Facebook and WhatsApp.',
+              subtitle:
+                  'View leads and stages captured from Facebook and WhatsApp.',
               onTap: () {
                 Navigator.push(
                   context,

@@ -136,9 +136,9 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
   Future<void> _importCsv() async {
     final items = _itemsFromCsv(_csvController.text);
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No valid CSV rows found.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No valid CSV rows found.')));
       return;
     }
 
@@ -175,9 +175,7 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Template download started: $fileName',
-          ),
+          content: Text('Template download started: $fileName'),
           backgroundColor: AppColors.primaryGreen,
         ),
       );
@@ -225,7 +223,7 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _itemType,
+                  initialValue: _itemType,
                   decoration: const InputDecoration(
                     labelText: 'Default item type',
                     border: OutlineInputBorder(),

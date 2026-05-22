@@ -111,10 +111,7 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
 
             const SizedBox(height: 24),
             _sectionHeader("🟩 LONGHORN ADOPTION"),
-            _buildDropdown("Aware of Longhorn?", [
-              "No",
-              "Yes",
-            ]),
+            _buildDropdown("Aware of Longhorn?", ["No", "Yes"]),
             _buildDropdown("Trial Status", [
               "Never Engaged",
               "Trialed Once",
@@ -278,7 +275,9 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
       decoration: BoxDecoration(
         color: AppColors.primaryGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: AppColors.primaryGreen.withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,10 +289,7 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
           const SizedBox(height: 4),
           Text(status),
           const SizedBox(height: 4),
-          Text(
-            coords,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          Text(coords, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextButton(
             onPressed: _fetchCurrentLocation,
@@ -330,7 +326,9 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -361,9 +359,13 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
     setState(() => _isSaving = true);
     try {
       final currentUserId = _dbService.getCurrentUserId();
-      final position = _currentPosition ?? await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      final position =
+          _currentPosition ??
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+            ),
+          );
 
       final school = SchoolModel(
         name: _schoolNameController.text.trim(),
@@ -373,6 +375,10 @@ class _SchoolProfilingState extends State<SchoolProfiling> {
         latitude: position.latitude,
         longitude: position.longitude,
         captureStatus: _locationStatus ?? 'School profile saved',
+        notes:
+            _priceSensitivity == null || _priceSensitivity!.isEmpty
+                ? null
+                : 'Price sensitivity: $_priceSensitivity',
         capturedBy: currentUserId,
         capturedAt: DateTime.now(),
       );

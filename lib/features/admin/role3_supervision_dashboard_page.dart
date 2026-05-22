@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database/database_service.dart';
 
 class Role3SupervisionDashboardPage extends StatefulWidget {
   const Role3SupervisionDashboardPage({super.key});
@@ -12,6 +13,7 @@ class Role3SupervisionDashboardPage extends StatefulWidget {
 class _Role3SupervisionDashboardPageState
     extends State<Role3SupervisionDashboardPage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   bool _isLoading = true;
   String? _selectedCounty;
 
@@ -84,14 +86,14 @@ class _Role3SupervisionDashboardPageState
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null) return;
 
-      final currentUserRow = await _supabase
-          .from('users')
-          .select('region, role')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-      final supervisorRegion = (currentUserRow?['region'] ?? '')
-          .toString()
-          .trim();
+      final currentUserRow =
+          await _supabase
+              .from('users')
+              .select('region, role')
+              .eq('id', currentUser.id)
+              .maybeSingle();
+      final supervisorRegion =
+          (currentUserRow?['region'] ?? '').toString().trim();
 
       final usersResponse = await _supabase
           .from('users')
@@ -211,15 +213,18 @@ class _Role3SupervisionDashboardPageState
   }
 
   Future<void> _createIncident(String userId) async {
-    await _supabase.from('supervisor_incidents').insert({
-      'user_id': userId,
-      'incident_type': 'escalation',
-      'severity': 'high',
-      'status': 'open',
-      'region': _selectedCounty,
-      'notes': 'Escalated by supervisor from command center.',
-      'created_by': _supabase.auth.currentUser?.id,
-    });
+    await _dbService.insertWithOfflineQueue(
+      table: 'supervisor_incidents',
+      payload: {
+        'user_id': userId,
+        'incident_type': 'escalation',
+        'severity': 'high',
+        'status': 'open',
+        'region': _selectedCounty,
+        'notes': 'Escalated by supervisor from command center.',
+        'created_by': _supabase.auth.currentUser?.id,
+      },
+    );
     await _loadData();
   }
 
@@ -239,19 +244,22 @@ class _Role3SupervisionDashboardPageState
   }
 
   Future<void> _addCoachingNote(String userId) async {
-    await _supabase.from('supervisor_notes').insert({
-      'supervisor_id': _supabase.auth.currentUser?.id,
-      'user_id': userId,
-      'region': _selectedCounty,
-      'context_type': 'health_review',
-      'note': 'Weekly coaching follow-up recorded from dashboard.',
-      'follow_up_at':
-          DateTime.now().add(const Duration(days: 7)).toIso8601String(),
-    });
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coaching note added.')),
+    await _dbService.insertWithOfflineQueue(
+      table: 'supervisor_notes',
+      payload: {
+        'supervisor_id': _supabase.auth.currentUser?.id,
+        'user_id': userId,
+        'region': _selectedCounty,
+        'context_type': 'health_review',
+        'note': 'Weekly coaching follow-up recorded from dashboard.',
+        'follow_up_at':
+            DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+      },
     );
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Coaching note added.')));
   }
 
   Future<void> _approvePendingRoute(String userId, bool approve) async {
@@ -268,9 +276,10 @@ class _Role3SupervisionDashboardPageState
           'status': approve ? 'approved' : 'rejected',
           'reviewed_by': _supabase.auth.currentUser?.id,
           'reviewed_at': DateTime.now().toIso8601String(),
-          'review_note': approve
-              ? 'Approved by Role 3 supervisor.'
-              : 'Rejected. Needs correction.',
+          'review_note':
+              approve
+                  ? 'Approved by Role 3 supervisor.'
+                  : 'Rejected. Needs correction.',
         })
         .eq('id', pending['id']);
     await _loadData();
@@ -285,14 +294,17 @@ class _Role3SupervisionDashboardPageState
         .from('route_plans')
         .update({'assigned_to': newAssignee})
         .eq('id', routeId);
-    await _supabase.from('audit_events').insert({
-      'actor_id': _supabase.auth.currentUser?.id,
-      'action': 'reassign_route',
-      'entity_type': 'route_plans',
-      'entity_id': routeId,
-      'region': _selectedCounty,
-      'after_data': {'assigned_to': newAssignee},
-    });
+    await _dbService.insertWithOfflineQueue(
+      table: 'audit_events',
+      payload: {
+        'actor_id': _supabase.auth.currentUser?.id,
+        'action': 'reassign_route',
+        'entity_type': 'route_plans',
+        'entity_id': routeId,
+        'region': _selectedCounty,
+        'after_data': {'assigned_to': newAssignee},
+      },
+    );
     await _loadData();
   }
 
@@ -305,14 +317,17 @@ class _Role3SupervisionDashboardPageState
         .from('geofences')
         .update({'assigned_to': newAssignee, 'region': _selectedCounty})
         .eq('id', geofenceId);
-    await _supabase.from('audit_events').insert({
-      'actor_id': _supabase.auth.currentUser?.id,
-      'action': 'reassign_geofence',
-      'entity_type': 'geofences',
-      'entity_id': geofenceId,
-      'region': _selectedCounty,
-      'after_data': {'assigned_to': newAssignee, 'region': _selectedCounty},
-    });
+    await _dbService.insertWithOfflineQueue(
+      table: 'audit_events',
+      payload: {
+        'actor_id': _supabase.auth.currentUser?.id,
+        'action': 'reassign_geofence',
+        'entity_type': 'geofences',
+        'entity_id': geofenceId,
+        'region': _selectedCounty,
+        'after_data': {'assigned_to': newAssignee, 'region': _selectedCounty},
+      },
+    );
     await _loadData();
   }
 
@@ -338,7 +353,9 @@ class _Role3SupervisionDashboardPageState
               'assigned';
         }).length;
     final atRisk =
-        filtered.where((u) => _healthForUser(u['id'].toString()) != 'Green').length;
+        filtered
+            .where((u) => _healthForUser(u['id'].toString()) != 'Green')
+            .length;
     final activeRole5 = filtered.length;
     final openAlerts =
         _alerts.where((a) {
@@ -350,258 +367,274 @@ class _Role3SupervisionDashboardPageState
       appBar: AppBar(
         title: const Text('Role 3 Supervision Command Center'),
         actions: [
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _selectedCounty,
-                    decoration: const InputDecoration(
-                      labelText: 'County filter',
-                      border: OutlineInputBorder(),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCounty,
+                      decoration: const InputDecoration(
+                        labelText: 'County filter',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('All supervised counties'),
+                        ),
+                        ..._counties.map(
+                          (c) => DropdownMenuItem(value: c, child: Text(c)),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedCounty = value);
+                      },
                     ),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('All supervised counties'),
-                      ),
-                      ..._counties.map(
-                        (c) => DropdownMenuItem(value: c, child: Text(c)),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() => _selectedCounty = value);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _kpi(
-                        'Active Role 5',
-                        '$activeRole5',
-                        Colors.blue,
-                        Icons.groups_2_outlined,
-                      ),
-                      _kpi(
-                        'At Risk Today',
-                        '$atRisk',
-                        Colors.orange,
-                        Icons.warning_amber_outlined,
-                      ),
-                      _kpi(
-                        'Boundary Breaches',
-                        '${_breaches.length}',
-                        Colors.red,
-                        Icons.fmd_bad_outlined,
-                      ),
-                      _kpi(
-                        'Unstarted Routes',
-                        '$unstartedRoutes',
-                        Colors.purple,
-                        Icons.route_outlined,
-                      ),
-                      _kpi(
-                        'Overdue Tasks',
-                        '$overdueTasks',
-                        Colors.deepOrange,
-                        Icons.task_alt_outlined,
-                      ),
-                      _kpi(
-                        'Open Alerts',
-                        '$openAlerts',
-                        Colors.red.shade700,
-                        Icons.notification_important_outlined,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _sectionHeader(
-                    'Role 5 Health Status',
-                    'Green: on-track, Amber: delayed, Red: urgent intervention',
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: const [
-                      Chip(
-                        avatar: CircleAvatar(
-                          backgroundColor: Colors.green,
-                          radius: 6,
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _kpi(
+                          'Active Role 5',
+                          '$activeRole5',
+                          Colors.blue,
+                          Icons.groups_2_outlined,
                         ),
-                        label: Text('Green'),
-                      ),
-                      Chip(
-                        avatar: CircleAvatar(
-                          backgroundColor: Colors.orange,
-                          radius: 6,
+                        _kpi(
+                          'At Risk Today',
+                          '$atRisk',
+                          Colors.orange,
+                          Icons.warning_amber_outlined,
                         ),
-                        label: Text('Amber'),
-                      ),
-                      Chip(
-                        avatar: CircleAvatar(backgroundColor: Colors.red, radius: 6),
-                        label: Text('Red'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...filtered.map((user) {
-                    final userId = user['id'].toString();
-                    final health = _healthForUser(userId);
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 6,
-                                  backgroundColor: _healthColor(health),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '${user['full_name'] ?? user['email']} (${user['region'] ?? 'Unknown'})',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
+                        _kpi(
+                          'Boundary Breaches',
+                          '${_breaches.length}',
+                          Colors.red,
+                          Icons.fmd_bad_outlined,
+                        ),
+                        _kpi(
+                          'Unstarted Routes',
+                          '$unstartedRoutes',
+                          Colors.purple,
+                          Icons.route_outlined,
+                        ),
+                        _kpi(
+                          'Overdue Tasks',
+                          '$overdueTasks',
+                          Colors.deepOrange,
+                          Icons.task_alt_outlined,
+                        ),
+                        _kpi(
+                          'Open Alerts',
+                          '$openAlerts',
+                          Colors.red.shade700,
+                          Icons.notification_important_outlined,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _sectionHeader(
+                      'Role 5 Health Status',
+                      'Green: on-track, Amber: delayed, Red: urgent intervention',
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: const [
+                        Chip(
+                          avatar: CircleAvatar(
+                            backgroundColor: Colors.green,
+                            radius: 6,
+                          ),
+                          label: Text('Green'),
+                        ),
+                        Chip(
+                          avatar: CircleAvatar(
+                            backgroundColor: Colors.orange,
+                            radius: 6,
+                          ),
+                          label: Text('Amber'),
+                        ),
+                        Chip(
+                          avatar: CircleAvatar(
+                            backgroundColor: Colors.red,
+                            radius: 6,
+                          ),
+                          label: Text('Red'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...filtered.map((user) {
+                      final userId = user['id'].toString();
+                      final health = _healthForUser(userId);
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 6,
+                                    backgroundColor: _healthColor(health),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${user['full_name'] ?? user['email']} (${user['region'] ?? 'Unknown'})',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                Text(health),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                FilledButton.tonal(
-                                  onPressed: () => _approvePendingRoute(userId, true),
-                                  child: const Text('Approve'),
-                                ),
-                                FilledButton.tonal(
-                                  onPressed: () => _approvePendingRoute(userId, false),
-                                  child: const Text('Reject'),
-                                ),
-                                FilledButton.tonal(
-                                  onPressed: () => _extendDeadlineForLatestTask(userId),
-                                  child: const Text('Extend'),
-                                ),
-                                FilledButton.tonal(
-                                  onPressed: () => _createIncident(userId),
-                                  child: const Text('Incident'),
-                                ),
-                                FilledButton.tonal(
-                                  onPressed: () => _addCoachingNote(userId),
-                                  child: const Text('Coaching'),
-                                ),
-                              ],
-                            ),
-                          ],
+                                  Text(health),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  FilledButton.tonal(
+                                    onPressed:
+                                        () =>
+                                            _approvePendingRoute(userId, true),
+                                    child: const Text('Approve'),
+                                  ),
+                                  FilledButton.tonal(
+                                    onPressed:
+                                        () =>
+                                            _approvePendingRoute(userId, false),
+                                    child: const Text('Reject'),
+                                  ),
+                                  FilledButton.tonal(
+                                    onPressed:
+                                        () => _extendDeadlineForLatestTask(
+                                          userId,
+                                        ),
+                                    child: const Text('Extend'),
+                                  ),
+                                  FilledButton.tonal(
+                                    onPressed: () => _createIncident(userId),
+                                    child: const Text('Incident'),
+                                  ),
+                                  FilledButton.tonal(
+                                    onPressed: () => _addCoachingNote(userId),
+                                    child: const Text('Coaching'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  _sectionHeader(
-                    'Route Plans (Role 5)',
-                    'Daily execution and reassignment controls',
-                  ),
-                  const SizedBox(height: 8),
-                  ..._routes
-                      .where(
-                        (r) => filteredIds.contains(r['assigned_to']?.toString()),
-                      )
-                      .map(
-                        (route) => Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.route),
-                            title: Text(
-                              'Route ${route['route_date']?.toString().split(' ').first ?? 'No date'}',
-                            ),
-                            subtitle: Text(
-                              'Status: ${(route['status'] ?? 'assigned').toString()}',
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'reassign') {
-                                  _reassignRoute(route['id'].toString());
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'reassign',
-                                  child: Text('Reassign Route'),
-                                ),
-                              ],
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    _sectionHeader(
+                      'Route Plans (Role 5)',
+                      'Daily execution and reassignment controls',
+                    ),
+                    const SizedBox(height: 8),
+                    ..._routes
+                        .where(
+                          (r) => filteredIds.contains(
+                            r['assigned_to']?.toString(),
+                          ),
+                        )
+                        .map(
+                          (route) => Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.route),
+                              title: Text(
+                                'Route ${route['route_date']?.toString().split(' ').first ?? 'No date'}',
+                              ),
+                              subtitle: Text(
+                                'Status: ${(route['status'] ?? 'assigned').toString()}',
+                              ),
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'reassign') {
+                                    _reassignRoute(route['id'].toString());
+                                  }
+                                },
+                                itemBuilder:
+                                    (context) => const [
+                                      PopupMenuItem(
+                                        value: 'reassign',
+                                        child: Text('Reassign Route'),
+                                      ),
+                                    ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  const SizedBox(height: 12),
-                  _sectionHeader(
-                    'Geofences (Role 5)',
-                    'Boundary ownership and county mapping',
-                  ),
-                  const SizedBox(height: 8),
-                  ..._geofences
-                      .where(
-                        (g) => filteredIds.contains(g['assigned_to']?.toString()),
-                      )
-                      .map(
-                        (geo) => Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.map_outlined),
-                            title: Text(geo['name']?.toString() ?? 'Geofence'),
-                            subtitle: Text(
-                              'County: ${geo['region'] ?? 'Not set'}',
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'reassign') {
-                                  _reassignGeofence(geo['id'].toString());
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'reassign',
-                                  child: Text('Reassign Geofence'),
-                                ),
-                              ],
+                    const SizedBox(height: 12),
+                    _sectionHeader(
+                      'Geofences (Role 5)',
+                      'Boundary ownership and county mapping',
+                    ),
+                    const SizedBox(height: 8),
+                    ..._geofences
+                        .where(
+                          (g) => filteredIds.contains(
+                            g['assigned_to']?.toString(),
+                          ),
+                        )
+                        .map(
+                          (geo) => Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.map_outlined),
+                              title: Text(
+                                geo['name']?.toString() ?? 'Geofence',
+                              ),
+                              subtitle: Text(
+                                'County: ${geo['region'] ?? 'Not set'}',
+                              ),
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'reassign') {
+                                    _reassignGeofence(geo['id'].toString());
+                                  }
+                                },
+                                itemBuilder:
+                                    (context) => const [
+                                      PopupMenuItem(
+                                        value: 'reassign',
+                                        child: Text('Reassign Geofence'),
+                                      ),
+                                    ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.timer_outlined),
-                      title: const Text('Supervisor SLA Adherence'),
-                      subtitle: Text(
-                        'Ack < 15 min and resolve < 2 hrs tiles use data from supervisor_alerts.',
-                      ),
-                      trailing: Text(
-                        '${_alerts.where((a) => (a['ack_sla_met'] ?? false) == true).length}'
-                        '/${_alerts.length}',
+                    const SizedBox(height: 12),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.timer_outlined),
+                        title: const Text('Supervisor SLA Adherence'),
+                        subtitle: Text(
+                          'Ack < 15 min and resolve < 2 hrs tiles use data from supervisor_alerts.',
+                        ),
+                        trailing: Text(
+                          '${_alerts.where((a) => (a['ack_sla_met'] ?? false) == true).length}'
+                          '/${_alerts.length}',
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -610,9 +643,9 @@ class _Role3SupervisionDashboardPageState
       width: 170,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.09),
+        color: color.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../database/database_service.dart';
+import '../profile/crm_notification_service.dart';
 import 'admin_social_inbox_page.dart';
 
 class AdminSocialPipelinePage extends StatefulWidget {
   const AdminSocialPipelinePage({super.key});
 
   @override
-  State<AdminSocialPipelinePage> createState() => _AdminSocialPipelinePageState();
+  State<AdminSocialPipelinePage> createState() =>
+      _AdminSocialPipelinePageState();
 }
 
 class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   final _supabase = Supabase.instance.client;
+  final _dbService = DatabaseService();
   final TextEditingController _searchController = TextEditingController();
 
   static const String _directFacebookUrl =
@@ -84,7 +88,9 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
             stage: (sale?['sale_status'] ?? 'lead').toString(),
             expectedValue: ((sale?['expected_value'] ?? 0) as num).toDouble(),
             capturedBy: (school['captured_by'] ?? '').toString(),
-            createdAt: DateTime.tryParse((school['created_at'] ?? '').toString()),
+            createdAt: DateTime.tryParse(
+              (school['created_at'] ?? '').toString(),
+            ),
           ),
         );
       }
@@ -95,9 +101,11 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      await CrmNotificationService.showIfEnabled(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to load social pipeline: $e')));
+        message: 'Failed to load social pipeline: $e',
+        backgroundColor: Colors.red,
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -105,13 +113,16 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
   @override
   Widget build(BuildContext context) {
-    final facebookLeads = _allLeads.where((l) => l.source == 'facebook').toList();
-    final whatsappLeads = _allLeads.where((l) => l.source == 'whatsapp').toList();
+    final facebookLeads =
+        _allLeads.where((l) => l.source == 'facebook').toList();
+    final whatsappLeads =
+        _allLeads.where((l) => l.source == 'whatsapp').toList();
     final totalExpectedValue = _allLeads.fold<double>(
       0,
       (sum, l) => sum + l.expectedValue,
     );
-    final wonCount = _allLeads.where((l) => l.stage.toLowerCase() == 'won').length;
+    final wonCount =
+        _allLeads.where((l) => l.stage.toLowerCase() == 'won').length;
 
     return DefaultTabController(
       length: 2,
@@ -119,10 +130,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
         appBar: AppBar(
           title: const Text('Facebook & WhatsApp Pipeline'),
           bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Facebook'),
-              Tab(text: 'WhatsApp'),
-            ],
+            tabs: [Tab(text: 'Facebook'), Tab(text: 'WhatsApp')],
           ),
           actions: [
             IconButton(
@@ -154,11 +162,17 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: _countCard('Facebook Leads', facebookLeads.length),
+                            child: _countCard(
+                              'Facebook Leads',
+                              facebookLeads.length,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: _countCard('WhatsApp Leads', whatsappLeads.length),
+                            child: _countCard(
+                              'WhatsApp Leads',
+                              whatsappLeads.length,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -203,7 +217,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedStageFilter,
+                              initialValue: _selectedStageFilter,
                               decoration: InputDecoration(
                                 labelText: 'Stage',
                                 border: OutlineInputBorder(
@@ -272,9 +286,15 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
             const SizedBox(height: 6),
-            Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
             if (trailing != null) ...[
               const SizedBox(height: 4),
               Text(
@@ -290,9 +310,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
   Widget _buildList(List<_SocialLead> leads) {
     if (leads.isEmpty) {
-      return const Center(
-        child: Text('No leads found for this channel yet.'),
-      );
+      return const Center(child: Text('No leads found for this channel yet.'));
     }
 
     return ListView.separated(
@@ -310,7 +328,10 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(
                     lead.source == 'facebook' ? Icons.facebook : Icons.chat,
-                    color: lead.source == 'facebook' ? Colors.indigo : Colors.green,
+                    color:
+                        lead.source == 'facebook'
+                            ? Colors.indigo
+                            : Colors.green,
                   ),
                   title: Text(lead.schoolName),
                   subtitle: Text(
@@ -324,13 +345,18 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        lead.capturedBy.isEmpty ? 'Unassigned' : lead.capturedBy,
+                        lead.capturedBy.isEmpty
+                            ? 'Unassigned'
+                            : lead.capturedBy,
                         style: const TextStyle(fontSize: 12),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _formatDate(lead.createdAt),
-                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),
@@ -380,19 +406,29 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
     }
 
     final message = Uri.encodeComponent('Hello ${lead.schoolName}');
-    final deepLink = Uri.parse('whatsapp://send?phone=$cleanPhone&text=$message');
+    final deepLink = Uri.parse(
+      'whatsapp://send?phone=$cleanPhone&text=$message',
+    );
     final webLink = Uri.parse('https://wa.me/$cleanPhone?text=$message');
 
-    final openedApp = await launchUrl(deepLink, mode: LaunchMode.externalApplication);
+    final openedApp = await launchUrl(
+      deepLink,
+      mode: LaunchMode.externalApplication,
+    );
     if (!openedApp) {
-      final openedWeb = await launchUrl(webLink, mode: LaunchMode.externalApplication);
+      final openedWeb = await launchUrl(
+        webLink,
+        mode: LaunchMode.externalApplication,
+      );
       if (!openedWeb) _showInfo('Could not open WhatsApp.');
     }
   }
 
   Future<void> _openFacebook(_SocialLead lead) async {
     final query = Uri.encodeComponent(lead.schoolName);
-    final facebookSearch = Uri.parse('https://www.facebook.com/search/top?q=$query');
+    final facebookSearch = Uri.parse(
+      'https://www.facebook.com/search/top?q=$query',
+    );
     final opened = await launchUrl(
       facebookSearch,
       mode: LaunchMode.externalApplication,
@@ -403,7 +439,9 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   Future<void> _openDirectWhatsApp() async {
     final message = Uri.encodeComponent('Hello Longhorn Publishers');
     final directPhone = _normalizePhone(_directWhatsAppPhone);
-    final deepLink = Uri.parse('whatsapp://send?phone=$directPhone&text=$message');
+    final deepLink = Uri.parse(
+      'whatsapp://send?phone=$directPhone&text=$message',
+    );
     final webLink = Uri.parse('https://wa.me/$directPhone?text=$message');
 
     final openedApp = await launchUrl(
@@ -428,8 +466,7 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   }
 
   void _showInfo(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    CrmNotificationService.showIfEnabled(context, message: message);
   }
 
   List<_SocialLead> _applyFilters(List<_SocialLead> leads) {
@@ -477,13 +514,16 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
   Future<void> _updateLeadStage(_SocialLead lead, String nextStage) async {
     try {
-      await _supabase.from('school_sales').upsert({
-        'id': lead.saleId.isEmpty ? null : lead.saleId,
-        'school_id': lead.schoolId,
-        'sale_status': nextStage,
-        'expected_value': lead.expectedValue,
-        'stage_updated_at': DateTime.now().toIso8601String(),
-      });
+      await _dbService.upsertWithOfflineQueue(
+        table: 'school_sales',
+        payload: {
+          'id': lead.saleId.isEmpty ? null : lead.saleId,
+          'school_id': lead.schoolId,
+          'sale_status': nextStage,
+          'expected_value': lead.expectedValue,
+          'stage_updated_at': DateTime.now().toIso8601String(),
+        },
+      );
 
       _showInfo('Stage updated to ${_stageLabel(nextStage)}');
       await _loadPipeline();
@@ -503,10 +543,14 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
   }
 
   String _stageLabel(String stage) {
-    return stage.replaceAll('_', ' ').split(' ').map((part) {
-      if (part.isEmpty) return part;
-      return '${part[0].toUpperCase()}${part.substring(1)}';
-    }).join(' ');
+    return stage
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((part) {
+          if (part.isEmpty) return part;
+          return '${part[0].toUpperCase()}${part.substring(1)}';
+        })
+        .join(' ');
   }
 
   Widget _stageBadge(String stage) {
@@ -538,7 +582,10 @@ class _AdminSocialPipelinePageState extends State<AdminSocialPipelinePage> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Text(
         _stageLabel(lower),
         style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
