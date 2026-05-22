@@ -27,6 +27,7 @@ class DeHeusApp extends StatelessWidget {
   const DeHeusApp({super.key, this.useRemoteHeroImage = true});
 
   final bool useRemoteHeroImage;
+  static const Color _accentColor = Color(0xFF653A48);
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +50,7 @@ class DeHeusApp extends StatelessWidget {
           seedColor: AppColors.primaryGreen,
           primary: AppColors.primaryGreen,
           secondary: AppColors.longhornMaroon,
-          tertiary: AppColors.sageGreyGreen,
+          tertiary: _accentColor,
           surface: const Color(0xFFFDFBF9),
         ),
         appBarTheme: const AppBarTheme(

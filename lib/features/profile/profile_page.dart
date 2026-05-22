@@ -58,120 +58,131 @@ class _SalesDashboardState extends State<SalesDashboard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                  const Text(
-                    "PERFORMANCE",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMetricsGrid(),
-                  const SizedBox(height: 30),
-                  Row(
-                    children: [
-                      const Text(
-                        "ASSIGNED TASKS",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const Spacer(),
-                      const Text(
-                        "Auto-hide",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: _autoHideAssignedTasks,
-                        onChanged: (value) {
-                          setState(() {
-                            _autoHideAssignedTasks = value;
-                          });
-                        },
-                      ),
-                      IconButton(
-                        tooltip:
-                            _showAssignedTasks ? 'Hide tasks' : 'Show tasks',
-                        icon: Icon(
-                          _showAssignedTasks
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: AppColors.primaryDark,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _showAssignedTasks = !_showAssignedTasks;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_showAssignedTasks)
-                    FutureBuilder<List<TaskModel>>(
-                      future: _loadAssignedTasks(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        if (snapshot.hasError) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            child: Text(
-                              'Failed to load tasks: ${snapshot.error}',
-                              style: const TextStyle(color: Colors.red),
+                            const Text(
+                              "PERFORMANCE",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                letterSpacing: 1.2,
+                              ),
                             ),
-                          );
-                        }
+                            const SizedBox(height: 12),
+                            _buildMetricsGrid(),
+                            const SizedBox(height: 30),
+                            Row(
+                              children: [
+                                const Text(
+                                  "ASSIGNED TASKS",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const Spacer(),
+                                const Text(
+                                  "Auto-hide",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Switch.adaptive(
+                                  value: _autoHideAssignedTasks,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _autoHideAssignedTasks = value;
+                                    });
+                                  },
+                                ),
+                                IconButton(
+                                  tooltip:
+                                      _showAssignedTasks
+                                          ? 'Hide tasks'
+                                          : 'Show tasks',
+                                  icon: Icon(
+                                    _showAssignedTasks
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showAssignedTasks = !_showAssignedTasks;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            if (_showAssignedTasks)
+                              FutureBuilder<List<TaskModel>>(
+                                future: _loadAssignedTasks(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 24,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
 
-                        final tasks = snapshot.data ?? const <TaskModel>[];
-                        if (tasks.isEmpty) {
-                          return _buildEmptyTaskState();
-                        }
-                        return _buildAssignedTasks(context, tasks);
-                      },
-                    )
-                  else
-                    _buildAssignedTasksHiddenState(),
-                  const SizedBox(height: 30),
-                  const Text(
-                    "QUICK ACTIONS",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      letterSpacing: 1.2,
+                                  if (snapshot.hasError) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 20,
+                                      ),
+                                      child: Text(
+                                        'Failed to load tasks: ${snapshot.error}',
+                                        style: const TextStyle(
+                                          color: Colors.red,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final tasks =
+                                      snapshot.data ?? const <TaskModel>[];
+                                  if (tasks.isEmpty) {
+                                    return _buildEmptyTaskState();
+                                  }
+                                  return _buildAssignedTasks(context, tasks);
+                                },
+                              )
+                            else
+                              _buildAssignedTasksHiddenState(),
+                            const SizedBox(height: 30),
+                            const Text(
+                              "QUICK ACTIONS",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildQuickActions(context),
+                            const SizedBox(height: 30),
+                            const Text(
+                              "MY LATEST ORDERS",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildEmptyState(),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildQuickActions(context),
-                  const SizedBox(height: 30),
-                  const Text(
-                    "MY LATEST ORDERS",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildEmptyState(),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-          ),
                   ),
                 ],
               ),
@@ -345,7 +356,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
             bottom: isCompact ? 24 : 32,
           ),
           decoration: const BoxDecoration(
-            color: Color(0xFF0D6B3E),
+            color: Color(0xFF81BD42),
             borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(32),
               bottomRight: Radius.circular(32),
@@ -378,7 +389,11 @@ class _SalesDashboardState extends State<SalesDashboard> {
                         child: CircleAvatar(
                           backgroundColor: Colors.white.withValues(alpha: 0.15),
                           radius: isCompact ? 20 : 24,
-                          child: Icon(Icons.person, color: AppColors.accentYellow, size: isCompact ? 22 : 26),
+                          child: Icon(
+                            Icons.person,
+                            color: AppColors.textDark,
+                            size: isCompact ? 22 : 26,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -408,7 +423,11 @@ class _SalesDashboardState extends State<SalesDashboard> {
                   Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.sync, color: Colors.white, size: isCompact ? 24 : 28),
+                        icon: Icon(
+                          Icons.sync,
+                          color: Colors.white,
+                          size: isCompact ? 24 : 28,
+                        ),
                         onPressed: () async {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Syncing data...')),
@@ -436,8 +455,14 @@ class _SalesDashboardState extends State<SalesDashboard> {
                         },
                       ),
                       PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert, color: Colors.white, size: isCompact ? 24 : 28),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        icon: Icon(
+                          Icons.more_vert,
+                          color: Colors.white,
+                          size: isCompact ? 24 : 28,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         onSelected: (value) async {
                           if (value == 'settings') {
                             Navigator.push(
@@ -449,32 +474,46 @@ class _SalesDashboardState extends State<SalesDashboard> {
                           } else if (value == 'logout') {
                             await Supabase.instance.client.auth.signOut();
                             if (context.mounted) {
-                              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/',
+                                (route) => false,
+                              );
                             }
                           }
                         },
-                        itemBuilder: (BuildContext context) => [
-                          PopupMenuItem(
-                            value: 'settings',
-                            child: Row(
-                              children: [
-                                Icon(Icons.settings_outlined, color: AppColors.primaryDark),
-                                const SizedBox(width: 12),
-                                const Text('Settings'),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'logout',
-                            child: Row(
-                              children: [
-                                const Icon(Icons.logout, color: Colors.redAccent),
-                                const SizedBox(width: 12),
-                                const Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                              ],
-                            ),
-                          ),
-                        ],
+                        itemBuilder:
+                            (BuildContext context) => [
+                              PopupMenuItem(
+                                value: 'settings',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.settings_outlined,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text('Settings'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'logout',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.logout,
+                                      color: Colors.redAccent,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Logout',
+                                      style: TextStyle(color: Colors.redAccent),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                       ),
                     ],
                   ),
@@ -488,7 +527,9 @@ class _SalesDashboardState extends State<SalesDashboard> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,18 +551,22 @@ class _SalesDashboardState extends State<SalesDashboard> {
                             vertical: isCompact ? 4 : 6,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.accentYellow.withValues(alpha: 0.2),
+                            color: AppColors.textDark.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.check_circle_outline, color: AppColors.accentYellow, size: 14),
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: AppColors.textDark,
+                                size: 14,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 "12 Visits",
                                 style: TextStyle(
-                                  color: AppColors.accentYellow,
+                                  color: AppColors.surfaceWhite,
                                   fontWeight: FontWeight.bold,
                                   fontSize: isCompact ? 11 : 12,
                                 ),

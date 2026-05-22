@@ -12,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../../core/constants/colors.dart';
 import '../../models/catalog_item_model.dart';
 import '../../models/farmer_model.dart';
+import '../../models/user_model.dart';
 import '../database/database_service.dart';
 
 class GroundsQuotationPage extends StatefulWidget {
@@ -33,6 +34,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   String? _selectedSchoolId;
   DateTime? _generatedAt;
   String? _quoteNumber;
+  String? _quotationTitle;
+  String _role5Name = '';
+  String _role5Phone = '';
 
   @override
   void initState() {
@@ -50,10 +54,17 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
     try {
       final items = await _dbService.getCatalogItems(activeOnly: true);
       final schools = await _dbService.getAllSchools();
+      final uid = _dbService.getCurrentUserId();
+      UserModel? role5User;
+      if (uid != null && uid.isNotEmpty) {
+        role5User = await _dbService.getUser(uid);
+      }
       if (!mounted) return;
       setState(() {
         _books = items.where((i) => i.unitPrice > 0).toList();
         _schools = schools;
+        _role5Name = role5User?.fullName?.trim() ?? '';
+        _role5Phone = role5User?.phone?.trim() ?? '';
         if (_selectedSchoolId == null && _schools.isNotEmpty) {
           _selectedSchoolId = _schools.first.id;
         }
@@ -102,9 +113,15 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
     final now = DateTime.now();
     final quoteNo =
         'QT-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+    final selectedSchool = _schools.firstWhere(
+      (s) => s.id == _selectedSchoolId,
+      orElse: () =>
+          SchoolModel(name: 'School', phone: '', county: '', focusAreas: const []),
+    );
     setState(() {
       _generatedAt = now;
       _quoteNumber = quoteNo;
+      _quotationTitle = '$quoteNo - ${selectedSchool.name}';
     });
   }
 
@@ -170,6 +187,11 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
         focusAreas: const [],
       ),
     );
+    final preparedPhone =
+        _role5Phone.isNotEmpty ? _role5Phone : _phoneController.text.trim();
+    final quotationTitle = (_quotationTitle == null || _quotationTitle!.isEmpty)
+        ? 'Official Quotation'
+        : _quotationTitle!;
 
     doc.addPage(
       pw.Page(
@@ -206,7 +228,7 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                             ),
                           ),
                           pw.Text(
-                            'Official Quotation',
+                            quotationTitle,
                             style: const pw.TextStyle(
                               fontSize: 11,
                               color: PdfColors.grey700,
@@ -242,31 +264,63 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                 ],
               ),
               pw.SizedBox(height: 18),
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.all(12),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
-                  borderRadius: pw.BorderRadius.circular(8),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'Quoted To',
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Quoted To',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(selectedSchool.name),
+                          if (selectedSchool.phone.isNotEmpty)
+                            pw.Text('School Phone: ${selectedSchool.phone}'),
+                          if (_phoneController.text.trim().isNotEmpty)
+                            pw.Text('Phone: ${_phoneController.text.trim()}'),
+                        ],
                       ),
                     ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(selectedSchool.name),
-                    if (selectedSchool.phone.isNotEmpty)
-                      pw.Text('School Phone: ${selectedSchool.phone}'),
-                    if (_phoneController.text.trim().isNotEmpty)
-                      pw.Text('Phone: ${_phoneController.text.trim()}'),
-                  ],
-                ),
+                  ),
+                  pw.SizedBox(width: 10),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Prepared By (Field Agent)',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(_role5Name.isEmpty ? '-' : _role5Name),
+                          if (preparedPhone.isNotEmpty)
+                            pw.Text('Phone: $preparedPhone'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               pw.SizedBox(height: 16),
               pw.Table(
@@ -502,8 +556,15 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                                 Text(
                                   'School: ${_schools.firstWhere((s) => s.id == _selectedSchoolId, orElse: () => SchoolModel(name: '-', phone: '', county: '', focusAreas: const [])).name}',
                                 ),
+                                if (_quotationTitle != null &&
+                                    _quotationTitle!.trim().isNotEmpty)
+                                  Text('Title: ${_quotationTitle!.trim()}'),
                                 if (_phoneController.text.trim().isNotEmpty)
                                   Text('Phone: ${_phoneController.text.trim()}'),
+                                if (_role5Name.isNotEmpty)
+                                  Text('Field Agent: $_role5Name'),
+                                if (_role5Phone.isNotEmpty)
+                                  Text('Field Agent Phone: $_role5Phone'),
                                 const SizedBox(height: 10),
                                 ..._selectedBooks.map((b) {
                                   final qty = _qtyFor(b.sku);
