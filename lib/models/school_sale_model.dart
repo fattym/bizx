@@ -36,7 +36,7 @@ class SchoolSaleModel {
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'school_id': schoolId,
       'agent_id': agentId,
@@ -49,9 +49,14 @@ class SchoolSaleModel {
       'probability': probability,
       'closed_at': closedAt?.toIso8601String(),
       'isSynced': isSynced,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
+    if (createdAt != null) {
+      map['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      map['updated_at'] = updatedAt!.toIso8601String();
+    }
+    return map;
   }
 
   factory SchoolSaleModel.fromMap(Map<dynamic, dynamic> map) {

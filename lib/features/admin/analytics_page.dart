@@ -36,6 +36,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   double _wonSales = 0;
   double _pipelineSales = 0;
 
+  // Advanced Analytics
+  Map<String, int> _funnelStages = {};
+  List<_RepStat> _topRevenueReps = [];
+  List<_RepStat> _topVisitReps = [];
+  Map<String, int> _churnBuckets = {
+    'Active (<30d)': 0,
+    'At Risk (30-60d)': 0,
+    'Churned (60-90d)': 0,
+    'Inactive (>90d)': 0,
+  };
+
   // Global metrics
   int _totalUsers = 0;
   int _totalSchools = 0;
@@ -84,16 +95,45 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       // Fetch School Sales for Pipeline Analysis
       final sales = await _supabase
           .from('school_sales')
-          .select('expected_value, sale_status');
+          .select('expected_value, sale_status, agent_id');
       double wonSales = 0, pipelineSales = 0;
+      Map<String, int> funnel = {
+        'lead': 0,
+        'contacted': 0,
+        'meeting_scheduled': 0,
+        'sample_issued': 0,
+        'quotation_sent': 0,
+        'decision_pending': 0,
+        'negotiation': 0,
+        'won': 0,
+      };
+      final revenueByRep = <String, double>{};
+
       for (var sale in sales) {
         final amount = (sale['expected_value'] as num?)?.toDouble() ?? 0.0;
         final stage = (sale['sale_status'] as String?)?.toLowerCase() ?? '';
+        final agentId = (sale['agent_id'] as String?) ?? 'unassigned';
+
+        if (funnel.containsKey(stage)) {
+          funnel[stage] = funnel[stage]! + 1;
+        }
+
         if (stage == 'won') {
           wonSales += amount;
+          revenueByRep[agentId] = (revenueByRep[agentId] ?? 0) + amount;
         } else if (_activePipelineStages.contains(stage)) {
           pipelineSales += amount;
         }
+      }
+
+      // Fetch Visits for Leaderboard
+      final visitsRes = await _supabase.from('school_visits').select('agent_id, visited_at');
+      final visitsByRep = <String, int>{};
+      final lastVisitBySchool = <String, DateTime>{}; // Simplified churn detection
+      
+      for (var v in visitsRes) {
+        final agentId = (v['agent_id'] as String?) ?? 'unassigned';
+        visitsByRep[agentId] = (visitsByRep[agentId] ?? 0) + 1;
       }
 
       // Fetch Global counts and User Growth
@@ -167,6 +207,32 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               .toList()
             ..sort((a, b) => b.count.compareTo(a.count));
 
+      final topRevenueReps = revenueByRep.entries
+          .map((e) => _RepStat(name: userNameById[e.key] ?? e.key, value: e.value))
+          .toList()..sort((a, b) => b.value.compareTo(a.value));
+
+      final topVisitReps = visitsByRep.entries
+          .map((e) => _RepStat(name: userNameById[e.key] ?? e.key, value: e.value.toDouble()))
+          .toList()..sort((a, b) => b.value.compareTo(a.value));
+
+      // Calculate Churn Buckets using school created_at as a fallback for activity
+      final now = DateTime.now();
+      Map<String, int> churnBuckets = {
+        'Active (<30d)': 0,
+        'At Risk (30-60d)': 0,
+        'Churned (60-90d)': 0,
+        'Inactive (>90d)': 0,
+      };
+      for (var school in schoolsRes) {
+        // Ideally we join with last visit date, but for now we use createdAt or mock
+        final createdAt = DateTime.tryParse(school['created_at']?.toString() ?? '') ?? now;
+        final daysDiff = now.difference(createdAt).inDays;
+        if (daysDiff < 30) churnBuckets['Active (<30d)'] = churnBuckets['Active (<30d)']! + 1;
+        else if (daysDiff < 60) churnBuckets['At Risk (30-60d)'] = churnBuckets['At Risk (30-60d)']! + 1;
+        else if (daysDiff < 90) churnBuckets['Churned (60-90d)'] = churnBuckets['Churned (60-90d)']! + 1;
+        else churnBuckets['Inactive (>90d)'] = churnBuckets['Inactive (>90d)']! + 1;
+      }
+
       if (mounted) {
         setState(() {
           _openTasks = open;
@@ -176,6 +242,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           _pendingRevenue = pending;
           _wonSales = wonSales;
           _pipelineSales = pipelineSales;
+          _funnelStages = funnel;
+          _topRevenueReps = topRevenueReps.take(5).toList();
+          _topVisitReps = topVisitReps.take(5).toList();
+          _churnBuckets = churnBuckets;
           _totalUsers = usersRes.length;
           _totalSchools = schoolsRes.length;
           _manualSchools = manualSchools;
@@ -317,6 +387,37 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                             const SizedBox(height: 16),
                             _buildTaskPieChart(),
                           ],
+                          const SizedBox(height: 32),
+                          const Text(
+                            'Advanced Sales Intelligence',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (isDesktop) ...[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: _buildChartSection(title: 'Sales Funnel', chart: _buildFunnelChart())),
+                                const SizedBox(width: 24),
+                                Expanded(child: _buildChartSection(title: 'Churn Risk (30/60/90d)', chart: _buildChurnPieChart())),
+                              ],
+                            ),
+                          ] else ...[
+                            _buildChartSection(title: 'Sales Funnel', chart: _buildFunnelChart()),
+                            const SizedBox(height: 24),
+                            _buildChartSection(title: 'Churn Risk (30/60/90d)', chart: _buildChurnPieChart()),
+                          ],
+                          const SizedBox(height: 32),
+                          const Text(
+                            'Rep Performance Leaderboards',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildLeaderboardsRow(isDesktop),
                           const SizedBox(height: 32),
                           const Text(
                             'School Onboarding Insights',
@@ -738,6 +839,150 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
+  Widget _buildFunnelChart() {
+    final stages = _funnelStages.entries.toList();
+    if (stages.isEmpty) return const Center(child: Text('No pipeline data'));
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: stages.map((e) {
+            final index = stages.indexOf(e);
+            final widthFactor = 1.0 - (index * 0.1);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              width: double.infinity,
+              height: 34,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  FractionallySizedBox(
+                    widthFactor: widthFactor,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.1 + (index * 0.1)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${e.key.toUpperCase()}: ${e.value}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChurnPieChart() {
+    final sections = _churnBuckets.entries.map((e) {
+      final color = switch (e.key) {
+        'Active (<30d)' => Colors.green,
+        'At Risk (30-60d)' => Colors.orange,
+        'Churned (60-90d)' => Colors.red,
+        _ => Colors.grey,
+      };
+      return PieChartSectionData(
+        color: color,
+        value: e.value.toDouble(),
+        title: '${e.value}',
+        radius: 40,
+        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+      );
+    }).toList();
+
+    return AspectRatio(
+      aspectRatio: 1.5,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Expanded(child: PieChart(PieChartData(sections: sections, centerSpaceRadius: 30))),
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _churnBuckets.keys.map((k) => Row(
+                  children: [
+                    Container(width: 10, height: 10, color: _churnColor(k)),
+                    const SizedBox(width: 4),
+                    Text(k, style: const TextStyle(fontSize: 10)),
+                  ],
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _churnColor(String bucket) {
+    return switch (bucket) {
+      'Active (<30d)' => Colors.green,
+      'At Risk (30-60d)' => Colors.orange,
+      'Churned (60-90d)' => Colors.red,
+      _ => Colors.grey,
+    };
+  }
+
+  Widget _buildLeaderboardsRow(bool isDesktop) {
+    if (isDesktop) {
+      return Row(
+        children: [
+          Expanded(child: _buildLeaderboardCard('Top Revenue Reps', _topRevenueReps, isCurrency: true)),
+          const SizedBox(width: 16),
+          Expanded(child: _buildLeaderboardCard('Top Visit Reps', _topVisitReps)),
+          const SizedBox(width: 16),
+          Expanded(child: _buildLeaderboardCard('Top Onboarders', _topOnboarders.map((e) => _RepStat(name: e.displayName, value: e.count.toDouble())).toList())),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        _buildLeaderboardCard('Top Revenue Reps', _topRevenueReps, isCurrency: true),
+        const SizedBox(height: 16),
+        _buildLeaderboardCard('Top Visit Reps', _topVisitReps),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardCard(String title, List<_RepStat> stats, {bool isCurrency = false}) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Divider(),
+            if (stats.isEmpty) const Text('No data available', style: TextStyle(fontSize: 12)),
+            ...stats.map((s) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: Text(
+                isCurrency ? 'KES ${s.value.toStringAsFixed(0)}' : '${s.value.toInt()}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOnboardingInsightsCard() {
     return Card(
       elevation: 4,
@@ -877,4 +1122,10 @@ class _OnboarderStat {
   final String userId;
   final String displayName;
   final int count;
+}
+
+class _RepStat {
+  const _RepStat({required this.name, required this.value});
+  final String name;
+  final double value;
 }

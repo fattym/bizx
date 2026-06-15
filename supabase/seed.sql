@@ -729,8 +729,7 @@ VALUES
     'Left with the school office for confirmation.',
     now() - interval '2 days',
     true
-  );
-
+);
 INSERT INTO public.catalog_items (
   id,
   name,
@@ -780,19 +779,6 @@ VALUES
     0.00,
     16,
     'Starter reading sample for classroom demonstrations.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f4444444-4444-4444-4444-444444444444',
-    'Reference Handbook',
-    'Reference',
-    'SMPL-RF-02',
-    'sample',
-    0.00,
-    28,
-    'Quick reference sample for school sample distribution.',
     true,
     '11111111-1111-1111-1111-111111111111',
     true
@@ -886,82 +872,6 @@ SET
   is_active = excluded.is_active,
   created_by = excluded.created_by,
   "isSynced" = excluded."isSynced";
-
-INSERT INTO public.orders (
-  id,
-  school_id,
-  school_name,
-  school_phone,
-  agent_id,
-  order_number,
-  payment_method,
-  payment_reference,
-  checkout_amount,
-  status,
-  notes,
-  submitted_at,
-  approved_at
-)
-VALUES
-  (
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    '22222222-2222-2222-2222-222222222222',
-    'Nairobi Primary School',
-    '0712345678',
-    '11111111-1111-1111-1111-111111111111',
-    'ORD-20260509-FAITH-001',
-    'mpesa',
-    'QWERTY1234',
-    8400.00,
-    'pending',
-    'Package sold after school visit and WhatsApp follow-up.',
-    now() - interval '1 day',
-    NULL
-  ),
-  (
-    'd1111111-d111-d111-d111-d11111111111',
-    '55555555-5555-5555-5555-555555555555',
-    'Nakuru Girls',
-    '0745678901',
-    '11111111-1111-1111-1111-111111111111',
-    'ORD-20260509-FAITH-003',
-    'bank_transfer',
-    'BANK-REF-8888',
-    24500.00,
-    'approved',
-    'High school science books bulk order.',
-    now() - interval '4 days',
-    now() - interval '3 days'
-  ),
-  (
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-    '44444444-4444-4444-4444-444444444444',
-    'Kisumu Boys',
-    '0734567890',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'ORD-20260509-ROLE5-001',
-    'cash',
-    NULL,
-    1500.00,
-    'paid',
-    'Grounds support checkout completed in cash.',
-    now() - interval '2 days',
-    now() - interval '2 days'
-  )
-ON CONFLICT (id) DO UPDATE
-SET
-  school_id = excluded.school_id,
-  school_name = excluded.school_name,
-  school_phone = excluded.school_phone,
-  agent_id = excluded.agent_id,
-  order_number = excluded.order_number,
-  payment_method = excluded.payment_method,
-  payment_reference = excluded.payment_reference,
-  checkout_amount = excluded.checkout_amount,
-  status = excluded.status,
-  notes = excluded.notes,
-  submitted_at = excluded.submitted_at,
-  approved_at = excluded.approved_at;
 
 INSERT INTO public.order_items (
   id,
@@ -1264,3 +1174,108 @@ VALUES
     now() - interval '30 minutes'
   )
 ON CONFLICT DO NOTHING;
+
+-- Dummy sample catalog items for onboarding/sample pages
+INSERT INTO public.catalog_items (
+  id,
+  name,
+  category,
+  sku,
+  item_type,
+  unit_price,
+  stock_qty,
+  description,
+  is_active,
+  created_by,
+  "isSynced"
+)
+VALUES
+  (
+    'cab00000-0000-0000-0000-000000000001',
+    'Primary Mathematics Sample Pack',
+    'Primary',
+    'SMPL-PR-21',
+    'sample',
+    0.00,
+    80,
+    'Dummy sample pack for lower primary mathematics demos.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  ),
+  (
+    'cab00000-0000-0000-0000-000000000002',
+    'Primary English Sample Pack',
+    'Primary',
+    'SMPL-PR-22',
+    'sample',
+    0.00,
+    75,
+    'Dummy sample pack for English classroom demos.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  ),
+  (
+    'cab00000-0000-0000-0000-000000000003',
+    'Junior Secondary Science Sample',
+    'Secondary',
+    'SMPL-SEC-21',
+    'sample',
+    0.00,
+    64,
+    'Dummy blended science sample for junior secondary.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  ),
+  (
+    'cab00000-0000-0000-0000-000000000004',
+    'CBC Grade 5 Sample Reader',
+    'Primary',
+    'SMPL-PR-23',
+    'sample',
+    0.00,
+    92,
+    'Dummy reader sample aligned to CBC Grade 5.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  ),
+  (
+    'cab00000-0000-0000-0000-000000000005',
+    'Teacher Demo Workbook Sample',
+    'Reference',
+    'SMPL-RF-21',
+    'sample',
+    0.00,
+    48,
+    'Dummy workbook sample for teacher demonstrations.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  ),
+  (
+    'cab00000-0000-0000-0000-000000000006',
+    'Secondary Literature Sample Pack',
+    'Secondary',
+    'SMPL-SEC-22',
+    'sample',
+    0.00,
+    54,
+    'Dummy literature sample bundle for high school visits.',
+    true,
+    '11111111-1111-1111-1111-111111111111',
+    true
+  )
+ON CONFLICT (sku) DO UPDATE
+SET
+  name = excluded.name,
+  category = excluded.category,
+  item_type = excluded.item_type,
+  unit_price = excluded.unit_price,
+  stock_qty = excluded.stock_qty,
+  description = excluded.description,
+  is_active = excluded.is_active,
+  created_by = excluded.created_by,
+  "isSynced" = excluded."isSynced";

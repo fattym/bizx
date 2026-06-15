@@ -496,6 +496,37 @@ class DatabaseService {
     return cachedItems;
   }
 
+  Future<List<CatalogItemModel>> getSampleCatalogItemsFromTable() async {
+    try {
+      final response = await _supabase
+          .from('catalog_items')
+          .select()
+          .order('name', ascending: true);
+
+      final items = List<Map<String, dynamic>>.from(response)
+          .where((row) {
+            final isActive = (row['is_active'] ?? true) == true;
+            final itemType = (row['item_type'] ?? '').toString().toLowerCase();
+            return isActive && itemType.contains('sample');
+          })
+          .map((row) => CatalogItemModel.fromMap(Map<String, dynamic>.from(row)))
+          .toList();
+
+      final box = await _catalogBox;
+      for (final item in items) {
+        await box.put(item.sku, item.toMap());
+      }
+      return items;
+    } catch (e) {
+      debugPrint('Error fetching sample catalog items: $e');
+      final fallback = await getCatalogItems(itemType: null, activeOnly: true);
+      return fallback
+          .where((item) => item.itemType.trim().toLowerCase().contains('sample'))
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+    }
+  }
+
   Future<void> upsertCatalogItems(List<CatalogItemModel> items) async {
     try {
       if (items.isEmpty) return;

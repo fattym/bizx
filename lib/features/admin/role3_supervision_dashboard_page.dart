@@ -73,6 +73,9 @@ class _Role3SupervisionDashboardPageState
   List<Map<String, dynamic>> _geofences = [];
   List<Map<String, dynamic>> _alerts = [];
   List<Map<String, dynamic>> _breaches = [];
+  List<Map<String, dynamic>> _scorecards = [];
+  List<Map<String, dynamic>> _notes = [];
+  String _scorecardTimeframe = 'Monthly';
 
   @override
   void initState() {
@@ -108,6 +111,8 @@ class _Role3SupervisionDashboardPageState
       List<Map<String, dynamic>> geofences = [];
       List<Map<String, dynamic>> alerts = [];
       List<Map<String, dynamic>> breaches = [];
+      List<Map<String, dynamic>> scorecards = [];
+      List<Map<String, dynamic>> notes = [];
 
       if (userIds.isNotEmpty) {
         final tasksResponse = await _supabase
@@ -148,6 +153,42 @@ class _Role3SupervisionDashboardPageState
               .order('created_at', ascending: false);
           breaches = List<Map<String, dynamic>>.from(breachResponse);
         } catch (_) {}
+        
+        try {
+          final now = DateTime.now();
+          DateTime start;
+          if (_scorecardTimeframe == 'Daily') {
+            start = DateTime(now.year, now.month, now.day);
+          } else if (_scorecardTimeframe == 'Weekly') {
+            final temp = now.subtract(Duration(days: now.weekday % 7));
+            start = DateTime(temp.year, temp.month, temp.day);
+          } else if (_scorecardTimeframe == 'Yearly') {
+            start = DateTime(now.year, 1, 1);
+          } else {
+            start = DateTime(now.year, now.month, 1);
+          }
+          final startIso = start.toIso8601String();
+          final endIso = now.toIso8601String();
+
+          final scorecardsResponse = await _supabase.rpc(
+            'get_role5_performance',
+            params: {'p_start_date': startIso, 'p_end_date': endIso},
+          );
+          
+          final allScorecards = List<Map<String, dynamic>>.from(scorecardsResponse as List);
+          scorecards = allScorecards.where((s) => userIds.contains(s['user_id']?.toString())).toList();
+        } catch (e) {
+          debugPrint('Error fetching scorecards via RPC: $e');
+        }
+
+        try {
+          final notesResponse = await _supabase
+              .from('supervisor_notes')
+              .select('*, users!supervisor_notes_user_id_fkey(full_name)')
+              .inFilter('user_id', userIds)
+              .order('created_at', ascending: false);
+          notes = List<Map<String, dynamic>>.from(notesResponse);
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -158,6 +199,8 @@ class _Role3SupervisionDashboardPageState
         _geofences = geofences;
         _alerts = alerts;
         _breaches = breaches;
+        _scorecards = scorecards;
+        _notes = notes;
       });
     } catch (e) {
       debugPrint('Role3 supervision load error: $e');
@@ -243,23 +286,98 @@ class _Role3SupervisionDashboardPageState
     await _loadData();
   }
 
-  Future<void> _addCoachingNote(String userId) async {
-    await _dbService.insertWithOfflineQueue(
-      table: 'supervisor_notes',
-      payload: {
-        'supervisor_id': _supabase.auth.currentUser?.id,
-        'user_id': userId,
-        'region': _selectedCounty,
-        'context_type': 'health_review',
-        'note': 'Weekly coaching follow-up recorded from dashboard.',
-        'follow_up_at':
-            DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+  Future<void> _showAddCoachingNoteDialog(String userId) async {
+    final noteController = TextEditingController();
+    String contextType = 'general';
+    DateTime? followUpDate;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Coaching Note'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: contextType,
+                    decoration: const InputDecoration(labelText: 'Context', border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'general', child: Text('General Review')),
+                      DropdownMenuItem(value: 'task', child: Text('Task Performance')),
+                      DropdownMenuItem(value: 'route', child: Text('Route Compliance')),
+                      DropdownMenuItem(value: 'health_review', child: Text('Health / Risk Review')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => contextType = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: noteController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Note',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text('Follow-up: '),
+                      TextButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now().add(const Duration(days: 7)),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => followUpDate = picked);
+                          }
+                        },
+                        child: Text(followUpDate == null ? 'Select Date' : '${followUpDate!.year}-${followUpDate!.month}-${followUpDate!.day}'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                FilledButton(
+                  onPressed: () async {
+                    if (noteController.text.trim().isEmpty) return;
+                    Navigator.pop(context, true);
+                  },
+                  child: const Text('Save Note'),
+                ),
+              ],
+            );
+          },
+        );
       },
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Coaching note added.')));
+    ).then((saved) async {
+      if (saved == true) {
+        await _dbService.insertWithOfflineQueue(
+          table: 'supervisor_notes',
+          payload: {
+            'supervisor_id': _supabase.auth.currentUser?.id,
+            'user_id': userId,
+            'region': _selectedCounty,
+            'context_type': contextType,
+            'note': noteController.text.trim(),
+            'follow_up_at': followUpDate?.toIso8601String(),
+          },
+        );
+        await _loadData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Coaching note added.')));
+        }
+      }
+    });
   }
 
   Future<void> _approvePendingRoute(String userId, bool approve) async {
@@ -530,7 +648,7 @@ class _Role3SupervisionDashboardPageState
                                     child: const Text('Incident'),
                                   ),
                                   FilledButton.tonal(
-                                    onPressed: () => _addCoachingNote(userId),
+                                    onPressed: () => _showAddCoachingNoteDialog(userId),
                                     child: const Text('Coaching'),
                                   ),
                                 ],
@@ -540,7 +658,11 @@ class _Role3SupervisionDashboardPageState
                         ),
                       );
                     }),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 24),
+                    _buildScorecardSection(filteredIds),
+                    const SizedBox(height: 24),
+                    _buildNotesSection(filteredIds),
+                    const SizedBox(height: 24),
                     _sectionHeader(
                       'Route Plans (Role 5)',
                       'Daily execution and reassignment controls',
@@ -683,6 +805,122 @@ class _Role3SupervisionDashboardPageState
           subtitle,
           style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
+      ],
+    );
+  }
+
+  Widget _buildScorecardSection(Set<String> filteredIds) {
+    final relevantScorecards = _scorecards.where((s) => filteredIds.contains(s['user_id']?.toString())).toList();
+    
+    relevantScorecards.sort((a, b) {
+      final aTasks = (a['total_tasks'] as num?)?.toDouble() ?? 0;
+      final aTasksC = (a['completed_tasks'] as num?)?.toDouble() ?? 0;
+      final aRoutes = (a['total_routes'] as num?)?.toDouble() ?? 0;
+      final aRoutesC = (a['completed_routes'] as num?)?.toDouble() ?? 0;
+      final scoreA = (aTasks > 0 ? aTasksC / aTasks : 0) + (aRoutes > 0 ? aRoutesC / aRoutes : 0);
+
+      final bTasks = (b['total_tasks'] as num?)?.toDouble() ?? 0;
+      final bTasksC = (b['completed_tasks'] as num?)?.toDouble() ?? 0;
+      final bRoutes = (b['total_routes'] as num?)?.toDouble() ?? 0;
+      final bRoutesC = (b['completed_routes'] as num?)?.toDouble() ?? 0;
+      final scoreB = (bTasks > 0 ? bTasksC / bTasks : 0) + (bRoutes > 0 ? bRoutesC / bRoutes : 0);
+
+      return scoreB.compareTo(scoreA); // Descending
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: _sectionHeader('Role 5 Performance Scorecard', 'Ranked by completion metrics')),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _scorecardTimeframe,
+                  items: ['Daily', 'Weekly', 'Monthly', 'Yearly'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _scorecardTimeframe = val);
+                      _loadData();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (relevantScorecards.isEmpty)
+          const Text('No performance data available for this region.')
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('Agent')),
+                DataColumn(label: Text('Tasks (Compl/Total)')),
+                DataColumn(label: Text('Routes (Compl/Total)')),
+                DataColumn(label: Text('Visits Logged')),
+              ],
+              rows: relevantScorecards.map((s) {
+                final tasksC = s['completed_tasks'] ?? 0;
+                final tasksT = s['total_tasks'] ?? 0;
+                final routesC = s['completed_routes'] ?? 0;
+                final routesT = s['total_routes'] ?? 0;
+                return DataRow(cells: [
+                  DataCell(Text(s['full_name']?.toString() ?? 'Unknown')),
+                  DataCell(Text('$tasksC / $tasksT')),
+                  DataCell(Text('$routesC / $routesT')),
+                  DataCell(Text('${s['total_visits'] ?? 0}')),
+                ]);
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNotesSection(Set<String> filteredIds) {
+    final relevantNotes = _notes.where((n) => filteredIds.contains(n['user_id']?.toString())).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Recent Coaching Notes', 'Feedback and follow-ups'),
+        const SizedBox(height: 8),
+        if (relevantNotes.isEmpty)
+          const Text('No coaching notes recorded yet.')
+        else
+          ...relevantNotes.take(5).map((n) {
+            final dateRaw = n['created_at']?.toString();
+            final dateStr = dateRaw != null ? dateRaw.split('T').first : '';
+            final followRaw = n['follow_up_at']?.toString();
+            final followStr = followRaw != null ? followRaw.split('T').first : 'None';
+            final targetName = n['users']?['full_name']?.toString() ?? 'Unknown Agent';
+
+            return Card(
+              child: ListTile(
+                title: Text('$targetName (${n['context_type'] ?? 'general'})'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(n['note']?.toString() ?? ''),
+                    const SizedBox(height: 4),
+                    Text('Follow-up: $followStr', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ],
+                ),
+                trailing: Text(dateStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+            );
+          }),
       ],
     );
   }

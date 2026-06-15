@@ -42,18 +42,21 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   String? _selectedBookProgram;
   String? _samplesLeft;
   String? _selectedSampleBook;
+  String? _selectedSampleCategory;
   String? _partnerSubtype;
   String? _selectedCounty;
   String? _schoolOwnership;
   String? _schoolLifecycleStatus;
   String? _engagementType;
   List<String> _sampleBookOptions = <String>[];
+  final Map<String, String> _sampleBookCategoryByLabel = <String, String>{};
   XFile? _capturedPhoto;
   Uint8List? _capturedPhotoBytes;
   XFile? _sampleProofPhoto;
   Uint8List? _sampleProofPhotoBytes;
   Position? _currentPosition;
   String? _captureStatus;
+  String _sampleBookSearchQuery = '';
   bool isOffline = true;
   bool _isSubmitting = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -66,10 +69,18 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     "Teacher Guide Kit",
   ];
 
-  static const Map<String, List<String>> _crmWorkflowBySchoolStatus = {
-    'New': ['Lead', 'Contacted', 'Meeting Scheduled', 'Proposal Sent'],
-    'Existing': ['Follow Up', 'Negotiation', 'Won', 'Lost'],
-  };
+  static const List<String> _crmPipelineStatusOptions = [
+    'Lead',
+    'Contacted',
+    'Meeting Scheduled',
+    'Sample Issued',
+    'Quotation Sent',
+    'Decision Pending',
+    'Negotiation',
+    'Won',
+    'Lost',
+    'Dormant',
+  ];
 
   static const List<String> _counties = [
     'Nairobi',
@@ -266,7 +277,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                 _selectedSampleBook?.trim().isNotEmpty == true
                     ? _selectedSampleBook!.trim()
                     : 'Sample Book',
-            sampleCategory: 'Onboarding',
+            sampleCategory:
+                _selectedSampleCategory ??
+                _sampleBookCategoryByLabel[_selectedSampleBook] ??
+                'Onboarding',
             quantity: 1,
             notes: 'Captured during onboarding',
             stampedReceiptUrl: uploadedSampleProof['proofUrl'],
@@ -681,7 +695,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             ),
             const SizedBox(height: 16),
             _buildDropdown(
-              "CRM Workflow Stage",
+              "CRM Workflow Status",
               _crmEngagementStages,
               (val) => setState(() => _engagementType = val),
               value: _engagementType,
@@ -725,6 +739,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             (val) => setState(() {
               _samplesLeft = val;
               if (val != "Yes") {
+                _selectedSampleCategory = null;
                 _selectedSampleBook = null;
                 _sampleProofPhoto = null;
                 _sampleProofPhotoBytes = null;
@@ -735,8 +750,30 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           if (_samplesLeft == "Yes") ...[
             const SizedBox(height: 16),
             _buildDropdown(
+              'Sample Category',
+              _sampleBookCategories,
+              (val) => setState(() {
+                _selectedSampleCategory = val;
+                if (_selectedSampleBook != null &&
+                    !_filteredSampleBookOptions.contains(_selectedSampleBook)) {
+                  _selectedSampleBook = null;
+                }
+              }),
+              value: _selectedSampleCategory,
+            ),
+            const SizedBox(height: 12),
+            _buildTextField(
+              'Search Sample Book by Name',
+              onChanged: (value) {
+                setState(() {
+                  _sampleBookSearchQuery = value.trim().toLowerCase();
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildDropdown(
               _sampleBookLabel,
-              _sampleBookOptions,
+              _filteredSampleBookOptions,
               (val) => setState(() => _selectedSampleBook = val),
               value: _selectedSampleBook,
             ),
@@ -1039,16 +1076,44 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     TextEditingController? controller,
     int maxLines = 1,
     TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  List<String> get _filteredSampleBookOptions {
+    var options = _sampleBookOptions;
+    if ((_selectedSampleCategory ?? '').trim().isNotEmpty) {
+      options = options
+          .where(
+            (item) =>
+                (_sampleBookCategoryByLabel[item] ?? '').toLowerCase() ==
+                _selectedSampleCategory!.toLowerCase(),
+          )
+          .toList();
+    }
+    if (_sampleBookSearchQuery.isEmpty) return options;
+    return options
+        .where((item) => item.toLowerCase().contains(_sampleBookSearchQuery))
+        .toList();
+  }
+
+  List<String> get _sampleBookCategories {
+    final categories = _sampleBookCategoryByLabel.values
+        .where((c) => c.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return categories;
   }
 
   Widget _buildMediaPicker() {
@@ -1382,18 +1447,37 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
   Future<void> _loadSampleBooks() async {
     try {
-      final items = await _dbService.getCatalogItems(itemType: 'sample');
+      final items = await _dbService.getSampleCatalogItemsFromTable();
+
       if (!mounted) return;
 
       final options = items
-          .map((item) => item.name.trim())
-          .where((name) => name.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
+          .map((item) {
+            final name = item.name.trim();
+            final sku = item.sku.trim();
+            if (name.isEmpty) return '';
+            return sku.isEmpty ? name : '$name (SKU: $sku)';
+          })
+          .where((label) => label.trim().isNotEmpty)
+          .toList();
+      final categoryByLabel = <String, String>{};
+      for (final item in items) {
+        final name = item.name.trim();
+        if (name.isEmpty) continue;
+        final sku = item.sku.trim();
+        final label = sku.isEmpty ? name : '$name (SKU: $sku)';
+        categoryByLabel[label] = item.category.trim();
+      }
 
       setState(() {
+        _sampleBookCategoryByLabel
+          ..clear()
+          ..addAll(categoryByLabel);
         _sampleBookOptions = options;
+        if (_selectedSampleCategory != null &&
+            !_sampleBookCategories.contains(_selectedSampleCategory)) {
+          _selectedSampleCategory = null;
+        }
         if (_selectedSampleBook != null &&
             !_sampleBookOptions.contains(_selectedSampleBook)) {
           _selectedSampleBook = null;
@@ -1403,19 +1487,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       debugPrint('Error loading sample books: $e');
       if (!mounted) return;
       setState(() {
+        _sampleBookCategoryByLabel.clear();
         _sampleBookOptions = <String>[];
       });
     }
   }
 
   List<String> get _crmEngagementStages {
-    final status = (_schoolLifecycleStatus ?? '').trim();
-    final byStatus = _crmWorkflowBySchoolStatus[status];
-    if (byStatus != null && byStatus.isNotEmpty) return byStatus;
-    final isPrimary = (_shopCategory ?? '').toLowerCase() == 'primary';
-    return isPrimary
-        ? const ['Lead', 'Contacted', 'Meeting Scheduled', 'Follow Up']
-        : const ['Lead', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'];
+    return _crmPipelineStatusOptions;
   }
 
   Widget _previewCard({
@@ -1459,6 +1538,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 340;
+        final isFinalStep = _currentStep >= 4;
         return Wrap(
           spacing: 12,
           runSpacing: 8,
@@ -1474,9 +1554,18 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                        : const Text('Continue'),
+                        : Text(isFinalStep ? 'Submit Online' : 'Continue'),
               ),
             ),
+            if (isFinalStep)
+              SizedBox(
+                width: isNarrow ? constraints.maxWidth : null,
+                child: OutlinedButton.icon(
+                  onPressed: _isSubmitting ? null : details.onStepContinue,
+                  icon: const Icon(Icons.cloud_upload_outlined),
+                  label: const Text('Push Data Online'),
+                ),
+              ),
             SizedBox(
               width: isNarrow ? constraints.maxWidth : null,
               child: TextButton(

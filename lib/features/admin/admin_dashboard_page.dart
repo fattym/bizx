@@ -23,6 +23,8 @@ import 'admin_social_pipeline_page.dart';
 import 'project_form_builder_page.dart';
 import 'project_form_responses_page.dart';
 import 'role2_route_plan_page.dart';
+import '../dashboard/sample_distribution_page.dart';
+import 'school_profile_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -35,8 +37,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final DatabaseService _dbService = DatabaseService();
   late Future<_AdminDashboardData> _dashboardFuture;
 
+  Map<String, String> _schoolStages = {};
   String? _selectedUserIdForMap;
   DateTimeRange? _mapDateRange;
+  bool _showOnlyCrmSchools = false;
+  bool _showTasks = true;
   String? _selectedUserIdForTasks;
   DateTimeRange? _taskDateRange;
   String _taskTimeFilter = 'All'; // 'All', 'Daily', 'Weekly', 'Monthly'
@@ -53,6 +58,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final users = await _dbService.getAllUsers();
     final schools = await _dbService.getAllSchools();
     final tasks = await _dbService.getAllTasks();
+
+    try {
+      final salesRes = await Supabase.instance.client
+          .from('school_sales')
+          .select('school_id, sale_status');
+      
+      final Map<String, String> stageMap = {};
+      for (var row in (salesRes as List)) {
+        final schoolId = (row['school_id'] ?? '').toString();
+        final status = (row['sale_status'] ?? '').toString();
+        if (schoolId.isNotEmpty) {
+          stageMap[schoolId] = status;
+        }
+      }
+      _schoolStages = stageMap;
+    } catch (e) {
+      debugPrint('Error fetching school sales for map: $e');
+    }
 
     List<Map<String, dynamic>> routePlansData = [];
     try {
@@ -376,14 +399,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         data.geofences,
                       ),
                       const SizedBox(height: 20),
-                      _buildSectionHeader(
-                        "Tasks",
-                        subtitle:
-                            "Filter and review tasks assigned to specific people or roles.",
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader(
+                            "Tasks",
+                            subtitle:
+                                "Filter and review tasks assigned to specific people or roles.",
+                          ),
+                          TextButton.icon(
+                            onPressed: () => setState(() => _showTasks = !_showTasks),
+                            icon: Icon(_showTasks ? Icons.expand_less : Icons.expand_more),
+                            label: Text(_showTasks ? "Hide Tasks" : "Show Tasks"),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      if (isNarrow) ...[
-                        DropdownButtonFormField<String?>(
+                      if (_showTasks) ...[
+                        const SizedBox(height: 12),
+                        if (isNarrow) ...[
+                          DropdownButtonFormField<String?>(
+
                           initialValue: _selectedUserIdForTasks,
                           decoration: InputDecoration(
                             labelText: 'Filter by Person',
@@ -629,10 +664,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               onDelete: () => _deleteTask(task),
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 20),
-                      _buildSectionHeader(
-                        "User Access Control",
+                          ),
+                          ],
+                          const SizedBox(height: 20),
+                          _buildSectionHeader(
+                          "User Access Control",
                         subtitle:
                             "Promote or demote users directly from Supabase-backed records.",
                       ),
@@ -923,8 +959,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
                 _buildSidebarItem(
                   context,
-                  Icons.table_chart_outlined,
-                  'CRM Workspace',
+                  Icons.inventory_2_outlined,
+                  'Manage Sample',
                   () {
                     if (MediaQuery.of(context).size.width < 800) {
                       Navigator.pop(context);
@@ -932,9 +968,27 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
+                        builder: (context) => const SampleDistributionPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.table_chart_outlined,
+                  'CRM Workspace',
+                  () async {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
                         builder: (context) => const AdminCrmPage(),
                       ),
                     );
+                    _refreshDashboard();
                   },
                   isCollapsed: isCollapsed,
                 ),
@@ -1085,6 +1139,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               (school) => school.latitude != null && school.longitude != null,
             )
             .toList();
+
+    // CRM Pipeline Alignment Fix
+    if (_showOnlyCrmSchools) {
+      mapSchools = mapSchools.where((s) => _schoolStages.containsKey(s.id)).toList();
+    }
 
     if (_mapDateRange != null) {
       final start = DateTime(
@@ -1260,6 +1319,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     onPressed: _clearMapDateRange,
                     icon: const Icon(Icons.clear),
                   ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Pipeline Only', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    Switch(
+                      value: _showOnlyCrmSchools,
+                      activeTrackColor: AppColors.primaryGreen.withValues(alpha: 0.5),
+                      activeThumbColor: AppColors.primaryGreen,
+                      onChanged: (val) => setState(() => _showOnlyCrmSchools = val),
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1323,13 +1395,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 MarkerLayer(
                                   markers: _schoolMarkers(context, mapSchools),
                                 ),
-                              ],
-                            ),
-                  ),
-                  if (mapSchools.isNotEmpty)
-                    Positioned(
-                      left: 12,
-                      bottom: 12,
+                                ],
+                                ),
+                                ),
+                                if (_showOnlyCrmSchools && mapSchools.isNotEmpty)
+                                Positioned(
+                                right: 12,
+                                top: 12,
+                                child: _buildMapLegend(),
+                                ),
+                                if (mapSchools.isNotEmpty)
+                                Positioned(
+                                left: 12,
+                                bottom: 12,
+
                       child: FilledButton.icon(
                         onPressed: () {
                           Navigator.push(
@@ -1357,6 +1436,57 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildMapLegend() {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white.withValues(alpha: 0.95),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Pipeline Key',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.longhornMaroon),
+            ),
+            const Divider(height: 16),
+            _legendItem('Lead', Colors.blue),
+            _legendItem('Contacted', Colors.teal),
+            _legendItem('Proposal', Colors.amber.shade700),
+            _legendItem('Negotiation', Colors.deepOrange),
+            _legendItem('Won', Colors.green),
+            _legendItem('Lost', Colors.red),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legendItem(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 4)],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 
@@ -1468,43 +1598,81 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return polylines;
   }
 
+  String _normalizeStage(String stage) {
+    return stage.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+  }
+
+  Color _stageColor(String? stage) {
+    if (stage == null || stage.isEmpty) return AppColors.longhornMaroon;
+    final normalized = _normalizeStage(stage);
+    switch (normalized) {
+      case 'lead':
+        return Colors.blue;
+      case 'prospecting':
+        return Colors.indigo;
+      case 'contacted':
+        return Colors.teal;
+      case 'meeting_scheduled':
+        return Colors.cyan.shade700;
+      case 'proposal_sent':
+      case 'quotation_sent':
+        return Colors.amber.shade700;
+      case 'negotiation':
+        return Colors.deepOrange;
+      case 'won':
+      case 'closed_won':
+        return Colors.green;
+      case 'lost':
+      case 'closed_lost':
+        return Colors.red;
+      default:
+        final hash = normalized.hashCode;
+        final hue = (hash % 360).toDouble();
+        return HSVColor.fromAHSV(1, hue, 0.65, 0.8).toColor();
+    }
+  }
+
   List<Marker> _schoolMarkers(BuildContext context, List<SchoolModel> schools) {
     return schools
         .where((school) => school.latitude != null && school.longitude != null)
         .map(
-          (school) => Marker(
-            point: LatLng(
-              school.latitude!.toDouble(),
-              school.longitude!.toDouble(),
-            ),
-            width: 44, // Slightly larger hit area for easier tapping
-            height: 44,
-            child: GestureDetector(
-              onTap: () => _showSchoolDetails(context, school),
-              child: Tooltip(
-                message: school.name,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.longhornMaroon.withValues(alpha: 0.95),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.longhornMaroon.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.location_on,
-                    size: 20,
-                    color: Colors.white,
+          (school) {
+            final stage = _schoolStages[school.id];
+            final color = _stageColor(stage);
+            return Marker(
+              point: LatLng(
+                school.latitude!.toDouble(),
+                school.longitude!.toDouble(),
+              ),
+              width: 44, // Slightly larger hit area for easier tapping
+              height: 44,
+              child: GestureDetector(
+                onTap: () => _showSchoolDetails(context, school),
+                child: Tooltip(
+                  message: '${school.name} (${stage ?? 'Lead'})',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.95),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.location_on,
+                      size: 20,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         )
         .toList();
   }
@@ -1580,8 +1748,37 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.longhornMaroon,
+                      backgroundColor: AppColors.primaryGreen,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SchoolProfilePage(schoolId: school.id),
+                        ),
+                      );
+                      _refreshDashboard();
+                    },
+                    child: const Text(
+                      'View Full Profile',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

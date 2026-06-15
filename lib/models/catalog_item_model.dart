@@ -30,7 +30,7 @@ class CatalogItemModel {
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'name': name,
       'category': category,
@@ -41,9 +41,14 @@ class CatalogItemModel {
       'description': description,
       'is_active': isActive,
       'isSynced': isSynced,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
+    if (createdAt != null) {
+      map['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      map['updated_at'] = updatedAt!.toIso8601String();
+    }
+    return map;
   }
 
   factory CatalogItemModel.fromMap(Map<dynamic, dynamic> map) {

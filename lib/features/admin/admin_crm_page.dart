@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/database_service.dart';
 import '../profile/crm_notification_service.dart';
+import '../../core/constants/colors.dart';
+import 'school_profile_page.dart';
+import 'duplicate_detection_page.dart';
+import 'audit_log_page.dart';
 
 class AdminCrmPage extends StatefulWidget {
   const AdminCrmPage({super.key});
@@ -38,6 +42,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
 
   String _selectedStage = 'All';
   bool _sortAscending = false;
+  bool _isKanbanView = true;
 
   @override
   void initState() {
@@ -50,7 +55,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
     try {
       final schoolsRes = await _supabase
           .from('schools')
-          .select('id,name,phone');
+          .select('id,name,phone,lead_score,latitude,longitude');
       final usersRes = await _supabase
           .from('users')
           .select('id,full_name,email');
@@ -109,6 +114,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                   DateTime.now().add(const Duration(days: 2)),
               probability: (row['probability'] as num?)?.toInt() ?? 0,
               notes: (row['notes'] ?? '').toString(),
+              leadScore: (school['lead_score'] as num?)?.toInt() ?? 0,
+              latitude: (school['latitude'] as num?)?.toDouble(),
+              longitude: (school['longitude'] as num?)?.toDouble(),
             );
           }),
         );
@@ -419,12 +427,90 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   @override
   Widget build(BuildContext context) {
     final records = _visibleRecords;
+    final isSmallScreen = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CRM Workspace'),
+        backgroundColor: AppColors.longhornMaroon,
+        foregroundColor: Colors.white,
+        title: const Text('CRM Workspace', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          if (!isSmallScreen) ...[
+            Theme(
+              data: Theme.of(context).copyWith(
+                toggleButtonsTheme: const ToggleButtonsThemeData(
+                  selectedColor: Colors.white,
+                  fillColor: Colors.white24,
+                  color: Colors.white70,
+                ),
+              ),
+              child: ToggleButtons(
+                isSelected: [!_isKanbanView, _isKanbanView],
+                onPressed: (index) {
+                  setState(() => _isKanbanView = index == 1);
+                },
+                borderRadius: BorderRadius.circular(8),
+                constraints: const BoxConstraints(minHeight: 32, minWidth: 48),
+                children: const [
+                  Icon(Icons.table_rows, size: 20),
+                  Icon(Icons.view_kanban, size: 20),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Duplicate Detection',
+              color: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DuplicateDetectionPage()),
+                );
+              },
+              icon: const Icon(Icons.copy_all),
+            ),
+            IconButton(
+              tooltip: 'Global Audit Log',
+              color: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AuditLogPage()),
+                );
+              },
+              icon: const Icon(Icons.history_edu),
+            ),
+          ] else
+            PopupMenuButton<int>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 0) setState(() => _isKanbanView = false);
+                if (value == 1) setState(() => _isKanbanView = true);
+                if (value == 2) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const DuplicateDetectionPage()),
+                  );
+                }
+                if (value == 3) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AuditLogPage()),
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 0, child: ListTile(leading: Icon(Icons.table_rows), title: Text('Table View'))),
+                const PopupMenuItem(value: 1, child: ListTile(leading: Icon(Icons.view_kanban), title: Text('Kanban View'))),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 2, child: ListTile(leading: Icon(Icons.copy_all), title: Text('Duplicates'))),
+                const PopupMenuItem(value: 3, child: ListTile(leading: Icon(Icons.history_edu), title: Text('Audit Log'))),
+              ],
+            ),
           IconButton(
             tooltip: 'Toggle date sort',
+            color: Colors.white,
             onPressed: () => setState(() => _sortAscending = !_sortAscending),
             icon: Icon(
               _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
@@ -436,210 +522,344 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         onPressed: _openAddDialog,
         icon: const Icon(Icons.add),
         label: const Text('New Record'),
+        backgroundColor: AppColors.primaryGreen,
+        foregroundColor: Colors.white,
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _MetricTile(
-                          label: 'Total Records',
-                          value: '${records.length}',
-                        ),
-                        _MetricTile(
-                          label: 'Pipeline Value',
-                          value: 'KES ${_pipelineValue.toStringAsFixed(0)}',
-                        ),
-                        _MetricTile(
-                          label: 'Weighted Forecast',
-                          value: 'KES ${_weightedForecast.toStringAsFixed(0)}',
-                        ),
-                        _MetricTile(
-                          label: 'Leads',
-                          value: '${_countByStage('Lead')}',
-                        ),
-                        _MetricTile(
-                          label: 'Proposals',
-                          value: '${_countByStage('Proposal')}',
-                        ),
-                        _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(
-                              hintText:
-                                  'Search by school, contact, owner or notes',
-                              prefixIcon: Icon(Icons.search),
-                              border: OutlineInputBorder(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16).copyWith(bottom: 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _MetricTile(label: 'Total Records', value: '${records.length}'),
+                                const SizedBox(width: 10),
+                                _MetricTile(label: 'Pipeline Value', value: 'KES ${_pipelineValue.toStringAsFixed(0)}'),
+                                const SizedBox(width: 10),
+                                _MetricTile(label: 'Weighted Forecast', value: 'KES ${_weightedForecast.toStringAsFixed(0)}'),
+                                const SizedBox(width: 10),
+                                _MetricTile(label: 'Leads', value: '${_countByStage('Lead')}'),
+                                const SizedBox(width: 10),
+                                _MetricTile(label: 'Proposals', value: '${_countByStage('Proposal')}'),
+                                const SizedBox(width: 10),
+                                _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 180,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _selectedStage,
-                            items:
-                                _stages
-                                    .map(
-                                      (stage) => DropdownMenuItem(
-                                        value: stage,
-                                        child: Text(stage),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _selectedStage = value);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Stage',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Expanded(
-                      child:
-                          records.isEmpty
-                              ? const Center(
-                                child: Text('No CRM records match filters'),
-                              )
-                              : SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SingleChildScrollView(
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('School')),
-                                      DataColumn(label: Text('Contact')),
-                                      DataColumn(label: Text('Phone')),
-                                      DataColumn(label: Text('Stage')),
-                                      DataColumn(label: Text('Owner')),
-                                      DataColumn(label: Text('Deal Value')),
-                                      DataColumn(label: Text('Prob%')),
-                                      DataColumn(label: Text('Next Action')),
-                                      DataColumn(label: Text('Risk')),
-                                      DataColumn(label: Text('Last Contact')),
-                                      DataColumn(label: Text('Actions')),
-                                    ],
-                                    rows:
-                                        records
-                                            .map(
-                                              (record) => DataRow(
-                                                cells: [
-                                                  DataCell(Text(record.school)),
-                                                  DataCell(
-                                                    Text(record.contact),
-                                                  ),
-                                                  DataCell(Text(record.phone)),
-                                                  DataCell(
-                                                    _StageChip(
-                                                      stage: record.stage,
-                                                    ),
-                                                  ),
-                                                  DataCell(Text(record.owner)),
-                                                  DataCell(
-                                                    Text(
-                                                      'KES ${record.dealValue.toStringAsFixed(0)}',
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      '${record.probability}%',
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      record.riskLevel,
-                                                      style: TextStyle(
-                                                        color:
-                                                            record.riskLevel ==
-                                                                    'High'
-                                                                ? Colors.red
-                                                                : record.riskLevel ==
-                                                                    'Medium'
-                                                                ? Colors.orange
-                                                                : Colors.green,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day.toString().padLeft(2, '0')}',
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Row(
-                                                      children: [
-                                                        IconButton(
-                                                          icon: const Icon(
-                                                            Icons.edit,
-                                                          ),
-                                                          tooltip: 'Edit',
-                                                          onPressed:
-                                                              () =>
-                                                                  _openEditDialog(
-                                                                    record,
-                                                                  ),
-                                                        ),
-                                                        IconButton(
-                                                          icon: const Icon(
-                                                            Icons
-                                                                .delete_outline,
-                                                          ),
-                                                          tooltip: 'Delete',
-                                                          onPressed: () {
-                                                            _supabase
-                                                                .from(
-                                                                  'school_sales',
-                                                                )
-                                                                .delete()
-                                                                .eq(
-                                                                  'id',
-                                                                  record.id,
-                                                                )
-                                                                .then((_) {
-                                                                  _loadCrmData();
-                                                                });
-                                                          },
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                            .toList(),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: InputDecoration(
+                                    hintText: isSmallScreen ? 'Search...' : 'Search by school, contact, owner or notes',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: const OutlineInputBorder(),
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: isSmallScreen ? 120 : 180,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _selectedStage,
+                                  items: _stages
+                                      .map((stage) => DropdownMenuItem(
+                                            value: stage,
+                                            child: Text(stage, style: TextStyle(fontSize: isSmallScreen ? 12 : 14)),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _selectedStage = value);
+                                    }
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Stage',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      ),
+                    ),
+                  ),
+                ];
+              },
+              body: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: records.isEmpty
+                    ? const Center(child: Text('No CRM records match filters'))
+                    : _isKanbanView
+                        ? _buildKanbanView(records)
+                        : isSmallScreen
+                            ? _buildResponsiveListView(records)
+                            : _buildDesktopDataTable(records),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildDesktopDataTable(List<_CrmRecord> records) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: DataTable(
+          columns: const [
+            DataColumn(label: Text('School')),
+            DataColumn(label: Text('Map')),
+            DataColumn(label: Text('Score')),
+            DataColumn(label: Text('Contact')),
+            DataColumn(label: Text('Phone')),
+            DataColumn(label: Text('Stage')),
+            DataColumn(label: Text('Owner')),
+            DataColumn(label: Text('Deal Value')),
+            DataColumn(label: Text('Prob%')),
+            DataColumn(label: Text('Next Action')),
+            DataColumn(label: Text('Risk')),
+            DataColumn(label: Text('Last Contact')),
+            DataColumn(label: Text('Actions')),
+          ],
+          rows:
+              records
+                  .map(
+                    (record) => DataRow(
+                      cells: [
+                        DataCell(
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => SchoolProfilePage(schoolId: record.schoolId),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              record.school,
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          record.isMapped
+                              ? const Icon(Icons.location_on, color: Colors.green, size: 18)
+                              : Tooltip(
+                                  message: 'Missing GPS: Not visible on Dashboard Map',
+                                  child: const Icon(Icons.location_off, color: Colors.red, size: 18),
+                                ),
+                        ),
+                        DataCell(
+                          Text(
+                            record.leadScore.toString(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: record.leadScore >= 70
+                                  ? Colors.green
+                                  : record.leadScore >= 40
+                                      ? Colors.orange
+                                      : Colors.grey,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(record.contact),
+                        ),
+                        DataCell(Text(record.phone)),
+                        DataCell(
+                          _StageChip(
+                            stage: record.stage,
+                          ),
+                        ),
+                        DataCell(Text(record.owner)),
+                        DataCell(
+                          Text(
+                            'KES ${record.dealValue.toStringAsFixed(0)}',
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            '${record.probability}%',
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            record.riskLevel,
+                            style: TextStyle(
+                              color:
+                                  record.riskLevel ==
+                                          'High'
+                                      ? Colors.red
+                                      : record.riskLevel ==
+                                          'Medium'
+                                      ? Colors.orange
+                                      : Colors.green,
+                              fontWeight:
+                                  FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day.toString().padLeft(2, '0')}',
+                          ),
+                        ),
+                        DataCell(
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit,
+                                ),
+                                tooltip: 'Edit',
+                                onPressed:
+                                    () =>
+                                        _openEditDialog(
+                                          record,
+                                        ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons
+                                      .delete_outline,
+                                ),
+                                tooltip: 'Delete',
+                                onPressed: () {
+                                  _supabase
+                                      .from(
+                                        'school_sales',
+                                      )
+                                      .delete()
+                                      .eq(
+                                        'id',
+                                        record.id,
+                                      )
+                                      .then((_) {
+                                        _loadCrmData();
+                                      });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveListView(List<_CrmRecord> records) {
+    return ListView.builder(
+      itemCount: records.length,
+      itemBuilder: (context, index) {
+        final record = records[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ExpansionTile(
+            title: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SchoolProfilePage(schoolId: record.schoolId)),
+                      );
+                    },
+                    child: Text(
+                      record.school, 
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, decoration: TextDecoration.underline)
+                    ),
+                  ),
+                ),
+                if (!record.isMapped)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(Icons.location_off, color: Colors.red, size: 16),
+                  ),
+              ],
+            ),
+            subtitle: Text('${record.stage} • KES ${record.dealValue.toStringAsFixed(0)}'),
+            leading: _StageChip(stage: record.stage),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _infoRow('Owner', record.owner),
+                    _infoRow('Lead Score', record.leadScore.toString()),
+                    _infoRow('Probability', '${record.probability}%'),
+                    _infoRow('Risk Level', record.riskLevel),
+                    _infoRow('Last Contact', '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day}'),
+                    _infoRow('Next Action', '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day}'),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _openEditDialog(record),
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Edit'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            _supabase
+                                .from('school_sales')
+                                .delete()
+                                .eq('id', record.id)
+                                .then((_) => _loadCrmData());
+                          },
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+        ],
+      ),
     );
   }
 
@@ -701,6 +921,247 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
       default:
         return 'Lead';
     }
+  }
+
+  Widget _buildKanbanView(List<_CrmRecord> records) {
+    final stages = _stages.where((s) => s != 'All').toList();
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: stages.length,
+      separatorBuilder: (context, index) => const SizedBox(width: 16),
+      itemBuilder: (context, index) {
+        final stage = stages[index];
+        final stageRecords = records.where((r) => r.stage == stage).toList();
+        return _buildKanbanColumn(stage, stageRecords);
+      },
+    );
+  }
+
+  Widget _buildKanbanColumn(String stage, List<_CrmRecord> stageRecords) {
+    final totalValue = stageRecords.fold(0.0, (sum, r) => sum + r.dealValue);
+    return DragTarget<_CrmRecord>(
+      onAcceptWithDetails: (details) async {
+        final record = details.data;
+        if (record.stage == stage) return;
+
+        setState(() {
+          record.stage = stage;
+          record.lastContact = DateTime.now();
+        });
+
+        try {
+          await _supabase
+              .from('school_sales')
+              .update({
+                'sale_status': _toDbStage(stage),
+                'probability': _probabilityByStage(stage),
+                'stage_updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', record.id);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Failed to update stage: $e')));
+          }
+          _loadCrmData();
+        }
+      },
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          width: 300,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: candidateData.isNotEmpty ? Colors.blue : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        stage,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${stageRecords.length}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'KES ${totalValue.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: stageRecords.length,
+                  itemBuilder: (context, index) {
+                    return _buildKanbanCard(stageRecords[index]);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildKanbanCard(_CrmRecord record) {
+    final riskColor = switch (record.riskLevel) {
+      'High' => Colors.red,
+      'Medium' => Colors.orange,
+      _ => Colors.green,
+    };
+
+    return Draggable<_CrmRecord>(
+      data: record,
+      feedback: SizedBox(
+        width: 280,
+        child: Opacity(opacity: 0.8, child: _cardContent(record, riskColor)),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.4,
+        child: _cardContent(record, riskColor),
+      ),
+      child: _cardContent(record, riskColor),
+    );
+  }
+
+  Widget _cardContent(_CrmRecord record, Color riskColor) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: riskColor.withValues(alpha: 0.5), width: 1),
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SchoolProfilePage(schoolId: record.schoolId),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                record.school,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (record.leadScore >= 70
+                          ? Colors.green
+                          : record.leadScore >= 40
+                              ? Colors.orange
+                              : Colors.grey)
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Lead Score: ${record.leadScore}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: record.leadScore >= 70
+                        ? Colors.green
+                        : record.leadScore >= 40
+                            ? Colors.orange
+                            : Colors.grey.shade700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'KES ${record.dealValue.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${record.probability}%',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      record.owner,
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.event, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Next: ${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -781,6 +1242,9 @@ class _CrmRecord {
     required this.nextActionDate,
     required this.probability,
     required this.notes,
+    required this.leadScore,
+    this.latitude,
+    this.longitude,
   });
 
   String id;
@@ -796,6 +1260,11 @@ class _CrmRecord {
   DateTime nextActionDate;
   int probability;
   String notes;
+  int leadScore;
+  double? latitude;
+  double? longitude;
+
+  bool get isMapped => latitude != null && longitude != null;
 
   String get riskLevel {
     final now = DateTime.now();

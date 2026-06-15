@@ -6,6 +6,7 @@ import 'dart:io';
 
 import '../../core/constants/colors.dart';
 import '../../features/database/database_service.dart';
+import '../admin/add_sample_book_page.dart';
 import '../../models/catalog_item_model.dart';
 import '../../models/farmer_model.dart';
 
@@ -24,6 +25,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
   late Future<List<SchoolModel>> _schoolsFuture;
   String? _selectedSchoolId;
   String _selectedCategory = "All";
+  String _selectedSampleName = "All";
   String _searchQuery = "";
   int? _currentRole;
   final List<String> _distributionLog = [];
@@ -35,6 +37,42 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
   double _roiWonValue = 0.0;
   int _roiSamplesGiven = 0;
   int _roiSchoolsReached = 0;
+
+  Future<void> _updateSampleCatalogItem({
+    required CatalogItemModel sample,
+    int? stockQty,
+    bool? isActive,
+  }) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (stockQty != null) {
+        payload['stock_qty'] = stockQty < 0 ? 0 : stockQty;
+      }
+      if (isActive != null) {
+        payload['is_active'] = isActive;
+      }
+      if (payload.isEmpty) return;
+
+      await Supabase.instance.client
+          .from('catalog_items')
+          .update(payload)
+          .eq('id', sample.id);
+
+      await _loadSamples();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sample catalog updated.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update sample catalog: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -136,7 +174,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
   }
 
   Future<void> _loadSamples() async {
-    final samples = await _dbService.getCatalogItems(itemType: 'sample');
+    final samples = await _dbService.getSampleCatalogItemsFromTable();
     if (!mounted) return;
     setState(() {
       _samples = samples;
@@ -209,6 +247,44 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       return;
     }
 
+    int quantity = 1;
+    final qtyController = TextEditingController(text: '1');
+    final bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Distribute ${sample.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('To: ${school.name}'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final val = int.tryParse(qtyController.text);
+              if (val != null && val > 0 && val <= sample.stockQty) {
+                quantity = val;
+                Navigator.pop(context, true);
+              } else {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid quantity or not enough stock.')));
+              }
+            },
+            child: const Text('Capture Proof'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true) return;
+
     final proofPhoto = await _captureStampedPaperProof(
       sampleName: sample.name,
       schoolName: school.name,
@@ -224,13 +300,31 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       return;
     }
 
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('Uploading proof and updating CRM...')),
+          ],
+        ),
+      ),
+    );
+
     final receiptUpload = await _uploadStampedReceipt(
       photo: proofPhoto,
       sampleName: sample.name,
       schoolName: school.name,
     );
+    
+    if (!mounted) return;
+    Navigator.pop(context); // Dismiss loading dialog
+
     if ((receiptUpload['url'] ?? '').trim().isEmpty) {
-      if (!mounted) return;
       final reason =
           (receiptUpload['error'] ?? '').trim().isEmpty
               ? 'Could not upload stamped receipt photo. Try again.'
@@ -251,7 +345,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
           sku: sample.sku,
           itemType: sample.itemType,
           unitPrice: sample.unitPrice,
-          stockQty: sample.stockQty - 1,
+          stockQty: sample.stockQty - quantity,
           description: sample.description,
           isActive: sample.isActive,
           isSynced: sample.isSynced,
@@ -261,7 +355,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
       }
       _distributionLog.insert(
         0,
-        '${sample.name} given to ${school.name} (proof captured)',
+        '$quantity x ${sample.name} given to ${school.name} (proof captured)',
       );
       if (_distributionLog.length > 5) {
         _distributionLog.removeLast();
@@ -269,16 +363,49 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     });
 
     try {
-      await _dbService.recordSampleDistribution(
-        schoolId: school.id,
-        sampleName: sample.name,
-        sampleCategory: sample.category,
-        quantity: 1,
-        notes: 'Distributed from Sample Distribution page.',
-        stampedReceiptUrl: receiptUpload['url'],
-        stampedReceiptPath: receiptUpload['path'],
-      );
-      await _dbService.decrementCatalogStock(sample.id, 1);
+    await _dbService.recordSampleDistribution(
+      schoolId: school.id,
+      sampleName: sample.name,
+      sampleCategory: sample.category,
+      quantity: quantity,
+      notes: 'Distributed from Sample Distribution page.',
+      stampedReceiptUrl: receiptUpload['url'],
+      stampedReceiptPath: receiptUpload['path'],
+    );
+    await _dbService.decrementCatalogStock(sample.id, quantity);
+
+    // App-level CRM Automation (Fallback if SQL Trigger is not active)
+    final supabase = Supabase.instance.client;
+    final saleRes = await supabase
+        .from('school_sales')
+        .select('id, sale_status')
+        .eq('school_id', school.id)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (saleRes != null) {
+      final saleId = saleRes['id'];
+      final currentStatus = saleRes['sale_status']?.toString().toLowerCase();
+
+      if (currentStatus == 'lead' || currentStatus == 'contacted' || currentStatus == 'meeting_scheduled') {
+        await supabase.from('school_sales').update({
+          'sale_status': 'sample_issued',
+          'stage_updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', saleId);
+      }
+
+      await supabase.from('opportunity_activities').insert({
+        'opportunity_id': saleId,
+        'school_id': school.id,
+        'actor_id': supabase.auth.currentUser?.id,
+        'activity_type': 'Sample Delivered',
+        'activity_outcome': 'Samples left with school',
+        'notes': 'Distributed $quantity x ${sample.name}',
+        'next_action': 'Follow up on sample',
+        'next_action_date': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+      });
+    }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -293,7 +420,7 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${sample.name} assigned to ${school.name}'),
+        content: Text('$quantity x ${sample.name} assigned to ${school.name}'),
         backgroundColor: AppColors.primaryGreen,
       ),
     );
@@ -489,12 +616,14 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
     return _samples.where((sample) {
       final matchesCategory =
           _selectedCategory == "All" || sample.category == _selectedCategory;
+      final matchesName =
+          _selectedSampleName == "All" || sample.name == _selectedSampleName;
       final q = _searchQuery.trim().toLowerCase();
       final matchesSearch =
           q.isEmpty ||
           sample.name.toLowerCase().contains(q) ||
           (sample.description ?? '').toLowerCase().contains(q);
-      return matchesCategory && matchesSearch;
+      return matchesCategory && matchesName && matchesSearch;
     }).toList();
   }
 
@@ -562,6 +691,10 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
                   _buildRoiSummaryCard(compact: isCompact),
                   SizedBox(height: vGap),
                   _buildRemainingTracker(compact: isCompact),
+                  if (_currentRole == 1) ...[
+                    SizedBox(height: vGap),
+                    _buildAdminSampleCatalogManager(),
+                  ],
                   SizedBox(height: vGap),
                   _buildSchoolSelector(schools),
                   SizedBox(height: vGap),
@@ -617,6 +750,121 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminSampleCatalogManager() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Admin: Manage Sample Catalog',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Edit stock and active status for sample items in catalog_items.',
+            style: TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddSampleBookPage(),
+                  ),
+                );
+                await _loadSamples();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add Sample'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_samples.isEmpty)
+            const Text('No sample catalog items found.')
+          else
+            ..._samples.map((sample) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sample.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'SKU: ${sample.sku} • ${sample.category}',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => _updateSampleCatalogItem(
+                            sample: sample,
+                            stockQty: sample.stockQty - 1,
+                          ),
+                          child: const Text('-1'),
+                        ),
+                        Text(
+                          'Stock: ${sample.stockQty}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _updateSampleCatalogItem(
+                            sample: sample,
+                            stockQty: sample.stockQty + 1,
+                          ),
+                          child: const Text('+1'),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Active'),
+                            Switch(
+                              value: sample.isActive,
+                              onChanged: (value) => _updateSampleCatalogItem(
+                                sample: sample,
+                                isActive: value,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -850,10 +1098,115 @@ class _SampleDistributionPageState extends State<SampleDistributionPage> {
             return ChoiceChip(
               label: Text(category),
               selected: selected,
-              onSelected: (_) => setState(() => _selectedCategory = category),
+              onSelected:
+                  (_) => setState(() {
+                    _selectedCategory = category;
+                    final names = _sampleNamesForSelectedCategory;
+                    if (!names.contains(_selectedSampleName)) {
+                      _selectedSampleName = "All";
+                    }
+                  }),
               selectedColor: AppColors.primaryGreen.withValues(alpha: 0.18),
             );
           }).toList(),
+    );
+  }
+
+  List<String> get _sampleNamesForSelectedCategory {
+    final names = _samples
+        .where(
+          (sample) =>
+              _selectedCategory == "All" || sample.category == _selectedCategory,
+        )
+        .map((sample) => sample.name)
+        .toSet()
+        .toList()
+      ..sort();
+    return ["All", ...names];
+  }
+
+  Widget _buildSamplePickers() {
+    final categories = _samples.map((s) => s.category).toSet().toList()..sort();
+    final categoryItems = ["All", ...categories];
+    final nameItems = _sampleNamesForSelectedCategory;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 680;
+        final categoryDropdown = DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _selectedCategory,
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          decoration: InputDecoration(
+            labelText: 'Sample Category',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          items: categoryItems
+              .map((category) => DropdownMenuItem<String>(
+                    value: category,
+                    child: Text(
+                      category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.black87),
+                    ),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _selectedCategory = value;
+              final names = _sampleNamesForSelectedCategory;
+              if (!names.contains(_selectedSampleName)) {
+                _selectedSampleName = "All";
+              }
+            });
+          },
+        );
+
+        final nameDropdown = DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _selectedSampleName,
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          decoration: InputDecoration(
+            labelText: 'Sample Name',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          items: nameItems
+              .map((name) => DropdownMenuItem<String>(
+                    value: name,
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.black87),
+                    ),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _selectedSampleName = value);
+          },
+        );
+
+        if (isWide) {
+          return Row(
+            children: [
+              Expanded(child: categoryDropdown),
+              const SizedBox(width: 12),
+              Expanded(child: nameDropdown),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            categoryDropdown,
+            const SizedBox(height: 12),
+            nameDropdown,
+          ],
+        );
+      },
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants/colors.dart';
 import '../../models/farmer_model.dart';
 import '../database/database_service.dart';
 
@@ -16,6 +17,7 @@ class Role2RoutePlanPage extends StatefulWidget {
 class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   final _supabase = Supabase.instance.client;
   final _dbService = DatabaseService();
+  final _schoolSearchController = TextEditingController();
 
   bool _isLoading = true;
   String? _selectedAgentId;
@@ -27,11 +29,21 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   Map<String, String> _stageBySchoolId = {};
   List<String> _availableStages = [];
   String _selectedCounty = 'All Counties';
+  String _schoolSearchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _schoolSearchController.addListener(() {
+      setState(() => _schoolSearchQuery = _schoolSearchController.text.trim());
+    });
+  }
+
+  @override
+  void dispose() {
+    _schoolSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -195,7 +207,7 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
           payload: {
             'title': 'Visit ${school['name'] ?? 'School'}',
             'description': 'Route stop ${i + 1} for $routeDate',
-            'target_role': -1,
+            'target_role': 5,
             'assigned_to': _selectedAgentId,
             'due_at': _selectedDate!.toIso8601String(),
           },
@@ -220,6 +232,13 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Route plan created successfully.')),
       );
+      
+      setState(() {
+        _selectedSchoolIds.clear();
+        _selectedDate = null;
+        _schoolSearchController.clear();
+      });
+      
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -256,11 +275,21 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   List<Map<String, dynamic>> get _visibleSchools {
-    if (_selectedCounty == 'All Counties') return _schools;
-    return _schools.where((school) {
-      final county = (school['county'] ?? '').toString().trim().toLowerCase();
-      return county == _selectedCounty.toLowerCase();
-    }).toList();
+    List<Map<String, dynamic>> schools = _schools;
+    if (_selectedCounty != 'All Counties') {
+      schools = schools.where((school) {
+        final county = (school['county'] ?? '').toString().trim().toLowerCase();
+        return county == _selectedCounty.toLowerCase();
+      }).toList();
+    }
+    if (_schoolSearchQuery.isNotEmpty) {
+      final q = _schoolSearchQuery.toLowerCase();
+      schools = schools.where((s) {
+        final name = (s['name'] ?? '').toString().toLowerCase();
+        return name.contains(q);
+      }).toList();
+    }
+    return schools;
   }
 
   List<Map<String, dynamic>> get _visibleSchoolsMissingGps {
@@ -379,7 +408,9 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth >= 1100;
                 final isTablet = constraints.maxWidth >= 750;
-                final mapHeight = isWide ? 560.0 : (isTablet ? 420.0 : 300.0);
+                // Cap map height to ensure it fits better on shorter screens
+                final mapHeight = (isWide ? 560.0 : (isTablet ? 420.0 : 300.0))
+                    .clamp(150.0, constraints.maxHeight * 0.7);
                 final pagePadding = isWide ? 20.0 : (isTablet ? 16.0 : 10.0);
 
                 final formSection = _buildFormSection();
@@ -408,7 +439,12 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Expanded(flex: 5, child: mapSection),
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            child: mapSection,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -434,6 +470,13 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   Widget _buildFormSection() {
+    final hasSelectedAgent = _selectedAgentId != null &&
+        _agents.any((agent) => agent['id'].toString() == _selectedAgentId);
+    final selectedAgentValue = hasSelectedAgent ? _selectedAgentId : null;
+    final selectedCountyValue = _countyFilters.contains(_selectedCounty)
+        ? _selectedCounty
+        : 'All Counties';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -446,7 +489,7 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _selectedAgentId,
+              initialValue: selectedAgentValue,
               decoration: const InputDecoration(
                 labelText: 'Assign To (Field Agent)',
                 border: OutlineInputBorder(),
@@ -463,7 +506,7 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _selectedCounty,
+              initialValue: selectedCountyValue,
               decoration: const InputDecoration(
                 labelText: 'County Filter',
                 border: OutlineInputBorder(),
@@ -639,59 +682,103 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   Widget _buildSchoolSection() {
+    final visible = _visibleSchools;
+    final displayList = visible.take(50).toList();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Schools (${_selectedSchoolIds.length} selected)',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Schools (${_selectedSchoolIds.length} selected)',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                if (visible.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        for (final s in visible) {
+                          final id = s['id'].toString();
+                          if (!_selectedSchoolIds.contains(id)) {
+                            _selectedSchoolIds.add(id);
+                          }
+                        }
+                      });
+                    },
+                    child: const Text('Select All'),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
-            if (_visibleSchools.isEmpty)
-              const Text('No schools available for this county filter.'),
-            ..._visibleSchools.map((school) {
-              final schoolId = school['id'].toString();
-              final isSelected = _selectedSchoolIds.contains(schoolId);
-              final sequence = _selectedSchoolIds.indexOf(schoolId) + 1;
-              return CheckboxListTile(
-                dense: true,
-                value: isSelected,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (checked) => _toggleSchool(schoolId, checked ?? false),
-                title: Text(
-                  (school['name'] ?? 'Unnamed School').toString(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+            TextField(
+              controller: _schoolSearchController,
+              decoration: const InputDecoration(
+                hintText: 'Search schools by name...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (visible.isEmpty)
+              const Text('No schools match your filters.')
+            else ...[
+              ...displayList.map((school) {
+                final schoolId = school['id'].toString();
+                final isSelected = _selectedSchoolIds.contains(schoolId);
+                final sequence = _selectedSchoolIds.indexOf(schoolId) + 1;
+                return CheckboxListTile(
+                  dense: true,
+                  value: isSelected,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (checked) => _toggleSchool(schoolId, checked ?? false),
+                  title: Text(
+                    (school['name'] ?? 'Unnamed School').toString(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  isThreeLine: true,
+                  secondary: isSelected
+                      ? CircleAvatar(
+                          radius: 12,
+                          backgroundColor: Colors.orange.shade100,
+                          child: Text(
+                            '$sequence',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.location_on,
+                          color: _stageColor(_schoolStage(school)),
+                        ),
+                  subtitle: Text(
+                    '${(school['county'] ?? 'No county').toString()} • ${_stageLabel(_schoolStage(school))}',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                );
+              }),
+              if (visible.length > 50)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: Text(
+                      'Showing first 50 of ${visible.length} schools. Use search to find others.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    ),
                   ),
                 ),
-                isThreeLine: true,
-                secondary: isSelected
-                    ? CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Colors.orange.shade100,
-                        child: Text(
-                          '$sequence',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      )
-                    : Icon(
-                        Icons.location_on,
-                        color: _stageColor(_schoolStage(school)),
-                      ),
-                subtitle: Text(
-                  '${(school['county'] ?? 'No county').toString()} • ${_stageLabel(_schoolStage(school))}',
-                  style: TextStyle(color: Colors.grey.shade700),
-                ),
-              );
-            }),
+            ],
           ],
         ),
       ),
@@ -699,12 +786,23 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   Widget _buildCreateButton() {
+    final bool canCreate = _selectedAgentId != null &&
+        _selectedAgentId!.isNotEmpty &&
+        _selectedDate != null &&
+        _selectedSchoolIds.isNotEmpty;
+
     return SizedBox(
       height: 50,
+      width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _createRoutePlan,
+        onPressed: canCreate ? _createRoutePlan : null,
         icon: const Icon(Icons.route),
         label: const Text('Create Route Plan'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryGreen,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
+        ),
       ),
     );
   }

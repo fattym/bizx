@@ -55,7 +55,7 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
 
       final salesRes = await _supabase
           .from('school_sales')
-          .select('agent_id, expected_value, sale_status')
+          .select('school_id, agent_id, expected_value, sale_status')
           .order('created_at', ascending: false)
           .limit(2000);
 
@@ -339,10 +339,16 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       return const Center(child: Text('No school photos found.'));
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    int crossAxisCount = 2;
+    if (screenWidth > 1200) crossAxisCount = 5;
+    else if (screenWidth > 900) crossAxisCount = 4;
+    else if (screenWidth > 600) crossAxisCount = 3;
+
     return GridView.builder(
       padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
         childAspectRatio: 0.88,
@@ -363,10 +369,16 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       return const Center(child: Text('No stamped sample proof photos found.'));
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    int crossAxisCount = 2;
+    if (screenWidth > 1200) crossAxisCount = 5;
+    else if (screenWidth > 900) crossAxisCount = 4;
+    else if (screenWidth > 600) crossAxisCount = 3;
+
     return GridView.builder(
       padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
         childAspectRatio: 0.88,
@@ -390,52 +402,89 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
       return const Center(child: Text('No stamped sample receipts found.'));
     }
 
-    return ListView.builder(
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 900;
+    final crossAxisCount = screenWidth > 1200 ? 4 : (screenWidth > 900 ? 3 : (screenWidth > 600 ? 2 : 1));
+
+    return GridView.builder(
       padding: const EdgeInsets.all(16),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: isDesktop ? 0.9 : 1.1,
+      ),
       itemCount: rows.length,
       itemBuilder: (context, index) {
         final row = rows[index];
         final schoolName =
             row['schools']?['name']?.toString() ?? 'Unknown School';
+        final schoolId = row['school_id']?.toString() ?? '';
         final sampleName = row['sample_name']?.toString() ?? 'Sample';
         final qty = row['quantity']?.toString() ?? '1';
         final url = row['stamped_receipt_url']?.toString() ?? '';
 
+        final hasActiveSale = _salesCache.any((s) => s['school_id']?.toString() == schoolId);
+
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          margin: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '$sampleName -> $schoolName',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$sampleName -> $schoolName',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (hasActiveSale)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, size: 12, color: Colors.green),
+                            SizedBox(width: 4),
+                            Text('CRM Linked', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text('Qty: $qty'),
                 const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    url,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder:
-                        (_, __, ___) => Container(
-                          height: 120,
-                          color: Colors.grey.shade200,
-                          alignment: Alignment.center,
-                          child: const Text('Could not load receipt image'),
-                        ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => _openPreview(url),
+                      child: Image.network(
+                        url,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              color: Colors.grey.shade200,
+                              alignment: Alignment.center,
+                              child: const Text('Could not load receipt image', textAlign: TextAlign.center),
+                            ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _openPreview(url),
-                  icon: const Icon(Icons.open_in_full),
-                  label: const Text('Open Receipt'),
                 ),
               ],
             ),
