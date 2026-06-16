@@ -1,7 +1,12 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/constants/colors.dart';
+import '../../core/constants/sales_access.dart';
 import '../../models/order_item_model.dart';
 import '../../models/order_model.dart';
 import '../database/database_service.dart';
@@ -19,11 +24,20 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   final _databaseService = DatabaseService();
   final _invoiceService = InvoiceService();
   late Future<List<OrderModel>> _ordersFuture;
+  int? _currentRole;
+  bool _busyUpdating = false;
 
   @override
   void initState() {
     super.initState();
     _ordersFuture = _databaseService.getOrdersForCurrentUser();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await _databaseService.getCurrentUserRole();
+    if (!mounted) return;
+    setState(() => _currentRole = role);
   }
 
   Future<void> _reloadOrders() async {
@@ -57,6 +71,9 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   }
 
   bool _isDraft(OrderModel order) => order.status.toLowerCase() == 'draft';
+
+  bool get _canFinishPendingOrder =>
+      SalesAccess.canFinishPendingOrder(_currentRole);
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'No date';
@@ -175,20 +192,43 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                     ElevatedButton.icon(
                       onPressed: () async {
                         try {
-                          final invoicePath = await _invoiceService
-                              .generateInvoiceFile(order: order, items: items);
-                          final launched = await launchUrl(
-                            Uri.file(invoicePath),
-                            mode: LaunchMode.externalApplication,
+                          final pdfBytes = await _invoiceService
+                              .generateInvoiceBytes(order: order, items: items);
+                          final fileName = '${order.orderNumber}.pdf';
+
+                          if (kIsWeb) {
+                            await Printing.sharePdf(
+                              bytes: pdfBytes,
+                              filename: fileName,
+                            );
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Invoice download started.'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          final docsDir = await getApplicationDocumentsDirectory();
+                          final invoicesDir = Directory(
+                            '${docsDir.path}/invoices',
                           );
+                          if (!await invoicesDir.exists()) {
+                            await invoicesDir.create(recursive: true);
+                          }
+                          final filePath = '${invoicesDir.path}/$fileName';
+                          final file = File(filePath);
+                          await file.writeAsBytes(pdfBytes, flush: true);
+                          await Printing.layoutPdf(
+                            name: fileName,
+                            onLayout: (_) async => pdfBytes,
+                          );
+
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                launched
-                                    ? 'Invoice saved at $invoicePath'
-                                    : 'Invoice saved at $invoicePath',
-                              ),
+                              content: Text('Invoice saved to $filePath'),
                             ),
                           );
                         } catch (e) {
@@ -203,6 +243,19 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       icon: const Icon(Icons.download),
                       label: const Text('Download Invoice'),
                     ),
+                    if (_canFinishPendingOrder && _isPending(order)) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _busyUpdating
+                            ? null
+                            : () async {
+                                Navigator.pop(context);
+                                await _finishPendingOrder(order);
+                              },
+                        icon: const Icon(Icons.task_alt),
+                        label: const Text('Update & Finish'),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -281,6 +334,187 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _finishPendingOrder(OrderModel order) async {
+    final paymentMethodController = TextEditingController(
+      text: order.paymentMethod,
+    );
+    final referenceController = TextEditingController(
+      text: order.paymentReference ?? '',
+    );
+    final amountController = TextEditingController(
+      text: order.checkoutAmount.toStringAsFixed(0),
+    );
+    final notesController = TextEditingController(text: order.notes ?? '');
+    String paymentMethod = order.paymentMethod;
+
+    final shouldSave = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Finish Pending Order',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Update payment details, then mark the order as paid.',
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: paymentMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Method',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                        DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
+                        DropdownMenuItem(
+                          value: 'bank',
+                          child: Text('Bank Transfer'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() => paymentMethod = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Checkout Amount',
+                        prefixText: 'KES ',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: referenceController,
+                      decoration: InputDecoration(
+                        labelText:
+                            paymentMethod == 'cash'
+                                ? 'Cash Receipt / Note'
+                                : paymentMethod == 'bank'
+                                ? 'Bank Slip / Reference'
+                                : 'M-Pesa Reference',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Save & Finish'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (shouldSave != true) return;
+
+    final checkoutAmount = double.tryParse(amountController.text.trim());
+    if (checkoutAmount == null || checkoutAmount <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid checkout amount.')),
+      );
+      return;
+    }
+
+    if (paymentMethod != 'cash' && referenceController.text.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter the payment reference to finish the order.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _busyUpdating = true);
+    try {
+      await _databaseService.updateByIdWithOfflineQueue(
+        table: 'orders',
+        id: order.id,
+        payload: {
+          'payment_method': paymentMethod,
+          'payment_reference':
+              paymentMethod == 'cash' ? null : referenceController.text.trim(),
+          'checkout_amount': checkoutAmount,
+          'status': 'paid',
+          'notes':
+              notesController.text.trim().isEmpty
+                  ? order.notes
+                  : notesController.text.trim(),
+          'approved_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
+      await _reloadOrders();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pending order updated and marked as paid.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not finish order: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busyUpdating = false);
+      }
+    }
   }
 
   Widget _buildOrderList(String status, List<OrderModel> orders) {

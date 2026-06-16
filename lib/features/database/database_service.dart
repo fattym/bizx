@@ -406,6 +406,20 @@ class DatabaseService {
     return _supabase.auth.currentUser?.id;
   }
 
+  Future<bool> schoolExists(String schoolId) async {
+    try {
+      final row = await _supabase
+          .from('schools')
+          .select('id')
+          .eq('id', schoolId)
+          .maybeSingle();
+      return row != null;
+    } catch (e) {
+      debugPrint("Error checking school existence for $schoolId: $e");
+      return false;
+    }
+  }
+
   Future<List<MessageModel>> getMessagesForCurrentUser() async {
     try {
       final currentUser = _supabase.auth.currentUser;
@@ -835,6 +849,30 @@ class DatabaseService {
         }
       }
       debugPrint("Error creating order in Supabase: $e");
+      rethrow;
+    }
+  }
+
+  Future<OrderModel> createOrderWithSchoolSale({
+    required OrderModel order,
+    required List<OrderItemModel> items,
+    required SchoolSaleModel sale,
+  }) async {
+    try {
+      final result = await _supabase.rpc(
+        'create_school_sale_checkout',
+        params: {
+          'order_payload': order.toMap(),
+          'items_payload': items.map((item) => item.toMap()).toList(),
+          'sale_payload': sale.toMap(),
+        },
+      );
+
+      final response = Map<String, dynamic>.from(result as Map);
+      final orderMap = Map<String, dynamic>.from(response['order'] as Map);
+      return OrderModel.fromMap(orderMap);
+    } catch (e) {
+      debugPrint("Error creating atomic checkout transaction: $e");
       rethrow;
     }
   }

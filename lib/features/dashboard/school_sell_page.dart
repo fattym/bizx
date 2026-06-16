@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
+import '../../core/constants/sales_access.dart';
 import '../database/database_service.dart';
 import '../profile/crm_notification_service.dart';
 import '../../models/pipeline_stage.dart';
@@ -109,7 +110,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     });
   }
 
-  bool get _isViewOnlyRole => _currentRole == 1 || _currentRole == 2;
+  bool get _isAdminRole => SalesAccess.isAdmin(_currentRole);
+  bool get _isViewOnlyRole => SalesAccess.isViewOnly(_currentRole);
+  bool get _canCheckout => SalesAccess.canCheckout(_currentRole);
   bool get _isCheckoutStage => _selectedStage == PipelineStage.won;
 
   List<_StageFieldConfig> get _stageFields {
@@ -190,11 +193,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
   }
 
   Future<void> _proceedToOrderBuilder() async {
-    if (_isViewOnlyRole) {
+    if (_isCheckoutStage && !_canCheckout) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your role is view-only for pipeline and checkout.'),
-        ),
+        const SnackBar(content: Text('Your role cannot proceed to checkout.')),
       );
       return;
     }
@@ -274,73 +275,12 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
       return;
     }
 
-    setState(() => _saving = true);
-    final now = DateTime.now();
-    final schoolId = widget.school['id']?.toString();
-
-    if (schoolId != null && schoolId.isNotEmpty) {
-      try {
-        final contextNotes = _buildStageContextNotes();
-        final mergedNotes = [
-          if (_notesController.text.trim().isNotEmpty)
-            _notesController.text.trim(),
-          if (contextNotes.isNotEmpty) contextNotes,
-        ].join('\n');
-        final sale = SchoolSaleModel(
-          id: _saleId,
-          schoolId: schoolId,
-          agentId: _databaseService.getCurrentUserId(),
-          packageName:
-              _packageController.text.trim().isEmpty
-                  ? 'School Package'
-                  : _packageController.text.trim(),
-          expectedValue: checkoutAmount ?? 0,
-          notes: mergedNotes.isEmpty ? null : mergedNotes,
-          stage: _selectedStage,
-          stageUpdatedAt: now,
-          expectedCloseDate: _expectedCloseDate,
-          probability: _selectedStage.defaultProbability,
-          closedAt: _selectedStage == PipelineStage.won ? now : null,
-          isSynced: false,
-        );
-        await _databaseService.saveSchoolSale(sale);
-        _saleId = sale.id;
-
-        if (_selectedStage.isActive) {
-          await _databaseService.createSchoolFollowUp(
-            schoolId: schoolId,
-            nextStep: _nextActionController.text.trim(),
-            dueAt: _nextActionDueDate!,
-            notes:
-                'Auto-created from stage ${_selectedStage.label}'
-                '${contextNotes.isEmpty ? '' : ' • $contextNotes'}',
-          );
-        }
-
-        _currentStage = _selectedStage;
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _saving = false);
-        await CrmNotificationService.showIfEnabled(
-          context,
-          message: 'Failed to save pipeline stage: $e',
-          backgroundColor: Colors.red,
-        );
-        return;
-      }
-    }
-
     if (!_isCheckoutStage) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      await CrmNotificationService.showIfEnabled(
-        context,
-        message: 'Pipeline stage saved.',
-      );
+      await _savePipelineStage(checkoutAmount: null);
       return;
     }
 
-    if (!mounted) return;
+    setState(() => _saving = true);
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -354,23 +294,103 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
               initialNotes: _notesController.text.trim(),
               initialPackageName:
                   _packageController.text.trim().isEmpty
-                      ? null
+                      ? 'School Package'
                       : _packageController.text.trim(),
+              initialSaleId: _saleId,
             ),
       ),
     );
 
     if (!mounted) return;
 
-    setState(() => _saving = false);
-
     if (result != null) {
+      _currentStage = _selectedStage;
+      if (!mounted) return;
+      setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${widget.school['name']} order created successfully.'),
           backgroundColor: Colors.green,
         ),
       );
+    } else {
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<bool> _savePipelineStage({
+    required double? checkoutAmount,
+    bool orderCreated = false,
+  }) async {
+    final now = DateTime.now();
+    final schoolId = widget.school['id']?.toString();
+
+    if (!mounted) return false;
+    setState(() => _saving = true);
+
+    if (schoolId == null || schoolId.isEmpty) {
+      setState(() => _saving = false);
+      return false;
+    }
+
+    try {
+      final contextNotes = _buildStageContextNotes();
+      final mergedNotes = [
+        if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+        if (contextNotes.isNotEmpty) contextNotes,
+      ].join('\n');
+      final sale = SchoolSaleModel(
+        id: _saleId,
+        schoolId: schoolId,
+        agentId: _databaseService.getCurrentUserId(),
+        packageName:
+            _packageController.text.trim().isEmpty
+                ? 'School Package'
+                : _packageController.text.trim(),
+        expectedValue: checkoutAmount ?? 0,
+        notes: mergedNotes.isEmpty ? null : mergedNotes,
+        stage: _selectedStage,
+        stageUpdatedAt: now,
+        expectedCloseDate: _expectedCloseDate,
+        probability: _selectedStage.defaultProbability,
+        closedAt: _selectedStage == PipelineStage.won ? now : null,
+        isSynced: false,
+      );
+      await _databaseService.saveSchoolSale(sale);
+      _saleId = sale.id;
+
+      if (_selectedStage.isActive) {
+        await _databaseService.createSchoolFollowUp(
+          schoolId: schoolId,
+          nextStep: _nextActionController.text.trim(),
+          dueAt: _nextActionDueDate!,
+          notes:
+              'Auto-created from stage ${_selectedStage.label}'
+              '${contextNotes.isEmpty ? '' : ' • $contextNotes'}',
+        );
+      }
+
+      _currentStage = _selectedStage;
+
+      if (!mounted) return false;
+      setState(() => _saving = false);
+      await CrmNotificationService.showIfEnabled(
+        context,
+        message:
+            orderCreated
+                ? 'Pipeline updated after checkout.'
+                : 'Pipeline stage saved.',
+      );
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      setState(() => _saving = false);
+      await CrmNotificationService.showIfEnabled(
+        context,
+        message: 'Failed to save pipeline stage: $e',
+        backgroundColor: Colors.red,
+      );
+      return false;
     }
   }
 
@@ -400,7 +420,21 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
               padding: EdgeInsets.symmetric(vertical: 8),
               child: LinearProgressIndicator(minHeight: 2),
             ),
-          if (_isViewOnlyRole)
+          if (_isAdminRole)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+              ),
+              child: const Text(
+                'Admin mode enabled: full pipeline and checkout access.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            )
+          else if (_isViewOnlyRole)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
@@ -651,10 +685,25 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
               'Checkout is available after moving stage to Won.',
               style: TextStyle(color: Colors.black54),
             ),
+          if (_isCheckoutStage && !_canCheckout) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Your role can review pipeline data, but checkout submission is restricted.',
+                style: TextStyle(color: Colors.black87),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed:
-                (_saving || _isViewOnlyRole)
+                (_saving || _isViewOnlyRole || (_isCheckoutStage && !_canCheckout))
                     ? null
                     : () async => _proceedToOrderBuilder(),
             icon:

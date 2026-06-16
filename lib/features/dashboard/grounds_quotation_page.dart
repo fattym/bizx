@@ -25,12 +25,16 @@ class GroundsQuotationPage extends StatefulWidget {
 class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   final DatabaseService _dbService = DatabaseService();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final Map<String, bool> _selectedBySku = {};
   final Map<String, int> _qtyBySku = {};
 
   bool _loading = true;
   List<CatalogItemModel> _books = [];
   List<SchoolModel> _schools = [];
+  List<String> _categories = ['All'];
+  String _selectedCategory = 'All';
+  String _searchQuery = '';
   String? _selectedSchoolId;
   DateTime? _generatedAt;
   String? _quoteNumber;
@@ -42,11 +46,15 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   void initState() {
     super.initState();
     _loadBooks();
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.toLowerCase());
+    });
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,9 +68,14 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
         role5User = await _dbService.getUser(uid);
       }
       if (!mounted) return;
+
+      final categories =
+          items.map((i) => i.category).toSet().toList()..sort();
+
       setState(() {
         _books = items.where((i) => i.unitPrice > 0).toList();
         _schools = schools;
+        _categories = ['All', ...categories];
         _role5Name = role5User?.fullName?.trim() ?? '';
         _role5Phone = role5User?.phone?.trim() ?? '';
         if (_selectedSchoolId == null && _schools.isNotEmpty) {
@@ -397,10 +410,171 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
     );
   }
 
+  Widget _buildRecommendations() {
+    final school = _schools.firstWhere(
+      (s) => s.id == _selectedSchoolId,
+      orElse: () => SchoolModel(name: '', phone: '', county: '', focusAreas: []),
+    );
+    if (school.focusAreas.isEmpty) return const SizedBox.shrink();
+
+    final recommended =
+        _books.where((b) {
+          return school.focusAreas.any(
+            (area) => b.name.toLowerCase().contains(area.toLowerCase()),
+          );
+        }).take(5).toList();
+
+    if (recommended.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Smart Recommendations',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: recommended.length,
+            itemBuilder: (context, index) {
+              final b = recommended[index];
+              final isSelected = _selectedBySku[b.sku] ?? false;
+              return Container(
+                width: 160,
+                margin: const EdgeInsets.only(right: 10),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedBySku[b.sku] = !isSelected;
+                    });
+                  },
+                  child: Card(
+                    color: isSelected ? AppColors.primaryPale : Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            b.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          Text(
+                            'KES ${b.unitPrice.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showQtyDialog(CatalogItemModel book) {
+    final controller = TextEditingController(text: _qtyFor(book.sku).toString());
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Quantity for ${book.name}'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Enter Quantity'),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = int.tryParse(controller.text) ?? 1;
+                setState(() => _qtyBySku[book.sku] = val.clamp(1, 999));
+                Navigator.pop(context);
+              },
+              child: const Text('Set'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Quotation Builder')),
+      bottomNavigationBar:
+          _selectedBooks.isNotEmpty
+              ? Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_selectedBooks.length} Items Selected',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Total: KES ${_grandTotal.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: AppColors.primaryGreen,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      ElevatedButton(
+                        onPressed: _generateQuotation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: const Text('Generate Quotation'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              : null,
       body:
           _loading
               ? const Center(child: CircularProgressIndicator())
@@ -410,17 +584,32 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                   final isTablet = constraints.maxWidth >= 700;
                   final contentMaxWidth = isWide ? 1180.0 : 760.0;
 
+                  final filteredBooks =
+                      _books.where((b) {
+                        final matchesSearch =
+                            b.name.toLowerCase().contains(_searchQuery) ||
+                            b.sku.toLowerCase().contains(_searchQuery);
+                        final matchesCategory =
+                            _selectedCategory == 'All' ||
+                            b.category == _selectedCategory;
+                        return matchesSearch && matchesCategory;
+                      }).toList();
+
                   final leftPane = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedSchoolId,
+                        isExpanded: true,
+                        value: _selectedSchoolId,
                         items:
                             _schools
                                 .map(
                                   (s) => DropdownMenuItem<String>(
                                     value: s.id,
-                                    child: Text('${s.name} (${s.county})'),
+                                    child: Text(
+                                      '${s.name} (${s.county})',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -431,65 +620,203 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                         decoration: const InputDecoration(
                           labelText: 'Onboarded School',
                           border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.school_outlined),
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (_selectedSchoolId != null) ...[
+                        _buildRecommendations(),
+                        const SizedBox(height: 16),
+                      ],
                       TextField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone (optional)',
-                          border: OutlineInputBorder(),
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search by book name or SKU...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon:
+                              _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                    },
+                                  )
+                                  : null,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children:
+                              _categories.map((cat) {
+                                final isSelected = _selectedCategory == cat;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(cat),
+                                    selected: isSelected,
+                                    onSelected: (selected) {
+                                      if (selected) {
+                                        setState(() => _selectedCategory = cat);
+                                      }
+                                    },
+                                    selectedColor: AppColors.primaryGreen,
+                                    labelStyle: TextStyle(
+                                      color:
+                                          isSelected
+                                              ? Colors.white
+                                              : Colors.black,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Select Books',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._books.map((book) {
-                        final selected = _selectedBySku[book.sku] ?? false;
-                        final qty = _qtyFor(book.sku);
-                        return Card(
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: selected,
-                              onChanged: (value) {
-                                setState(
-                                  () => _selectedBySku[book.sku] = value ?? false,
-                                );
-                              },
-                            ),
-                            title: Text(book.name),
-                            subtitle: Text(
-                              'KES ${book.unitPrice.toStringAsFixed(2)}',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  onPressed:
-                                      selected
-                                          ? () => _changeQty(book.sku, -1)
-                                          : null,
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                ),
-                                Text('$qty'),
-                                IconButton(
-                                  onPressed:
-                                      selected
-                                          ? () => _changeQty(book.sku, 1)
-                                          : null,
-                                  icon: const Icon(Icons.add_circle_outline),
-                                ),
-                              ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Select Books (${filteredBooks.length})',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        );
-                      }),
+                          if (_selectedBooks.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _selectedBySku.clear();
+                                  _qtyBySku.clear();
+                                });
+                              },
+                              icon: const Icon(Icons.clear_all, size: 18),
+                              label: const Text('Clear Selection'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (filteredBooks.isEmpty)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Text('No books match your search.'),
+                          ),
+                        )
+                      else
+                        ...filteredBooks.map((book) {
+                          final selected = _selectedBySku[book.sku] ?? false;
+                          final qty = _qtyFor(book.sku);
+                          return Card(
+                            elevation: selected ? 2 : 0.5,
+                            margin: const EdgeInsets.only(bottom: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color:
+                                    selected
+                                        ? AppColors.primaryGreen
+                                        : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              leading: Checkbox(
+                                value: selected,
+                                activeColor: AppColors.primaryGreen,
+                                onChanged: (value) {
+                                  setState(
+                                    () =>
+                                        _selectedBySku[book.sku] =
+                                            value ?? false,
+                                  );
+                                },
+                              ),
+                              title: Text(
+                                book.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SKU: ${book.sku} • ${book.category}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'KES ${book.unitPrice.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: AppColors.primaryGreen,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed:
+                                        selected
+                                            ? () => _changeQty(book.sku, -1)
+                                            : null,
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap:
+                                        selected
+                                            ? () => _showQtyDialog(book)
+                                            : null,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '$qty',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed:
+                                        selected
+                                            ? () => _changeQty(book.sku, 1)
+                                            : null,
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 100), // Space for floating bar
                     ],
                   );
 

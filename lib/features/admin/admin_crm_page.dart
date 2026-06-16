@@ -180,6 +180,11 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   int _countByStage(String stage) =>
       _visibleRecords.where((r) => r.stage == stage).length;
 
+  String _formatDealValue(_CrmRecord record) {
+    final amount = record.dealValue.toStringAsFixed(0);
+    return record.stage == 'Won' ? 'KES $amount' : amount;
+  }
+
   Future<void> _openAddDialog() async {
     _schoolController.clear();
     _contactController.clear();
@@ -690,7 +695,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                         DataCell(Text(record.owner)),
                         DataCell(
                           Text(
-                            'KES ${record.dealValue.toStringAsFixed(0)}',
+                            _formatDealValue(record),
                           ),
                         ),
                         DataCell(
@@ -804,7 +809,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                   ),
               ],
             ),
-            subtitle: Text('${record.stage} • KES ${record.dealValue.toStringAsFixed(0)}'),
+            subtitle: Text('${record.stage} • ${_formatDealValue(record)}'),
             leading: _StageChip(stage: record.stage),
             children: [
               Padding(
@@ -939,6 +944,8 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
 
   Widget _buildKanbanColumn(String stage, List<_CrmRecord> stageRecords) {
     final totalValue = stageRecords.fold(0.0, (sum, r) => sum + r.dealValue);
+    final formattedTotalValue =
+        stage == 'Won' ? 'KES ${totalValue.toStringAsFixed(0)}' : totalValue.toStringAsFixed(0);
     return DragTarget<_CrmRecord>(
       onAcceptWithDetails: (details) async {
         final record = details.data;
@@ -1015,7 +1022,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
-                  'KES ${totalValue.toStringAsFixed(0)}',
+                  formattedTotalValue,
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 13,
@@ -1119,7 +1126,7 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'KES ${record.dealValue.toStringAsFixed(0)}',
+                    _formatDealValue(record),
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

@@ -14,11 +14,13 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
+  bool _isDemoData = false;
   String? _error;
   List<Map<String, dynamic>> _receiptRows = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _schoolRows = <Map<String, dynamic>>[];
   DateTimeRange? _dateRange;
   String? _countyFilter;
+  bool _showRoiSection = false;
 
   @override
   void initState() {
@@ -63,17 +65,28 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         (receiptsRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
       );
       if (!mounted) return;
+
+      final demoMode = receiptRows.isEmpty;
+      final seededReceipts = demoMode ? _demoReceipts() : receiptRows;
+      final seededSchools =
+          demoMode
+              ? _demoSchools()
+              : List<Map<String, dynamic>>.from(
+                (schoolsRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
+              );
+      final seededOrders = demoMode ? _demoOrders() : List<Map<String, dynamic>>.from(
+        (ordersRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+      final seededSales = demoMode ? _demoSales() : List<Map<String, dynamic>>.from(
+        (salesRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+
       setState(() {
-        _receiptRows = receiptRows;
-        _schoolRows = List<Map<String, dynamic>>.from(
-          (schoolsRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        );
-        _ordersCache = List<Map<String, dynamic>>.from(
-          (ordersRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        );
-        _salesCache = List<Map<String, dynamic>>.from(
-          (salesRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-        );
+        _isDemoData = demoMode;
+        _receiptRows = seededReceipts;
+        _schoolRows = seededSchools;
+        _ordersCache = seededOrders;
+        _salesCache = seededSales;
         _isLoading = false;
       });
     } catch (e) {
@@ -157,6 +170,7 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
             )
             .toList();
     final roiRows = _buildRoiRows(filteredReceipts, _ordersCache, _salesCache);
+    final hasRoiData = roiRows.isNotEmpty;
 
     return DefaultTabController(
       length: 3,
@@ -190,7 +204,49 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                 : Column(
                   children: [
                     _buildFiltersBar(),
-                    _buildRoiSection(roiRows),
+                    if (_isDemoData)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryPale,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.primaryGreen.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: const Text(
+                          'Demo data is being shown because no sample receipts were found.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    if (hasRoiData) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _showRoiSection = !_showRoiSection;
+                              });
+                            },
+                            icon: Icon(
+                              _showRoiSection
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                            label: Text(
+                              _showRoiSection
+                                  ? 'Hide ROI by Person'
+                                  : 'Show ROI by Person',
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_showRoiSection) _buildRoiSection(roiRows),
+                    ],
                     Expanded(
                       child: RefreshIndicator(
                         onRefresh: _load,
@@ -299,36 +355,33 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
             style: TextStyle(color: Colors.grey[700], fontSize: 12),
           ),
           const SizedBox(height: 10),
-          if (rows.isEmpty)
-            const Text('No ROI data yet.')
-          else
-            ...rows.map(
-              (row) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 14,
-                  child: Text(
-                    row.name.isNotEmpty ? row.name[0].toUpperCase() : '?',
-                  ),
+          ...rows.map(
+            (row) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 14,
+                child: Text(
+                  row.name.isNotEmpty ? row.name[0].toUpperCase() : '?',
                 ),
-                title: Text(
-                  row.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  'Samples: ${row.samplesGiven} • Schools: ${row.schoolsReached} • Revenue: KES ${row.revenueEarned.toStringAsFixed(0)}',
-                ),
-                trailing: Text(
-                  'Won: ${row.wonValue.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              title: Text(
+                row.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                'Samples: ${row.samplesGiven} • Schools: ${row.schoolsReached} • Revenue: KES ${row.revenueEarned.toStringAsFixed(0)}',
+              ),
+              trailing: Text(
+                'Won: ${row.wonValue.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -634,6 +687,131 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
           ..sort((a, b) => b.revenueEarned.compareTo(a.revenueEarned));
 
     return rows;
+  }
+
+  List<Map<String, dynamic>> _demoReceipts() {
+    return [
+      {
+        'id': 'demo-receipt-1',
+        'school_id': 'demo-school-1',
+        'agent_id': 'demo-agent-1',
+        'sample_name': 'Teacher Guide Kit',
+        'sample_category': 'Reference',
+        'quantity': 2,
+        'notes': 'Demo receipt row',
+        'distributed_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+        'stamped_receipt_url': 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200',
+        'stamped_receipt_path': 'demo/receipt_1.jpg',
+        'schools': {'name': 'Bahati Primary School'},
+        'users': {'full_name': 'Grounds Demo User', 'email': 'grounds.demo@dehus.com'},
+      },
+      {
+        'id': 'demo-receipt-2',
+        'school_id': 'demo-school-2',
+        'agent_id': 'demo-agent-2',
+        'sample_name': 'Grade 1 Reader Pack',
+        'sample_category': 'Primary',
+        'quantity': 3,
+        'notes': 'Demo receipt row',
+        'distributed_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+        'stamped_receipt_url': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
+        'stamped_receipt_path': 'demo/receipt_2.jpg',
+        'schools': {'name': 'Mwangaza Academy'},
+        'users': {'full_name': 'Agent Demo User', 'email': 'agent.demo@dehus.com'},
+      },
+      {
+        'id': 'demo-receipt-3',
+        'school_id': 'demo-school-3',
+        'agent_id': 'demo-agent-1',
+        'sample_name': 'Assessment Bundle',
+        'sample_category': 'Test',
+        'quantity': 1,
+        'notes': 'Demo receipt row',
+        'distributed_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        'stamped_receipt_url': 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
+        'stamped_receipt_path': 'demo/receipt_3.jpg',
+        'schools': {'name': 'Kisumu West School'},
+        'users': {'full_name': 'Grounds Demo User', 'email': 'grounds.demo@dehus.com'},
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _demoSchools() {
+    return [
+      {
+        'id': 'demo-school-1',
+        'name': 'Bahati Primary School',
+        'county': 'Nakuru',
+        'photo_url': 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1200',
+        'sample_proof_url': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200',
+        'created_at': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
+      },
+      {
+        'id': 'demo-school-2',
+        'name': 'Mwangaza Academy',
+        'county': 'Kisumu',
+        'photo_url': 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?w=1200',
+        'sample_proof_url': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
+        'created_at': DateTime.now().subtract(const Duration(days: 8)).toIso8601String(),
+      },
+      {
+        'id': 'demo-school-3',
+        'name': 'Kisumu West School',
+        'county': 'Kisumu',
+        'photo_url': 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=1200',
+        'sample_proof_url': 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
+        'created_at': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _demoOrders() {
+    return [
+      {
+        'agent_id': 'demo-agent-1',
+        'checkout_amount': 68000,
+        'status': 'approved',
+        'created_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+      },
+      {
+        'agent_id': 'demo-agent-2',
+        'checkout_amount': 54000,
+        'status': 'paid',
+        'created_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+      },
+      {
+        'agent_id': 'demo-agent-1',
+        'checkout_amount': 42000,
+        'status': 'pending',
+        'created_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _demoSales() {
+    return [
+      {
+        'school_id': 'demo-school-1',
+        'agent_id': 'demo-agent-1',
+        'expected_value': 98000,
+        'sale_status': 'won',
+        'created_at': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+      },
+      {
+        'school_id': 'demo-school-2',
+        'agent_id': 'demo-agent-2',
+        'expected_value': 76000,
+        'sale_status': 'negotiation',
+        'created_at': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
+      },
+      {
+        'school_id': 'demo-school-3',
+        'agent_id': 'demo-agent-1',
+        'expected_value': 112000,
+        'sale_status': 'won',
+        'created_at': DateTime.now().subtract(const Duration(days: 6)).toIso8601String(),
+      },
+    ];
   }
 }
 

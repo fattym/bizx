@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import '../../models/order_model.dart';
+import '../../models/pipeline_stage.dart';
 import '../../models/farmer_model.dart';
 import '../../core/constants/colors.dart';
 import '../database/database_service.dart';
 import '../../models/order_item_model.dart';
+import '../../models/school_sale_model.dart';
 import '../../services/invoice_service.dart';
 import '../../models/catalog_item_model.dart';
 
@@ -17,6 +21,7 @@ class AddOrderPage extends StatefulWidget {
     this.initialCheckoutAmount,
     this.initialNotes,
     this.initialPackageName,
+    this.initialSaleId,
   });
 
   final String? initialSchoolId;
@@ -26,6 +31,7 @@ class AddOrderPage extends StatefulWidget {
   final double? initialCheckoutAmount;
   final String? initialNotes;
   final String? initialPackageName;
+  final String? initialSaleId;
 
   @override
   State<AddOrderPage> createState() => _AddOrderPageState();
@@ -116,7 +122,24 @@ class _AddOrderPageState extends State<AddOrderPage> {
     _prefilled = true;
 
     final packageName = widget.initialPackageName?.trim();
-    if (packageName == null || packageName.isEmpty) return;
+    if (packageName == null || packageName.isEmpty) {
+      final fallbackAmount = widget.initialCheckoutAmount ?? 0;
+      if (fallbackAmount > 0) {
+        _cart.add({
+          'name': 'School Package',
+          'category': 'Custom',
+          'price': fallbackAmount,
+          'sku': 'CUSTOM',
+          'qty': 1,
+        });
+        setState(() {});
+      }
+
+      if (_amountController.text.trim().isEmpty && fallbackAmount > 0) {
+        _amountController.text = fallbackAmount.toStringAsFixed(0);
+      }
+      return;
+    }
 
     final matchingProduct =
         _catalogItems.where((item) {
@@ -314,13 +337,6 @@ class _AddOrderPageState extends State<AddOrderPage> {
       return;
     }
 
-    if (_cart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one product to the order.')),
-      );
-      return;
-    }
-
     if (_paymentMethod == null || _paymentMethod!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Select a payment method to continue.')),
@@ -337,6 +353,35 @@ class _AddOrderPageState extends State<AddOrderPage> {
       return;
     }
 
+    if (_cart.isEmpty) {
+      _cart.add({
+        'name':
+            widget.initialPackageName?.trim().isNotEmpty == true
+                ? widget.initialPackageName!.trim()
+                : 'School Package',
+        'category': 'Custom',
+        'price': checkoutAmount,
+        'sku': 'CUSTOM',
+        'qty': 1,
+        });
+    }
+
+    String? schoolId = selectedSchool.id;
+    final schoolIsPersisted = await _databaseService.schoolExists(schoolId);
+    if (!schoolIsPersisted) {
+      if (widget.initialSaleId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This school must be synced first before finishing checkout.',
+            ),
+          ),
+        );
+        return;
+      }
+      schoolId = null;
+    }
+
     if (_paymentMethod != 'cash' && _referenceController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -349,7 +394,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
     setState(() => _saving = true);
 
     final order = OrderModel(
-      schoolId: selectedSchool.id,
+      schoolId: schoolId,
       schoolName: selectedSchool.name,
       schoolPhone: selectedSchool.phone,
       agentId: currentUserId,
@@ -379,10 +424,32 @@ class _AddOrderPageState extends State<AddOrderPage> {
         }).toList();
 
     try {
-      final savedOrder = await _databaseService.createOrder(
-        order: order,
-        items: items,
-      );
+      final savedOrder =
+          widget.initialSaleId == null
+              ? await _databaseService.createOrder(order: order, items: items)
+              : await _databaseService.createOrderWithSchoolSale(
+                order: order,
+                items: items,
+                sale: SchoolSaleModel(
+                  id: widget.initialSaleId,
+                  schoolId: schoolId ?? selectedSchool.id,
+                  agentId: currentUserId,
+                  packageName:
+                      widget.initialPackageName?.trim().isEmpty ?? true
+                          ? 'School Package'
+                          : widget.initialPackageName!.trim(),
+                  expectedValue: checkoutAmount,
+                  notes:
+                      _notesController.text.trim().isEmpty
+                          ? null
+                          : _notesController.text.trim(),
+                  stage: PipelineStage.won,
+                  stageUpdatedAt: DateTime.now(),
+                  probability: 100,
+                  closedAt: DateTime.now(),
+                  isSynced: false,
+              ),
+              );
 
       try {
         await Future.wait(
@@ -399,20 +466,46 @@ class _AddOrderPageState extends State<AddOrderPage> {
         debugPrint('Stock update warning: $stockError');
       }
 
-      final invoicePath = await _invoiceService.generateInvoiceFile(
-        order: savedOrder,
-        items: items,
-      );
-      if (!mounted) return;
-
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Invoice saved to $invoicePath'),
+        const SnackBar(
+          content: Text('Order saved successfully.'),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context, {'order': savedOrder, 'invoicePath': invoicePath});
+
+      try {
+        final pdfBytes = await _invoiceService.generateInvoiceBytes(
+          order: savedOrder,
+          items: items,
+        );
+        final fileName = '${savedOrder.orderNumber}.pdf';
+
+        if (kIsWeb) {
+          await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
+        } else {
+          await Printing.layoutPdf(
+            name: fileName,
+            onLayout: (_) async => pdfBytes,
+          );
+        }
+      } catch (invoiceError) {
+        debugPrint('Invoice generation warning: $invoiceError');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Order saved, but invoice could not be generated: $invoiceError',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+
+      if (mounted) {
+        Navigator.pop(context, {'order': savedOrder});
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);

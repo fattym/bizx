@@ -30,7 +30,7 @@ class OrderItemModel {
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'order_id': orderId,
       'product_name': productName,
@@ -41,9 +41,14 @@ class OrderItemModel {
       'line_total': lineTotal,
       'notes': notes,
       'isSynced': isSynced,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
+    if (createdAt != null) {
+      map['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      map['updated_at'] = updatedAt!.toIso8601String();
+    }
+    return map;
   }
 
   factory OrderItemModel.fromMap(Map<dynamic, dynamic> map) {

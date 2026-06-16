@@ -133,6 +133,143 @@ CREATE TABLE IF NOT EXISTS public.orders (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE OR REPLACE FUNCTION public.create_school_sale_checkout(
+    order_payload jsonb,
+    items_payload jsonb DEFAULT '[]'::jsonb,
+    sale_payload jsonb DEFAULT '{}'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_now timestamptz := now();
+    v_order_id uuid := coalesce(nullif(order_payload->>'id', '')::uuid, gen_random_uuid());
+    v_order_number text := coalesce(nullif(order_payload->>'order_number', ''), 'ORD-' || to_char(v_now, 'YYYYMMDDHH24MISSMS') || '-' || upper(substring(replace(gen_random_uuid()::text, '-', '') from 1 for 8)));
+    v_sale_id uuid := coalesce(nullif(sale_payload->>'id', '')::uuid, gen_random_uuid());
+    v_order public.orders%rowtype;
+    v_sale public.school_sales%rowtype;
+BEGIN
+    INSERT INTO public.orders (
+        id,
+        school_id,
+        school_name,
+        school_phone,
+        agent_id,
+        order_number,
+        payment_method,
+        payment_reference,
+        checkout_amount,
+        status,
+        notes,
+        submitted_at,
+        approved_at,
+        "isSynced",
+        created_at,
+        updated_at
+    ) VALUES (
+        v_order_id,
+        nullif(order_payload->>'school_id', '')::uuid,
+        coalesce(nullif(order_payload->>'school_name', ''), 'School'),
+        nullif(order_payload->>'school_phone', ''),
+        nullif(order_payload->>'agent_id', '')::uuid,
+        v_order_number,
+        coalesce(nullif(order_payload->>'payment_method', ''), 'cash'),
+        nullif(order_payload->>'payment_reference', ''),
+        coalesce((order_payload->>'checkout_amount')::numeric, 0),
+        coalesce(nullif(order_payload->>'status', ''), 'pending'),
+        nullif(order_payload->>'notes', ''),
+        coalesce((order_payload->>'submitted_at')::timestamptz, v_now),
+        (order_payload->>'approved_at')::timestamptz,
+        coalesce((order_payload->>'isSynced')::boolean, false),
+        coalesce((order_payload->>'created_at')::timestamptz, v_now),
+        coalesce((order_payload->>'updated_at')::timestamptz, v_now)
+    )
+    RETURNING * INTO v_order;
+
+    IF items_payload IS NOT NULL AND jsonb_typeof(items_payload) = 'array' THEN
+        INSERT INTO public.order_items (
+            id,
+            order_id,
+            product_name,
+            category,
+            sku,
+            quantity,
+            unit_price,
+            line_total,
+            notes,
+            "isSynced",
+            created_at,
+            updated_at
+        )
+        SELECT
+            coalesce(nullif(item->>'id', '')::uuid, gen_random_uuid()),
+            v_order.id,
+            coalesce(nullif(item->>'product_name', ''), 'Item'),
+            nullif(item->>'category', ''),
+            nullif(item->>'sku', ''),
+            coalesce((item->>'quantity')::integer, 1),
+            coalesce((item->>'unit_price')::numeric, 0),
+            coalesce((item->>'line_total')::numeric, 0),
+            nullif(item->>'notes', ''),
+            coalesce((item->>'isSynced')::boolean, false),
+            coalesce((item->>'created_at')::timestamptz, v_now),
+            coalesce((item->>'updated_at')::timestamptz, v_now)
+        FROM jsonb_array_elements(items_payload) AS item;
+    END IF;
+
+    INSERT INTO public.school_sales (
+        id,
+        school_id,
+        agent_id,
+        package_name,
+        expected_value,
+        notes,
+        sale_status,
+        stage_updated_at,
+        expected_close_date,
+        probability,
+        closed_at,
+        "isSynced",
+        created_at,
+        updated_at
+    ) VALUES (
+        v_sale_id,
+        coalesce(nullif(sale_payload->>'school_id', '')::uuid, v_order.school_id),
+        nullif(sale_payload->>'agent_id', '')::uuid,
+        coalesce(nullif(sale_payload->>'package_name', ''), 'School Package'),
+        coalesce((sale_payload->>'expected_value')::numeric, v_order.checkout_amount),
+        nullif(sale_payload->>'notes', ''),
+        coalesce(nullif(sale_payload->>'sale_status', ''), 'won'),
+        coalesce((sale_payload->>'stage_updated_at')::timestamptz, v_now),
+        (sale_payload->>'expected_close_date')::date,
+        coalesce((sale_payload->>'probability')::integer, 100),
+        coalesce((sale_payload->>'closed_at')::timestamptz, v_now),
+        coalesce((sale_payload->>'isSynced')::boolean, false),
+        coalesce((sale_payload->>'created_at')::timestamptz, v_now),
+        coalesce((sale_payload->>'updated_at')::timestamptz, v_now)
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        school_id = EXCLUDED.school_id,
+        agent_id = EXCLUDED.agent_id,
+        package_name = EXCLUDED.package_name,
+        expected_value = EXCLUDED.expected_value,
+        notes = EXCLUDED.notes,
+        sale_status = EXCLUDED.sale_status,
+        stage_updated_at = EXCLUDED.stage_updated_at,
+        expected_close_date = EXCLUDED.expected_close_date,
+        probability = EXCLUDED.probability,
+        closed_at = EXCLUDED.closed_at,
+        "isSynced" = EXCLUDED."isSynced",
+        updated_at = EXCLUDED.updated_at
+    RETURNING * INTO v_sale;
+
+    RETURN jsonb_build_object(
+        'order', to_jsonb(v_order),
+        'sale', to_jsonb(v_sale)
+    );
+END;
+$$;
+
 -- 6. School Sales Pipeline migrations
 -- Source of truth schema lives in schema.sql; keep only ALTER/DO migrations here.
 

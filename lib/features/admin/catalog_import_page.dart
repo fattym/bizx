@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../core/constants/colors.dart';
 import '../../models/catalog_item_model.dart';
@@ -19,6 +22,7 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
   final _csvController = TextEditingController();
   String _itemType = 'sale';
   bool _importing = false;
+  String? _pickedFileName;
 
   @override
   void initState() {
@@ -46,6 +50,33 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
       'Grade 1 Reader Pack,Primary,SL-PR-01,2850,120,Core sale pack,true',
       'Teacher Guide Kit,Reference,SL-RF-02,2700,60,Teacher support pack,true',
     ].join('\n');
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+
+      if (result != null && result.files.single.bytes != null) {
+        final bytes = result.files.single.bytes!;
+        final content = utf8.decode(bytes);
+        setState(() {
+          _csvController.text = content;
+          _pickedFileName = result.files.single.name;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Loaded: ${result.files.single.name}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking file: $e')));
+    }
   }
 
   List<List<String>> _parseCsv(String input) {
@@ -100,7 +131,7 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
 
       final name = record['name']?.trim() ?? '';
       final category = record['category']?.trim() ?? '';
-      final sku = record['sku']?.trim() ?? '';
+      final sku = record['sku']?.trim().replaceAll(' ', '') ?? '';
       if (name.isEmpty || sku.isEmpty) continue;
 
       final stockRaw =
@@ -112,7 +143,7 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
       final unitPriceRaw = record['unit_price']?.trim() ?? '';
       final double unitPrice =
           unitPriceRaw.isNotEmpty
-              ? (double.tryParse(unitPriceRaw) ?? 0.0)
+              ? (double.tryParse(unitPriceRaw.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0)
               : (resolvedType == 'sample' ? 0.0 : 0.0);
 
       items.add(
@@ -129,6 +160,14 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
         ),
       );
     }
+
+    // Intelligent Sorting: Arrange items by Category then by Name
+    // This matches the database logical order for better manageability.
+    items.sort((a, b) {
+      final catComp = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+      if (catComp != 0) return catComp;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
 
     return items;
   }
@@ -152,6 +191,10 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
           backgroundColor: AppColors.primaryGreen,
         ),
       );
+      setState(() {
+        _csvController.clear();
+        _pickedFileName = null;
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -208,24 +251,58 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Import sale and sample books',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  'Upload or Paste CSV',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 const Text(
-                  'Sales template columns: name,category,sku,unit_price,stock_qty,description,is_active\n'
-                  'Sample template columns: name,category,sku,stock_qty,description,is_active,sample_note',
+                  'Select a CSV file to upload or paste the content below.',
+                  style: TextStyle(color: Colors.grey),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _pickFile,
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Pick CSV File'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade50,
+                          foregroundColor: Colors.blue.shade700,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_pickedFileName != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Selected: $_pickedFileName',
+                    style: const TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 DropdownButtonFormField<String>(
-                  initialValue: _itemType,
+                  value: _itemType,
                   decoration: const InputDecoration(
-                    labelText: 'Default item type',
+                    labelText: 'Default item type (if not in CSV)',
                     border: OutlineInputBorder(),
                   ),
                   items: const [
@@ -238,19 +315,17 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
                   onChanged: (value) {
                     if (value == null) return;
                     setState(() => _itemType = value);
-                    if (_csvController.text.trim().isEmpty) {
-                      _csvController.text = _template(value);
-                    }
                   },
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _csvController,
-                  maxLines: 12,
+                  maxLines: 8,
                   decoration: const InputDecoration(
-                    labelText: 'CSV content',
+                    labelText: 'CSV Preview / Manual Paste',
                     alignLabelWithHint: true,
                     border: OutlineInputBorder(),
+                    hintText: 'name,category,sku,unit_price,stock_qty...',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -258,50 +333,105 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlinedButton.icon(
+                    TextButton.icon(
                       onPressed: () {
                         setState(() {
                           _csvController.text = _template(_itemType);
+                          _pickedFileName = null;
                         });
                       },
-                      icon: const Icon(Icons.format_align_left),
+                      icon: const Icon(Icons.format_align_left, size: 18),
                       label: const Text('Load Template'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () => _downloadTemplate('sale'),
-                      icon: const Icon(Icons.download),
-                      label: const Text('Download Sales Excel'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _downloadTemplate('sample'),
-                      icon: const Icon(Icons.download),
-                      label: const Text('Download Sample Excel'),
-                    ),
-                    OutlinedButton.icon(
+                    TextButton.icon(
                       onPressed: () {
                         setState(() {
                           _csvController.clear();
+                          _pickedFileName = null;
                         });
                       },
-                      icon: const Icon(Icons.clear),
+                      icon: const Icon(Icons.clear, size: 18),
                       label: const Text('Clear'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _importing ? null : _importCsv,
-                  icon:
-                      _importing
-                          ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(Icons.upload_file),
-                  label: const Text('Import CSV'),
+                const Divider(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Templates:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Download Sales Template',
+                          onPressed: () => _downloadTemplate('sale'),
+                          icon: const Icon(Icons.download),
+                        ),
+                        IconButton(
+                          tooltip: 'Download Sample Template',
+                          onPressed: () => _downloadTemplate('sample'),
+                          icon: const Icon(Icons.download),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: _importing ? null : _importCsv,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon:
+                        _importing
+                            ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Icon(Icons.save),
+                    label: Text(
+                      _importing ? 'Importing...' : 'Confirm & Import Catalog',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Instructions',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text('• Use the CSV format specified in the templates.'),
+                  Text('• Unit Price is required for Sale Books.'),
+                  Text('• Stock Quantity defaults to 0 if not provided.'),
+                  Text('• Duplicates (by SKU) will be updated.'),
+                ],
+              ),
             ),
           ),
         ],

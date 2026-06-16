@@ -9,6 +9,7 @@ import '../../../models/task_model.dart';
 import '../../../models/user_model.dart';
 import 'analytics_page.dart';
 import 'catalog_import_page.dart';
+import '../dashboard/my_orders_page.dart';
 import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'users_list_page.dart';
@@ -952,6 +953,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SampleReceiptsPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.shopping_bag_outlined,
+                  'Orders & Items',
+                  () async {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MyOrdersPage(),
                       ),
                     );
                   },

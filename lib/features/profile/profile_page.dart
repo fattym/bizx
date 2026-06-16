@@ -26,8 +26,16 @@ class SalesDashboard extends StatefulWidget {
 
 class _SalesDashboardState extends State<SalesDashboard> {
   final DatabaseService _dbService = DatabaseService();
+  final PageController _performanceCarouselController = PageController();
   bool _showAssignedTasks = false;
   bool _autoHideAssignedTasks = true;
+  int _performanceCarouselIndex = 0;
+
+  @override
+  void dispose() {
+    _performanceCarouselController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -600,73 +608,111 @@ class _SalesDashboardState extends State<SalesDashboard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final isCompact = width < 380;
-        final isWide = width >= 980;
-        final crossAxisCount = isCompact ? 1 : (isWide ? 5 : 2);
-        final aspectRatio = isCompact ? 2.15 : (isWide ? 1.0 : 1.18);
+        final isCompact = width < 420;
+        final cardWidthFactor = isCompact ? 1.0 : (width < 700 ? 0.92 : 0.72);
+        final cardHeight = isCompact ? 188.0 : 196.0;
+        final performanceCards = [
+          (
+            "Daily Performance",
+            "87%",
+            Icons.today_outlined,
+            AppColors.primaryGreen,
+            '15',
+            '80',
+            '08',
+            '12',
+          ),
+          (
+            "Weekly Performance",
+            "90%",
+            Icons.view_week_outlined,
+            AppColors.primaryDark,
+            '35',
+            '200',
+            '20',
+            '30',
+          ),
+          (
+            "Monthly Performance",
+            "91%",
+            Icons.calendar_month_outlined,
+            AppColors.secondaryOrange,
+            '60',
+            '320',
+            '34',
+            '48',
+          ),
+          (
+            "Quarterly Performance",
+            "89%",
+            Icons.date_range_outlined,
+            AppColors.primaryGreen,
+            '180',
+            '960',
+            '102',
+            '144',
+          ),
+          (
+            "Yearly Performance",
+            "93%",
+            Icons.insights_outlined,
+            AppColors.secondaryOrange,
+            '720',
+            '3840',
+            '408',
+            '576',
+          ),
+        ];
 
-        return GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: aspectRatio,
+        return Column(
           children: [
-            _metricCard(
-              "Daily Performance",
-              "87%",
-              Icons.today_outlined,
-              AppColors.primaryGreen,
-              compact: isCompact,
-              schoolTarget: '15',
-              weeklyTarget: '80',
-              institutionLeads: '08',
-              weeklyVisits: '12',
+            SizedBox(
+              height: cardHeight,
+              child: PageView.builder(
+                controller: _performanceCarouselController,
+                itemCount: 5,
+                onPageChanged: (index) {
+                  setState(() {
+                    _performanceCarouselIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final card = performanceCards[index];
+                  return Center(
+                    child: FractionallySizedBox(
+                      widthFactor: cardWidthFactor,
+                      child: _metricCard(
+                        card.$1,
+                        card.$2,
+                        card.$3,
+                        card.$4,
+                        compact: isCompact,
+                        schoolTarget: card.$5,
+                        weeklyTarget: card.$6,
+                        institutionLeads: card.$7,
+                        weeklyVisits: card.$8,
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-            _metricCard(
-              "Weekly Performance",
-              "90%",
-              Icons.view_week_outlined,
-              AppColors.primaryDark,
-              compact: isCompact,
-              schoolTarget: '35',
-              weeklyTarget: '200',
-              institutionLeads: '20',
-              weeklyVisits: '30',
-            ),
-            _metricCard(
-              "Monthly Performance",
-              "91%",
-              Icons.calendar_month_outlined,
-              AppColors.secondaryOrange,
-              compact: isCompact,
-              schoolTarget: '60',
-              weeklyTarget: '320',
-              institutionLeads: '34',
-              weeklyVisits: '48',
-            ),
-            _metricCard(
-              "Quarterly Performance",
-              "89%",
-              Icons.date_range_outlined,
-              AppColors.primaryGreen,
-              compact: isCompact,
-              schoolTarget: '180',
-              weeklyTarget: '960',
-              institutionLeads: '102',
-              weeklyVisits: '144',
-            ),
-            _metricCard(
-              "Yearly Performance",
-              "93%",
-              Icons.insights_outlined,
-              AppColors.secondaryOrange,
-              compact: isCompact,
-              schoolTarget: '720',
-              weeklyTarget: '3840',
-              institutionLeads: '408',
-              weeklyVisits: '576',
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final active = index == _performanceCarouselIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 16 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primaryGreen : AppColors.borderGrey,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                );
+              }),
             ),
           ],
         );

@@ -45,7 +45,7 @@ class OrderModel {
   }
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'school_id': schoolId,
       'school_name': schoolName,
@@ -60,9 +60,14 @@ class OrderModel {
       'submitted_at': submittedAt?.toIso8601String(),
       'approved_at': approvedAt?.toIso8601String(),
       'isSynced': isSynced,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
+    if (createdAt != null) {
+      map['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      map['updated_at'] = updatedAt!.toIso8601String();
+    }
+    return map;
   }
 
   factory OrderModel.fromMap(Map<dynamic, dynamic> map) {
