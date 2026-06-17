@@ -59,7 +59,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No signed-in user found.')),
+          );
+        }
+        return;
+      }
 
       String? photoUrl = _existingPhotoUrl;
 
@@ -126,94 +133,242 @@ class _UserProfilePageState extends State<UserProfilePage> {
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: _pickImage,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage:
-                    _photoFile != null
-                        ? FileImage(_photoFile!)
-                        : (_existingPhotoUrl != null
-                                ? NetworkImage(_existingPhotoUrl!)
-                                : null)
-                            as ImageProvider?,
-                child:
-                    _photoFile == null && _existingPhotoUrl == null
-                        ? const Icon(
-                          Icons.camera_alt,
-                          size: 40,
-                          color: Colors.grey,
-                        )
-                        : null,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFEAF5EE), Color(0xFFF8FCF9)],
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallScreen = constraints.maxWidth < 700;
+            final contentWidth = constraints.maxWidth > 980 ? 920.0 : 720.0;
+            final horizontalPadding = isSmallScreen ? 16.0 : 24.0;
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: isSmallScreen ? 16 : 24,
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap to change photo',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: 'Phone Number',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _idController,
-              decoration: const InputDecoration(
-                labelText: 'ID Number',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  foregroundColor: Colors.white,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: contentWidth),
+                  child: Card(
+                    elevation: 0,
+                    color: Colors.white.withValues(alpha: 0.96),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      side: const BorderSide(color: AppColors.borderGrey),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
+                      child: isSmallScreen
+                          ? _buildMobileLayout(context)
+                          : _buildWideLayout(context),
+                    ),
+                  ),
                 ),
-                child:
-                    _isLoading
-                        ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                        : const Text(
-                          'Save Profile',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAvatarSection(),
+        const SizedBox(height: 24),
+        _buildFormFields(),
+      ],
+    );
+  }
+
+  Widget _buildWideLayout(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 260,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 8),
+              _buildAvatarSection(),
+            ],
+          ),
+        ),
+        const SizedBox(width: 24),
+        Expanded(child: _buildFormFields()),
+      ],
+    );
+  }
+
+  Widget _buildAvatarSection() {
+    final ImageProvider? imageProvider =
+        _photoFile != null
+            ? FileImage(_photoFile!)
+            : _existingPhotoUrl != null
+            ? NetworkImage(_existingPhotoUrl!)
+            : null;
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickImage,
+          child: CircleAvatar(
+            radius: 56,
+            backgroundColor: Colors.grey.shade200,
+            backgroundImage: imageProvider,
+            child:
+                imageProvider == null
+                    ? const Icon(
+                      Icons.camera_alt,
+                      size: 42,
+                      color: Colors.grey,
+                    )
+                    : null,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Tap to change photo',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Personal Information',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Update your contact details and profile photo.',
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 24),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 520;
+            if (isNarrow) {
+              return Column(
+                children: [
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _idController,
+                    decoration: const InputDecoration(
+                      labelText: 'ID Number',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Full Name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone Number',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _idController,
+                  decoration: const InputDecoration(
+                    labelText: 'ID Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 28),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _saveProfile,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : const Text(
+                      'Save Profile',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+          ),
+        ),
+      ],
     );
   }
 }
