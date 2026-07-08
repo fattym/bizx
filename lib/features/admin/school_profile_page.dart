@@ -37,10 +37,26 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
     try {
       final responses = await Future.wait([
         _supabase.from('schools').select().eq('id', widget.schoolId).single(),
-        _supabase.from('school_sales').select().eq('school_id', widget.schoolId).maybeSingle(),
-        _supabase.from('school_visits').select().eq('school_id', widget.schoolId).order('visited_at', ascending: false),
-        _supabase.from('opportunity_activities').select().eq('school_id', widget.schoolId).order('created_at', ascending: false),
-        _supabase.from('orders').select().eq('school_id', widget.schoolId).order('created_at', ascending: false),
+        _supabase
+            .from('school_sales')
+            .select()
+            .eq('school_id', widget.schoolId)
+            .maybeSingle(),
+        _supabase
+            .from('school_visits')
+            .select()
+            .eq('school_id', widget.schoolId)
+            .order('visited_at', ascending: false),
+        _supabase
+            .from('opportunity_activities')
+            .select()
+            .eq('school_id', widget.schoolId)
+            .order('created_at', ascending: false),
+        _supabase
+            .from('orders')
+            .select()
+            .eq('school_id', widget.schoolId)
+            .order('created_at', ascending: false),
       ]);
 
       _schoolData = responses[0] as Map<String, dynamic>;
@@ -53,9 +69,9 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
     } catch (e) {
       debugPrint('Error fetching school profile data: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -101,7 +117,9 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
       });
     }
 
-    items.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+    items.sort(
+      (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+    );
     _timeline = items;
   }
 
@@ -141,6 +159,11 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
           actions: [
             _buildLeadScoreBadge(),
             IconButton(
+              icon: const Icon(Icons.edit, color: Colors.white),
+              tooltip: 'Edit Profile',
+              onPressed: _openEditDialog,
+            ),
+            IconButton(
               icon: const Icon(Icons.phone, color: Colors.white),
               tooltip: 'Call & Log',
               onPressed: () => _launchPhone(),
@@ -162,7 +185,8 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AuditLogPage(entityId: widget.schoolId),
+                    builder:
+                        (context) => AuditLogPage(entityId: widget.schoolId),
                   ),
                 );
               },
@@ -222,7 +246,13 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
                 flex: 2,
                 child: Column(
                   children: [
-                    const Text('Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Text(
+                      'Location',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     _buildMapCard(lat, lng, height: 400),
                   ],
@@ -242,7 +272,10 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
           if (lat != null && lng != null) ...[
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              child: Text(
+                'Location',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
             const SizedBox(height: 8),
             _buildMapCard(lat, lng),
@@ -254,16 +287,24 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
 
   Widget _buildSalesTab() {
     if (_activeSale == null) {
-      return const Center(child: Text('No active sales opportunity found for this school.'));
+      return const Center(
+        child: Text('No active sales opportunity found for this school.'),
+      );
     }
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     final saleContent = [
       _buildInfoCard('Opportunity Details', [
-        _infoRow('Current Stage', _activeSale!['sale_status']?.toString().toUpperCase()),
+        _infoRow(
+          'Current Stage',
+          _activeSale!['sale_status']?.toString().toUpperCase(),
+        ),
         _infoRow('Expected Value', 'KES ${_activeSale!['expected_value']}'),
         _infoRow('Probability', '${_activeSale!['probability']}%'),
-        _infoRow('Weighted Forecast', 'KES ${_activeSale!['weighted_forecast']}'),
+        _infoRow(
+          'Weighted Forecast',
+          'KES ${_activeSale!['weighted_forecast']}',
+        ),
       ]),
       const SizedBox(height: 16),
       _buildInfoCard('Next Steps', [
@@ -280,12 +321,18 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: _activeSale!['risk_level'] == 'high' ? Colors.red : Colors.green,
+            color:
+                _activeSale!['risk_level'] == 'high'
+                    ? Colors.red
+                    : Colors.green,
           ),
         ),
       ),
       const SizedBox(height: 16),
-      _infoRow('SLA Due', _activeSale!['stage_sla_due_at']?.toString().split('T').first),
+      _infoRow(
+        'SLA Due',
+        _activeSale!['stage_sla_due_at']?.toString().split('T').first,
+      ),
     ]);
 
     if (isDesktop) {
@@ -305,11 +352,7 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        children: [
-          ...saleContent,
-          const SizedBox(height: 16),
-          riskContent,
-        ],
+        children: [...saleContent, const SizedBox(height: 16), riskContent],
       ),
     );
   }
@@ -330,16 +373,28 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: (item['color'] as Color).withValues(alpha: 0.1),
-              child: Icon(item['icon'] as IconData, color: item['color'] as Color),
+              child: Icon(
+                item['icon'] as IconData,
+                color: item['color'] as Color,
+              ),
             ),
-            title: Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              item['title'] as String,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item['subtitle'] as String),
                 if (item['notes'] != null) ...[
                   const SizedBox(height: 4),
-                  Text(item['notes'] as String, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                  Text(
+                    item['notes'] as String,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 4),
                 Text(
@@ -359,7 +414,10 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
       return const Center(child: Text('No orders found for this school.'));
     }
 
-    final totalSpent = _orders.fold(0.0, (sum, o) => sum + (o['checkout_amount'] as num).toDouble());
+    final totalSpent = _orders.fold(
+      0.0,
+      (sum, o) => sum + (o['checkout_amount'] as num).toDouble(),
+    );
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     return Column(
@@ -370,33 +428,47 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
           width: double.infinity,
           child: Column(
             children: [
-              const Text('Lifetime Value', style: TextStyle(color: Colors.grey)),
+              const Text(
+                'Lifetime Value',
+                style: TextStyle(color: Colors.grey),
+              ),
               Text(
                 'KES ${totalSpent.toStringAsFixed(0)}',
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primaryGreen),
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryGreen,
+                ),
               ),
-              Text('${_orders.length} total orders', style: const TextStyle(fontSize: 14)),
+              Text(
+                '${_orders.length} total orders',
+                style: const TextStyle(fontSize: 14),
+              ),
             ],
           ),
         ),
         Expanded(
-          child: isDesktop 
-            ? GridView.builder(
-                padding: const EdgeInsets.all(24),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 3,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: _orders.length,
-                itemBuilder: (context, index) => _buildOrderCard(_orders[index]),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _orders.length,
-                itemBuilder: (context, index) => _buildOrderCard(_orders[index]),
-              ),
+          child:
+              isDesktop
+                  ? GridView.builder(
+                    padding: const EdgeInsets.all(24),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 3,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                    itemCount: _orders.length,
+                    itemBuilder:
+                        (context, index) => _buildOrderCard(_orders[index]),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _orders.length,
+                    itemBuilder:
+                        (context, index) => _buildOrderCard(_orders[index]),
+                  ),
         ),
       ],
     );
@@ -410,9 +482,20 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.shopping_cart_outlined, size: 20)),
-        title: Text('Order ${order['order_number']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('Status: ${order['status']}', style: TextStyle(color: order['status'] == 'completed' ? Colors.green : Colors.orange)),
+        leading: const CircleAvatar(
+          child: Icon(Icons.shopping_cart_outlined, size: 20),
+        ),
+        title: Text(
+          'Order ${order['order_number']}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          'Status: ${order['status']}',
+          style: TextStyle(
+            color:
+                order['status'] == 'completed' ? Colors.green : Colors.orange,
+          ),
+        ),
         trailing: Text(
           'KES ${order['checkout_amount']}',
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -428,7 +511,10 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+            value ?? 'N/A',
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );
@@ -446,7 +532,13 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.longhornMaroon)),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.longhornMaroon,
+              ),
+            ),
             const Divider(),
             ...children,
           ],
@@ -468,7 +560,9 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
         options: MapOptions(
           initialCenter: LatLng(lat, lng),
           initialZoom: 14,
-          interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+          interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.all,
+          ),
         ),
         children: [
           TileLayer(
@@ -481,7 +575,11 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
                 point: LatLng(lat, lng),
                 width: 40,
                 height: 40,
-                child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                child: const Icon(
+                  Icons.location_on,
+                  color: Colors.red,
+                  size: 40,
+                ),
               ),
             ],
           ),
@@ -492,7 +590,12 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
 
   Widget _buildLeadScoreBadge() {
     final score = _schoolData!['lead_score'] ?? 0;
-    final color = score >= 70 ? Colors.greenAccent : score >= 40 ? Colors.orangeAccent : Colors.white;
+    final color =
+        score >= 70
+            ? Colors.greenAccent
+            : score >= 40
+            ? Colors.orangeAccent
+            : Colors.white;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -504,7 +607,174 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
       child: Center(
         child: Text(
           'Score: $score',
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEditDialog() async {
+    final nameController = TextEditingController(
+      text: _schoolData!['name']?.toString() ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: _schoolData!['phone']?.toString() ?? '',
+    );
+    final countyController = TextEditingController(
+      text: _schoolData!['county']?.toString() ?? '',
+    );
+    final ownershipController = TextEditingController(
+      text: _schoolData!['school_ownership']?.toString() ?? '',
+    );
+    final populationController = TextEditingController(
+      text: _schoolData!['school_population']?.toString() ?? '',
+    );
+    final contactNameController = TextEditingController(
+      text: _schoolData!['contact_name']?.toString() ?? '',
+    );
+    final contactPhoneController = TextEditingController(
+      text: _schoolData!['contact_phone']?.toString() ?? '',
+    );
+    final focusAreasController = TextEditingController(
+      text: List<String>.from(
+        _schoolData!['focusAreas'] ?? const [],
+      ).join(', '),
+    );
+    final notesController = TextEditingController(
+      text: _schoolData!['notes']?.toString() ?? '',
+    );
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Edit School Profile'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _editProfileField(nameController, 'School Name'),
+                  _editProfileField(
+                    phoneController,
+                    'Phone',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  _editProfileField(countyController, 'County'),
+                  _editProfileField(ownershipController, 'Ownership'),
+                  _editProfileField(
+                    populationController,
+                    'Population',
+                    keyboardType: TextInputType.number,
+                  ),
+                  _editProfileField(contactNameController, 'Contact Name'),
+                  _editProfileField(
+                    contactPhoneController,
+                    'Contact Phone',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  _editProfileField(focusAreasController, 'Focus Areas'),
+                  _editProfileField(notesController, 'Notes', maxLines: 3),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (nameController.text.trim().isEmpty ||
+                      phoneController.text.trim().isEmpty ||
+                      countyController.text.trim().isEmpty) {
+                    return;
+                  }
+
+                  final focusAreas =
+                      focusAreasController.text
+                          .split(',')
+                          .map((value) => value.trim())
+                          .where((value) => value.isNotEmpty)
+                          .toList();
+
+                  try {
+                    await _supabase
+                        .from('schools')
+                        .update({
+                          'name': nameController.text.trim(),
+                          'phone': phoneController.text.trim(),
+                          'county': countyController.text.trim(),
+                          'school_ownership':
+                              ownershipController.text.trim().isEmpty
+                                  ? null
+                                  : ownershipController.text.trim(),
+                          'school_population': int.tryParse(
+                            populationController.text.trim(),
+                          ),
+                          'contact_name':
+                              contactNameController.text.trim().isEmpty
+                                  ? null
+                                  : contactNameController.text.trim(),
+                          'contact_phone':
+                              contactPhoneController.text.trim().isEmpty
+                                  ? null
+                                  : contactPhoneController.text.trim(),
+                          'focusAreas':
+                              focusAreas.isEmpty
+                                  ? const ['General']
+                                  : focusAreas,
+                          'notes':
+                              notesController.text.trim().isEmpty
+                                  ? null
+                                  : notesController.text.trim(),
+                          'updated_at': DateTime.now().toIso8601String(),
+                        })
+                        .eq('id', widget.schoolId);
+
+                    if (!context.mounted) return;
+                    Navigator.pop(context, true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('School profile updated.')),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to update school profile: $e'),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+    );
+
+    if (saved == true && mounted) {
+      await _fetchData();
+    }
+  }
+
+  Widget _editProfileField(
+    TextEditingController controller,
+    String label, {
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
         ),
       ),
     );
@@ -524,7 +794,10 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
   }
 
   void _launchWhatsAppWithLog() async {
-    final phone = _schoolData!['phone']?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+    final phone = _schoolData!['phone']?.toString().replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
     if (phone != null) {
       final uri = Uri.parse('https://wa.me/254$phone');
       if (await canLaunchUrl(uri)) {
@@ -542,51 +815,60 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Log $type'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: outcomeController,
-              decoration: const InputDecoration(labelText: 'Outcome (e.g., Answered, Left Message)'),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Log $type'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: outcomeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Outcome (e.g., Answered, Left Message)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes', border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (controller.text.isEmpty) return;
-              try {
-                await _supabase.from('opportunity_activities').insert({
-                  'school_id': widget.schoolId,
-                  'opportunity_id': _activeSale?['id'],
-                  'activity_type': type,
-                  'activity_outcome': outcomeController.text,
-                  'notes': controller.text,
-                  'actor_id': _supabase.auth.currentUser?.id,
-                });
-                if (mounted) Navigator.pop(context);
-                _fetchData();
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to log activity: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (controller.text.isEmpty) return;
+                  try {
+                    await _supabase.from('opportunity_activities').insert({
+                      'school_id': widget.schoolId,
+                      'opportunity_id': _activeSale?['id'],
+                      'activity_type': type,
+                      'activity_outcome': outcomeController.text,
+                      'notes': controller.text,
+                      'actor_id': _supabase.auth.currentUser?.id,
+                    });
+                    if (mounted) Navigator.pop(this.context);
+                    _fetchData();
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text('Failed to log activity: $e')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -598,26 +880,28 @@ class _SchoolProfilePageState extends State<SchoolProfilePage> {
       if (mounted) {
         final log = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Log Email?'),
-            content: const Text('Would you like to log this email to the timeline?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
-            ],
-          ),
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Log Email?'),
+                content: const Text(
+                  'Would you like to log this email to the timeline?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('No'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Yes'),
+                  ),
+                ],
+              ),
         );
         if (log == true) {
           _showLogActivityDialog('Email');
         }
       }
-    }
-  }
-
-  Future<void> _launchURL(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
     }
   }
 }

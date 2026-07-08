@@ -21,11 +21,12 @@ class SchoolModel {
   final String? captureStatus;
   final String? contactName;
   final String? contactPhone;
+  final String? contactEmail;
   final String? contactTitle;
   final String? feedback;
   final String? notes;
   final String? samplesLeft;
-  final String? sampleBook;
+  final List<String>? sampleBooks;
   final String? sampleProofUrl;
   final String? sampleProofPath;
   final String? schoolOwnership;
@@ -58,11 +59,12 @@ class SchoolModel {
     this.captureStatus,
     this.contactName,
     this.contactPhone,
+    this.contactEmail,
     this.contactTitle,
     this.feedback,
     this.notes,
     this.samplesLeft,
-    this.sampleBook,
+    this.sampleBooks,
     this.sampleProofUrl,
     this.sampleProofPath,
     this.schoolOwnership,
@@ -97,11 +99,12 @@ class SchoolModel {
       'capture_status': captureStatus,
       'contact_name': contactName,
       'contact_phone': contactPhone,
+      'contact_email': contactEmail,
       'contact_title': contactTitle,
       'feedback': feedback,
       'notes': notes,
       'samples_left': samplesLeft,
-      'sample_book': sampleBook,
+      'sample_books': sampleBooks?.join(','),
       'sample_proof_url': sampleProofUrl,
       'sample_proof_path': sampleProofPath,
       'school_ownership': schoolOwnership,
@@ -144,11 +147,14 @@ class SchoolModel {
       captureStatus: map['capture_status'] ?? map['captureStatus'],
       contactName: map['contact_name'] ?? map['contactName'],
       contactPhone: map['contact_phone'] ?? map['contactPhone'],
+      contactEmail: map['contact_email'] ?? map['contactEmail'],
       contactTitle: map['contact_title'] ?? map['contactTitle'],
       feedback: map['feedback'],
       notes: map['notes'],
       samplesLeft: map['samples_left'] ?? map['samplesLeft'],
-      sampleBook: map['sample_book'] ?? map['sampleBook'],
+      sampleBooks: (map['sample_books'] ?? map['sampleBook'])?.toString().split(
+        ',',
+      ),
       sampleProofUrl: map['sample_proof_url'] ?? map['sampleProofUrl'],
       sampleProofPath: map['sample_proof_path'] ?? map['sampleProofPath'],
       schoolOwnership: map['school_ownership'] ?? map['schoolOwnership'],
@@ -200,11 +206,12 @@ class SchoolModel {
       captureStatus: captureStatus,
       contactName: contactName,
       contactPhone: contactPhone,
+      contactEmail: contactEmail,
       contactTitle: contactTitle,
       feedback: feedback,
       notes: notes,
       samplesLeft: samplesLeft,
-      sampleBook: sampleBook,
+      sampleBooks: sampleBooks,
       sampleProofUrl: sampleProofUrl,
       sampleProofPath: sampleProofPath,
       schoolOwnership: schoolOwnership,

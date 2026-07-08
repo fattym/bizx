@@ -37,7 +37,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
   @override
   void initState() {
     super.initState();
-    _schoolsFuture = _dbService.getAllSchools();
+    _schoolsFuture = _dbService.getMySchools();
     _loadCurrentLocation();
   }
 
@@ -49,7 +49,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
 
   Future<void> _refreshSchools() async {
     setState(() {
-      _schoolsFuture = _dbService.getAllSchools();
+      _schoolsFuture = _dbService.getMySchools();
     });
     await _loadCurrentLocation();
   }
@@ -914,7 +914,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
                     feedback: school.feedback,
                     notes: school.notes,
                     samplesLeft: school.samplesLeft,
-                    sampleBook: school.sampleBook,
+                    sampleBooks: school.sampleBooks,
                     schoolOwnership: school.schoolOwnership,
                     schoolOwnershipOther: school.schoolOwnershipOther,
                     schoolPopulation: school.schoolPopulation,

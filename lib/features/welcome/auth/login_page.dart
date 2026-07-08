@@ -198,13 +198,13 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
                         children: [
                           SizedBox(height: isTablet ? 24 : 52),
                           const Icon(
-                            Icons.shield_outlined,
+                            Icons.menu_book,
                             size: 60,
                             color: AppColors.primaryLight,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            "Agents Portal",
+                            "Commercial Team Portal",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppColors.surfaceWhite,
@@ -214,7 +214,7 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
                             ),
                           ),
                           const Text(
-                            "Log in to manage school accounts and publication workflows",
+                            "Log in to manage commercial accounts and publication workflows",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppColors.primaryPale,

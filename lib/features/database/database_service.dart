@@ -115,7 +115,9 @@ class DatabaseService {
     await syncData();
   }
 
-  Future<SchoolSaveResult> saveSchoolProfileWithStatus(SchoolModel school) async {
+  Future<SchoolSaveResult> saveSchoolProfileWithStatus(
+    SchoolModel school,
+  ) async {
     final box = await _box;
     await box.put(school.id, school.toMap());
 
@@ -193,7 +195,7 @@ class DatabaseService {
       feedback: school.feedback,
       notes: school.notes,
       samplesLeft: school.samplesLeft,
-      sampleBook: school.sampleBook,
+      sampleBooks: school.sampleBooks,
       schoolOwnership: school.schoolOwnership,
       schoolOwnershipOther: school.schoolOwnershipOther,
       schoolPopulation: school.schoolPopulation,
@@ -327,6 +329,46 @@ class DatabaseService {
     }
   }
 
+  Future<List<SchoolModel>> getMySchools() async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) return <SchoolModel>[];
+    
+    try {
+      await syncData();
+    } catch (e) {
+      debugPrint("Pre-fetch sync failed: $e");
+    }
+
+    final localSchools = await getAllSchoolProfiles();
+    final myLocalSchools = localSchools.where((s) => s.capturedBy == currentUserId).toList();
+    
+    try {
+      final data = await _supabase
+          .from('schools')
+          .select()
+          .eq('captured_by', currentUserId)
+          .order('created_at');
+      final remoteSchools =
+          (data as List)
+              .map(
+                (item) => SchoolModel.fromMap(
+                  Map<String, dynamic>.from(item),
+                ).copyWithSynced(true),
+              )
+              .toList();
+
+      final merged = <String, SchoolModel>{
+        for (final school in myLocalSchools) school.id: school,
+        for (final school in remoteSchools) school.id: school,
+      };
+
+      return merged.values.toList();
+    } catch (e) {
+      debugPrint("Error getting my schools from Supabase: $e");
+      return myLocalSchools;
+    }
+  }
+
   Future<List<TaskModel>> getAllTasks() async {
     try {
       final data = await _supabase
@@ -359,6 +401,93 @@ class DatabaseService {
       debugPrint("Error getting tasks for role $role from Supabase: $e");
       return <TaskModel>[];
     }
+  }
+
+  Future<Map<String, dynamic>> getPerformanceMetrics({
+    required String period,
+    int? role,
+  }) async {
+    final now = DateTime.now();
+    final start =
+        period == 'daily'
+            ? DateTime(now.year, now.month, now.day)
+            : period == 'weekly'
+            ? now.subtract(const Duration(days: 7))
+            : period == 'monthly'
+            ? DateTime(now.year, now.month, 1)
+            : DateTime(now.year, 1, 1);
+    final target =
+        period == 'daily'
+            ? 15.0
+            : period == 'weekly'
+            ? 35.0
+            : period == 'monthly'
+            ? 60.0
+            : 720.0;
+    final currentUserId = _supabase.auth.currentUser?.id;
+    final agentId = role == 1 ? null : currentUserId;
+    final startIso = start.toIso8601String();
+    final nowIso = now.toIso8601String();
+
+    Future<int> countRows(
+      String table,
+      String dateColumn, {
+      String? status,
+      String? statusColumn,
+    }) async {
+      var query = _supabase.from(table).select('id');
+      if (agentId != null) {
+        query = query.eq('agent_id', agentId);
+      }
+      query = query.gte(dateColumn, startIso).lte(dateColumn, nowIso);
+      if (status != null) {
+        query = query.eq(statusColumn ?? 'status', status);
+      }
+      final response = await query;
+      return (response as List).length;
+    }
+
+    Future<int> countVisitedSchools() async {
+      var query = _supabase.from('school_visits').select('school_id');
+      if (agentId != null) {
+        query = query.eq('agent_id', agentId);
+      }
+      query = query.gte('visited_at', startIso).lte('visited_at', nowIso);
+      final response = await query;
+      return (response as List)
+          .map((row) => row['school_id']?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .length;
+    }
+
+    final visits = await countRows('school_visits', 'visited_at');
+    final orders = await countRows(
+      'orders',
+      'created_at',
+      status: 'paid',
+      statusColumn: 'status',
+    );
+    final wonSales = await countRows(
+      'school_sales',
+      'created_at',
+      status: 'won',
+      statusColumn: 'sale_status',
+    );
+    final visitedSchools = await countVisitedSchools();
+    final percent =
+        visits == 0 ? 0 : ((visits / target) * 100).clamp(0, 100).round();
+
+    return {
+      'period': period,
+      'percent': percent,
+      'target': target.round(),
+      'visits': visits,
+      'orders': orders,
+      'wonSales': wonSales,
+      'visitedSchools': visitedSchools,
+    };
   }
 
   Future<void> createTask(TaskModel task) async {
@@ -408,11 +537,12 @@ class DatabaseService {
 
   Future<bool> schoolExists(String schoolId) async {
     try {
-      final row = await _supabase
-          .from('schools')
-          .select('id')
-          .eq('id', schoolId)
-          .maybeSingle();
+      final row =
+          await _supabase
+              .from('schools')
+              .select('id')
+              .eq('id', schoolId)
+              .maybeSingle();
       return row != null;
     } catch (e) {
       debugPrint("Error checking school existence for $schoolId: $e");
@@ -517,14 +647,19 @@ class DatabaseService {
           .select()
           .order('name', ascending: true);
 
-      final items = List<Map<String, dynamic>>.from(response)
-          .where((row) {
-            final isActive = (row['is_active'] ?? true) == true;
-            final itemType = (row['item_type'] ?? '').toString().toLowerCase();
-            return isActive && itemType.contains('sample');
-          })
-          .map((row) => CatalogItemModel.fromMap(Map<String, dynamic>.from(row)))
-          .toList();
+      final items =
+          List<Map<String, dynamic>>.from(response)
+              .where((row) {
+                final isActive = (row['is_active'] ?? true) == true;
+                final itemType =
+                    (row['item_type'] ?? '').toString().toLowerCase();
+                return isActive && itemType.contains('sample');
+              })
+              .map(
+                (row) =>
+                    CatalogItemModel.fromMap(Map<String, dynamic>.from(row)),
+              )
+              .toList();
 
       final box = await _catalogBox;
       for (final item in items) {
@@ -535,7 +670,9 @@ class DatabaseService {
       debugPrint('Error fetching sample catalog items: $e');
       final fallback = await getCatalogItems(itemType: null, activeOnly: true);
       return fallback
-          .where((item) => item.itemType.trim().toLowerCase().contains('sample'))
+          .where(
+            (item) => item.itemType.trim().toLowerCase().contains('sample'),
+          )
           .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
     }
@@ -1035,7 +1172,10 @@ class DatabaseService {
 }
 
 class SchoolSaveResult {
-  const SchoolSaveResult({required this.syncedToDatabase, required this.message});
+  const SchoolSaveResult({
+    required this.syncedToDatabase,
+    required this.message,
+  });
 
   final bool syncedToDatabase;
   final String message;

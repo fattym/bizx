@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/colors.dart';
 import '../../core/constants/sales_access.dart';
@@ -210,7 +211,8 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                             return;
                           }
 
-                          final docsDir = await getApplicationDocumentsDirectory();
+                          final docsDir =
+                              await getApplicationDocumentsDirectory();
                           final invoicesDir = Directory(
                             '${docsDir.path}/invoices',
                           );
@@ -243,15 +245,22 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       icon: const Icon(Icons.download),
                       label: const Text('Download Invoice'),
                     ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => _shareInvoiceOnWhatsApp(order, items),
+                      icon: const Icon(Icons.share),
+                      label: const Text('Share Invoice on WhatsApp'),
+                    ),
                     if (_canFinishPendingOrder && _isPending(order)) ...[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
-                        onPressed: _busyUpdating
-                            ? null
-                            : () async {
-                                Navigator.pop(context);
-                                await _finishPendingOrder(order);
-                              },
+                        onPressed:
+                            _busyUpdating
+                                ? null
+                                : () async {
+                                  Navigator.pop(context);
+                                  await _finishPendingOrder(order);
+                                },
                         icon: const Icon(Icons.task_alt),
                         label: const Text('Update & Finish'),
                       ),
@@ -336,10 +345,68 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     );
   }
 
+  Future<void> _shareInvoiceOnWhatsApp(
+    OrderModel order,
+    List<OrderItemModel> items,
+  ) async {
+    final itemSummary =
+        items.isEmpty
+            ? 'No items'
+            : items
+                .map(
+                  (item) =>
+                      '- ${item.productName}: ${item.quantity} x KES ${item.unitPrice.toStringAsFixed(0)}',
+                )
+                .join('\n');
+    final message = '''Invoice ${order.orderNumber}
+School: ${order.schoolName}
+Amount: KES ${order.checkoutAmount.toStringAsFixed(0)}
+Status: ${order.status.toUpperCase()}
+Items:
+$itemSummary''';
+    final encodedMessage = Uri.encodeComponent(message);
+    final phone = order.schoolPhone?.replaceAll(RegExp(r'[^0-9]'), '');
+    final normalizedPhone =
+        phone == null || phone.isEmpty
+            ? ''
+            : phone.startsWith('254')
+            ? phone
+            : phone.startsWith('0')
+            ? '254${phone.substring(1)}'
+            : phone;
+
+    final candidates = <Uri>[
+      if (normalizedPhone.isNotEmpty)
+        Uri.parse(
+          'whatsapp://send?phone=$normalizedPhone&text=$encodedMessage',
+        ),
+      Uri.parse('whatsapp://send?text=$encodedMessage'),
+      if (normalizedPhone.isNotEmpty)
+        Uri.parse('https://wa.me/$normalizedPhone?text=$encodedMessage'),
+      Uri.parse('https://api.whatsapp.com/send?text=$encodedMessage'),
+    ];
+
+    for (final uri in candidates) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    try {
+      await _invoiceService.shareInvoice(order: order, items: items);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open WhatsApp or share invoice: $e')),
+      );
+    }
+  }
+
   Future<void> _finishPendingOrder(OrderModel order) async {
-    final paymentMethodController = TextEditingController(
-      text: order.paymentMethod,
-    );
     final referenceController = TextEditingController(
       text: order.paymentReference ?? '',
     );

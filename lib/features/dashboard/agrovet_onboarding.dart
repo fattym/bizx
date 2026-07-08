@@ -28,6 +28,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   final TextEditingController _contactNameController = TextEditingController();
   final TextEditingController _contactPhoneController = TextEditingController();
   final TextEditingController _contactTitleController = TextEditingController();
+  final TextEditingController _contactEmailController = TextEditingController();
   final TextEditingController _feedbackController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _schoolOwnershipOtherController =
@@ -41,7 +42,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   String? _selectedProduct;
   String? _selectedBookProgram;
   String? _samplesLeft;
-  String? _selectedSampleBook;
+  List<String> _selectedSampleBooks = [];
   String? _selectedSampleCategory;
   String? _partnerSubtype;
   String? _selectedCounty;
@@ -60,14 +61,6 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   bool isOffline = true;
   bool _isSubmitting = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
-
-  static const List<String> _bookOptions = [
-    "Grade 1 Reader Pack",
-    "English Workbook Bundle",
-    "Reference Handbook",
-    "Story Books Pack",
-    "Teacher Guide Kit",
-  ];
 
   static const List<String> _crmPipelineStatusOptions = [
     'Lead',
@@ -102,6 +95,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     _contactNameController.dispose();
     _contactPhoneController.dispose();
     _contactTitleController.dispose();
+    _contactEmailController.dispose();
     _feedbackController.dispose();
     _notesController.dispose();
     _schoolOwnershipOtherController.dispose();
@@ -221,6 +215,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               ? null
               : _contactNameController.text.trim(),
       contactPhone: _contactPhoneController.text.trim(),
+      contactEmail:
+          _contactEmailController.text.trim().isEmpty
+              ? null
+              : _contactEmailController.text.trim(),
       contactTitle:
           _contactTitleController.text.trim().isEmpty
               ? null
@@ -234,7 +232,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               ? null
               : _notesController.text.trim(),
       samplesLeft: _samplesLeft,
-      sampleBook: _selectedSampleBook,
+      sampleBooks: _selectedSampleBooks.isEmpty ? null : _selectedSampleBooks,
       sampleProofUrl: uploadedSampleProof['proofUrl'],
       sampleProofPath: uploadedSampleProof['proofPath'],
       schoolOwnership: _schoolOwnership,
@@ -269,23 +267,23 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       syncedToDatabase = saveResult.syncedToDatabase;
       syncMessage = saveResult.message;
       if (_samplesLeft == 'Yes' &&
-          (uploadedSampleProof['proofUrl'] ?? '').trim().isNotEmpty) {
+          (uploadedSampleProof['proofUrl'] ?? '').trim().isNotEmpty &&
+          _selectedSampleBooks.isNotEmpty) {
         try {
-          await _dbService.recordSampleDistribution(
-            schoolId: school.id,
-            sampleName:
-                _selectedSampleBook?.trim().isNotEmpty == true
-                    ? _selectedSampleBook!.trim()
-                    : 'Sample Book',
-            sampleCategory:
-                _selectedSampleCategory ??
-                _sampleBookCategoryByLabel[_selectedSampleBook] ??
-                'Onboarding',
-            quantity: 1,
-            notes: 'Captured during onboarding',
-            stampedReceiptUrl: uploadedSampleProof['proofUrl'],
-            stampedReceiptPath: uploadedSampleProof['proofPath'],
-          );
+          for (final book in _selectedSampleBooks) {
+            await _dbService.recordSampleDistribution(
+              schoolId: school.id,
+              sampleName: book.trim().isNotEmpty ? book.trim() : 'Sample Book',
+              sampleCategory:
+                  _selectedSampleCategory ??
+                  _sampleBookCategoryByLabel[book] ??
+                  'Onboarding',
+              quantity: 1,
+              notes: 'Captured during onboarding',
+              stampedReceiptUrl: uploadedSampleProof['proofUrl'],
+              stampedReceiptPath: uploadedSampleProof['proofPath'],
+            );
+          }
         } catch (e) {
           debugPrint('Could not create onboarding sample receipt row: $e');
           if (mounted) {
@@ -315,8 +313,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             syncedToDatabase
                 ? "${_dealerType ?? "School"} onboarded and synced to database."
                 : syncMessage.isEmpty
-                    ? "${_dealerType ?? "School"} saved locally. Database sync pending."
-                    : syncMessage,
+                ? "${_dealerType ?? "School"} saved locally. Database sync pending."
+                : syncMessage,
           ),
           backgroundColor:
               syncedToDatabase ? AppColors.primaryGreen : Colors.orange,
@@ -375,7 +373,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+        ),
       );
       final accuracy = position.accuracy;
       if (!mounted) return;
@@ -592,7 +592,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           if (_dealerType == "School")
             _buildDropdown(
               "School Category",
-              ["Primary", "Secondary"],
+              [
+                "ECDE",
+                "Primary",
+                "Junior Secondary",
+                "Senior Secondary",
+                "University",
+                "Others",
+              ],
               (val) => setState(() => _shopCategory = val),
               value: _shopCategory,
             )
@@ -687,7 +694,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               (val) => setState(() {
                 _schoolLifecycleStatus = val;
                 final stages = _crmEngagementStages;
-                if (_engagementType != null && !stages.contains(_engagementType)) {
+                if (_engagementType != null &&
+                    !stages.contains(_engagementType)) {
                   _engagementType = null;
                 }
               }),
@@ -725,6 +733,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           _buildTextField(
             _contactPhoneLabel,
             controller: _contactPhoneController,
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            _contactEmailLabel,
+            controller: _contactEmailController,
+            keyboardType: TextInputType.emailAddress,
+            helperText: 'Optional',
           ),
           const SizedBox(height: 16),
           _buildTextField(
@@ -740,7 +756,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               _samplesLeft = val;
               if (val != "Yes") {
                 _selectedSampleCategory = null;
-                _selectedSampleBook = null;
+                _selectedSampleBooks = [];
                 _sampleProofPhoto = null;
                 _sampleProofPhotoBytes = null;
               }
@@ -754,10 +770,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               _sampleBookCategories,
               (val) => setState(() {
                 _selectedSampleCategory = val;
-                if (_selectedSampleBook != null &&
-                    !_filteredSampleBookOptions.contains(_selectedSampleBook)) {
-                  _selectedSampleBook = null;
-                }
+                _selectedSampleBooks = [];
               }),
               value: _selectedSampleCategory,
             ),
@@ -771,12 +784,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               },
             ),
             const SizedBox(height: 12),
-            _buildDropdown(
-              _sampleBookLabel,
-              _filteredSampleBookOptions,
-              (val) => setState(() => _selectedSampleBook = val),
-              value: _selectedSampleBook,
-            ),
+            _buildMultiSelectSampleBooks(),
             if (_sampleBookOptions.isEmpty) ...[
               const SizedBox(height: 8),
               Row(
@@ -791,6 +799,29 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                     onPressed: _loadSampleBooks,
                     child: const Text('Reload'),
                   ),
+                ],
+              ),
+            ],
+            if (_selectedSampleBooks.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final book in _selectedSampleBooks)
+                    Chip(
+                      label: Text(
+                        book,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onDeleted: () {
+                        setState(() {
+                          _selectedSampleBooks.remove(book);
+                        });
+                      },
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                    ),
                 ],
               ),
             ],
@@ -867,9 +898,12 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             lines: [
               "${_contactNameLabel}: ${_contactNameController.text.trim().isEmpty ? '-' : _contactNameController.text.trim()}",
               "${_contactPhoneLabel}: ${_contactPhoneController.text.trim()}",
+              "${_contactEmailLabel}: ${_contactEmailController.text.trim().isEmpty ? '-' : _contactEmailController.text.trim()}",
               "${_contactTitleLabel}: ${_contactTitleController.text.trim().isEmpty ? '-' : _contactTitleController.text.trim()}",
               "Samples Left: ${_samplesLeft ?? '-'}",
-              "Selected Sample Book: ${_selectedSampleBook ?? '-'}",
+              _selectedSampleBooks.isEmpty
+                  ? "Selected Sample Book: -"
+                  : "Selected Sample Books: ${_selectedSampleBooks.join(', ')}",
               "Sample Proof: ${_sampleProofPhoto != null ? 'Captured' : 'Not captured'}",
             ],
           ),
@@ -940,6 +974,18 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     }
   }
 
+  String get _contactEmailLabel {
+    switch (_dealerType) {
+      case "Bookshop":
+        return "Bookshop Email";
+      case "Distributor":
+        return "Distributor Email";
+      case "School":
+      default:
+        return "Email";
+    }
+  }
+
   String get _contactTitleLabel {
     switch (_dealerType) {
       case "Bookshop":
@@ -973,18 +1019,6 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       case "School":
       default:
         return "Samples left?";
-    }
-  }
-
-  String get _sampleBookLabel {
-    switch (_dealerType) {
-      case "Bookshop":
-        return "Select Book for Bookshop";
-      case "Distributor":
-        return "Select Book for Distributor";
-      case "School":
-      default:
-        return "Select Book";
     }
   }
 
@@ -1071,12 +1105,42 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     );
   }
 
+  Widget _buildMultiSelectSampleBooks() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children:
+          _filteredSampleBookOptions
+              .map(
+                (item) => FilterChip(
+                  label: Text(
+                    item,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: _selectedSampleBooks.contains(item),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedSampleBooks.add(item);
+                      } else {
+                        _selectedSampleBooks.remove(item);
+                      }
+                    });
+                  },
+                ),
+              )
+              .toList(),
+    );
+  }
+
   Widget _buildTextField(
     String label, {
     TextEditingController? controller,
     int maxLines = 1,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
+    String? helperText,
   }) {
     return TextField(
       controller: controller,
@@ -1085,6 +1149,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
+        helperText: helperText,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
@@ -1093,13 +1158,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   List<String> get _filteredSampleBookOptions {
     var options = _sampleBookOptions;
     if ((_selectedSampleCategory ?? '').trim().isNotEmpty) {
-      options = options
-          .where(
-            (item) =>
-                (_sampleBookCategoryByLabel[item] ?? '').toLowerCase() ==
-                _selectedSampleCategory!.toLowerCase(),
-          )
-          .toList();
+      options =
+          options
+              .where(
+                (item) =>
+                    (_sampleBookCategoryByLabel[item] ?? '').toLowerCase() ==
+                    _selectedSampleCategory!.toLowerCase(),
+              )
+              .toList();
     }
     if (_sampleBookSearchQuery.isEmpty) return options;
     return options
@@ -1108,11 +1174,12 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }
 
   List<String> get _sampleBookCategories {
-    final categories = _sampleBookCategoryByLabel.values
-        .where((c) => c.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final categories =
+        _sampleBookCategoryByLabel.values
+            .where((c) => c.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return categories;
   }
 
@@ -1284,8 +1351,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       'shopName': _shopNameController.text,
       'county': _selectedCounty,
       'contactName': _contactNameController.text,
+      'contactEmail': _contactEmailController.text,
       'samplesLeft': _samplesLeft,
-      'selectedSampleBook': _selectedSampleBook,
       'sampleProofCaptured': _sampleProofPhoto != null,
       'schoolOwnership': _schoolOwnership,
       'schoolOwnershipOther': _schoolOwnershipOtherController.text,
@@ -1451,15 +1518,16 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
       if (!mounted) return;
 
-      final options = items
-          .map((item) {
-            final name = item.name.trim();
-            final sku = item.sku.trim();
-            if (name.isEmpty) return '';
-            return sku.isEmpty ? name : '$name (SKU: $sku)';
-          })
-          .where((label) => label.trim().isNotEmpty)
-          .toList();
+      final options =
+          items
+              .map((item) {
+                final name = item.name.trim();
+                final sku = item.sku.trim();
+                if (name.isEmpty) return '';
+                return sku.isEmpty ? name : '$name (SKU: $sku)';
+              })
+              .where((label) => label.trim().isNotEmpty)
+              .toList();
       final categoryByLabel = <String, String>{};
       for (final item in items) {
         final name = item.name.trim();
@@ -1478,10 +1546,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             !_sampleBookCategories.contains(_selectedSampleCategory)) {
           _selectedSampleCategory = null;
         }
-        if (_selectedSampleBook != null &&
-            !_sampleBookOptions.contains(_selectedSampleBook)) {
-          _selectedSampleBook = null;
-        }
+        _selectedSampleBooks =
+            _selectedSampleBooks
+                .where((book) => _sampleBookOptions.contains(book))
+                .toList();
       });
     } catch (e) {
       debugPrint('Error loading sample books: $e');
@@ -1525,10 +1593,12 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             ],
           ),
           const SizedBox(height: 4),
-          ...lines.map((line) => Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(line),
-              )),
+          ...lines.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(line),
+            ),
+          ),
         ],
       ),
     );
@@ -1622,8 +1692,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       if (_samplesLeft == null) {
         return 'Please indicate whether samples were left.';
       }
-      if (_samplesLeft == "Yes" && _selectedSampleBook == null) {
-        return 'Please select the sample book left.';
+      if (_samplesLeft == "Yes" && _selectedSampleBooks.isEmpty) {
+        return 'Please select at least one sample book left.';
       }
       if (_samplesLeft == "Yes" && _sampleBookOptions.isEmpty) {
         return 'No sample books found. Add sample books in catalog first.';

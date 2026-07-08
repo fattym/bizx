@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../dashboard/agrovet_onboarding.dart';
-import '../dashboard/farmer_profiling.dart';
 import '../dashboard/my_orders_page.dart';
 import '../dashboard/sample_distribution_page.dart';
 import '../dashboard/grounds_quotation_page.dart';
 import '../dashboard/my_shops_page.dart';
+import '../dashboard/role5_school_profiles_page.dart';
 import 'bas_alerts_page.dart';
 import 'crm_settings_page.dart';
 import 'user_profile_page.dart';
@@ -26,10 +26,20 @@ class SalesDashboard extends StatefulWidget {
 
 class _SalesDashboardState extends State<SalesDashboard> {
   final DatabaseService _dbService = DatabaseService();
-  final PageController _performanceCarouselController = PageController();
+  final PageController _performanceCarouselController = PageController(
+    viewportFraction: 0.82,
+  );
+  late final Future<Map<String, Map<String, dynamic>>>
+  _performanceMetricsFuture;
   bool _showAssignedTasks = false;
   bool _autoHideAssignedTasks = true;
   int _performanceCarouselIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _performanceMetricsFuture = _loadPerformanceMetrics();
+  }
 
   @override
   void dispose() {
@@ -96,14 +106,14 @@ class _SalesDashboardState extends State<SalesDashboard> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                Switch.adaptive(
-                                  value: _autoHideAssignedTasks,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _autoHideAssignedTasks = value;
-                                    });
-                                  },
-                                ),
+                                // Switch.adaptive(
+                                //   value: _autoHideAssignedTasks,
+                                //   onChanged: (value) {
+                                //     setState(() {
+                                //       _autoHideAssignedTasks = value;
+                                //     });
+                                //   },
+                                // ),
                                 IconButton(
                                   tooltip:
                                       _showAssignedTasks
@@ -236,7 +246,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
               () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SchoolProfiling(),
+                  builder: (context) => const Role5SchoolProfilesPage(),
                 ),
               ),
         ),
@@ -611,112 +621,210 @@ class _SalesDashboardState extends State<SalesDashboard> {
         final isCompact = width < 420;
         final cardWidthFactor = isCompact ? 1.0 : (width < 700 ? 0.92 : 0.72);
         final cardHeight = isCompact ? 188.0 : 196.0;
-        final performanceCards = [
-          (
-            "Daily Performance",
-            "87%",
-            Icons.today_outlined,
-            AppColors.primaryGreen,
-            '15',
-            '80',
-            '08',
-            '12',
-          ),
-          (
-            "Weekly Performance",
-            "90%",
-            Icons.view_week_outlined,
-            AppColors.primaryDark,
-            '35',
-            '200',
-            '20',
-            '30',
-          ),
-          (
-            "Monthly Performance",
-            "91%",
-            Icons.calendar_month_outlined,
-            AppColors.secondaryOrange,
-            '60',
-            '320',
-            '34',
-            '48',
-          ),
-          (
-            "Quarterly Performance",
-            "89%",
-            Icons.date_range_outlined,
-            AppColors.primaryGreen,
-            '180',
-            '960',
-            '102',
-            '144',
-          ),
-          (
-            "Yearly Performance",
-            "93%",
-            Icons.insights_outlined,
-            AppColors.secondaryOrange,
-            '720',
-            '3840',
-            '408',
-            '576',
-          ),
-        ];
 
-        return Column(
-          children: [
-            SizedBox(
-              height: cardHeight,
-              child: PageView.builder(
-                controller: _performanceCarouselController,
-                itemCount: 5,
-                onPageChanged: (index) {
-                  setState(() {
-                    _performanceCarouselIndex = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final card = performanceCards[index];
-                  return Center(
-                    child: FractionallySizedBox(
-                      widthFactor: cardWidthFactor,
-                      child: _metricCard(
-                        card.$1,
-                        card.$2,
-                        card.$3,
-                        card.$4,
-                        compact: isCompact,
-                        schoolTarget: card.$5,
-                        weeklyTarget: card.$6,
-                        institutionLeads: card.$7,
-                        weeklyVisits: card.$8,
-                      ),
-                    ),
-                  );
-                },
+        return FutureBuilder<Map<String, Map<String, dynamic>>>(
+          future: _performanceMetricsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildLoadingPerformanceGrid(cardHeight);
+            }
+
+            if (snapshot.hasError) {
+              return _buildErrorPerformanceGrid(cardHeight, snapshot.error);
+            }
+
+            final daily = snapshot.data?['daily'] ?? {};
+            final weekly = snapshot.data?['weekly'] ?? {};
+            final monthly = snapshot.data?['monthly'] ?? {};
+            final yearly = snapshot.data?['yearly'] ?? {};
+            final performanceCards = [
+              (
+                "Daily Performance",
+                "${daily['percent'] ?? 0}%",
+                Icons.today_outlined,
+                AppColors.primaryGreen,
+                daily['target']?.toString() ?? '15',
+                daily['target']?.toString() ?? '15',
+                daily['wonSales']?.toString() ?? '0',
+                daily['visits']?.toString() ?? '0',
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                final active = index == _performanceCarouselIndex;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 16 : 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: active ? AppColors.primaryGreen : AppColors.borderGrey,
-                    borderRadius: BorderRadius.circular(999),
+              (
+                "Weekly Performance",
+                "${weekly['percent'] ?? 0}%",
+                Icons.view_week_outlined,
+                AppColors.primaryDark,
+                weekly['target']?.toString() ?? '35',
+                weekly['target']?.toString() ?? '35',
+                weekly['wonSales']?.toString() ?? '0',
+                weekly['visits']?.toString() ?? '0',
+              ),
+              (
+                "Monthly Performance",
+                "${monthly['percent'] ?? 0}%",
+                Icons.calendar_month_outlined,
+                AppColors.secondaryOrange,
+                monthly['target']?.toString() ?? '60',
+                monthly['target']?.toString() ?? '60',
+                monthly['wonSales']?.toString() ?? '0',
+                monthly['visits']?.toString() ?? '0',
+              ),
+              (
+                "Yearly Performance",
+                "${yearly['percent'] ?? 0}%",
+                Icons.insights_outlined,
+                AppColors.primaryGreen,
+                yearly['target']?.toString() ?? '720',
+                yearly['target']?.toString() ?? '720',
+                yearly['wonSales']?.toString() ?? '0',
+                yearly['visits']?.toString() ?? '0',
+              ),
+            ];
+
+            return Column(
+              children: [
+                SizedBox(
+                  height: cardHeight,
+                  child: PageView.builder(
+                    controller: _performanceCarouselController,
+                    itemCount: performanceCards.length,
+                    padEnds: false,
+                    physics: const PageScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    onPageChanged: (index) {
+                      setState(() {
+                        _performanceCarouselIndex = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      final card = performanceCards[index];
+                      return Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 8 : 12,
+                          ),
+                          child: FractionallySizedBox(
+                            widthFactor: cardWidthFactor,
+                            child: _metricCard(
+                              card.$1,
+                              card.$2,
+                              card.$3,
+                              card.$4,
+                              compact: isCompact,
+                              schoolTarget: card.$5,
+                              weeklyTarget: card.$6,
+                              institutionLeads: card.$7,
+                              weeklyVisits: card.$8,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              }),
-            ),
-          ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(performanceCards.length, (index) {
+                    final active = index == _performanceCarouselIndex;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: active ? 16 : 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color:
+                            active
+                                ? AppColors.primaryGreen
+                                : AppColors.borderGrey,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            );
+          },
         );
       },
+    );
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _loadPerformanceMetrics() async {
+    final role = await _dbService.getCurrentUserRole();
+    final daily = await _dbService.getPerformanceMetrics(
+      period: 'daily',
+      role: role,
+    );
+    final weekly = await _dbService.getPerformanceMetrics(
+      period: 'weekly',
+      role: role,
+    );
+    final monthly = await _dbService.getPerformanceMetrics(
+      period: 'monthly',
+      role: role,
+    );
+    final yearly = await _dbService.getPerformanceMetrics(
+      period: 'yearly',
+      role: role,
+    );
+    return {
+      'daily': daily,
+      'weekly': weekly,
+      'monthly': monthly,
+      'yearly': yearly,
+    };
+  }
+
+  Widget _buildLoadingPerformanceGrid(double cardHeight) {
+    return SizedBox(
+      height: cardHeight,
+      child: Center(
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorPerformanceGrid(double cardHeight, Object? error) {
+    return SizedBox(
+      height: cardHeight,
+      child: Center(
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.insights_outlined, color: Colors.orange),
+                const SizedBox(height: 8),
+                const Text(
+                  'Performance metrics could not be loaded.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  error?.toString() ?? 'Unknown error',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

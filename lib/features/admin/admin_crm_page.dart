@@ -28,6 +28,10 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   final List<_CrmRecord> _records = <_CrmRecord>[];
   final Map<String, Map<String, dynamic>> _schoolsById = {};
   final Map<String, Map<String, dynamic>> _usersById = {};
+  Map<String, dynamic> _dailyPerformance = {};
+  Map<String, dynamic> _weeklyPerformance = {};
+  Map<String, dynamic> _monthlyPerformance = {};
+  Map<String, dynamic> _yearlyPerformance = {};
   bool _isLoading = true;
 
   final List<String> _stages = <String>[
@@ -65,6 +69,25 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
             'id,school_id,agent_id,expected_value,notes,sale_status,probability,next_action_date,stage_updated_at,created_at',
           )
           .order('updated_at', ascending: false);
+
+      try {
+        _dailyPerformance = await _dbService.getPerformanceMetrics(
+          period: 'daily',
+          role: 1,
+        );
+        _weeklyPerformance = await _dbService.getPerformanceMetrics(
+          period: 'weekly',
+          role: 1,
+        );
+        _monthlyPerformance = await _dbService.getPerformanceMetrics(
+          period: 'monthly',
+          role: 1,
+        );
+        _yearlyPerformance = await _dbService.getPerformanceMetrics(
+          period: 'yearly',
+          role: 1,
+        );
+      } catch (_) {}
 
       _schoolsById
         ..clear()
@@ -168,12 +191,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
     return rows;
   }
 
-  double get _pipelineValue =>
-      _visibleRecords.fold(0, (sum, record) => sum + record.dealValue);
-  double get _weightedForecast => _visibleRecords.fold(
-    0,
-    (sum, record) => sum + record.dealValue * (record.probability / 100),
-  );
+  double get _pipelineValue => _visibleRecords
+      .where((record) => record.stage == 'Won')
+      .fold(0, (sum, record) => sum + record.dealValue);
   int get _atRiskCount =>
       _visibleRecords.where((record) => record.riskLevel == 'High').length;
 
@@ -432,16 +452,20 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   @override
   Widget build(BuildContext context) {
     final records = _visibleRecords;
-    final isSmallScreen = MediaQuery.of(context).size.width < 900;
+    final isSmallScreen = MediaQuery.of(context).size.width < 720;
+    final isDesktop = MediaQuery.of(context).size.width >= 1100;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.longhornMaroon,
         foregroundColor: Colors.white,
-        title: const Text('CRM Workspace', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'CRM Workspace',
+          style: TextStyle(color: Colors.white),
+        ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          if (!isSmallScreen) ...[
+          if (isDesktop) ...[
             Theme(
               data: Theme.of(context).copyWith(
                 toggleButtonsTheme: const ToggleButtonsThemeData(
@@ -470,7 +494,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const DuplicateDetectionPage()),
+                  MaterialPageRoute(
+                    builder: (context) => const DuplicateDetectionPage(),
+                  ),
                 );
               },
               icon: const Icon(Icons.copy_all),
@@ -495,23 +521,52 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                 if (value == 2) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const DuplicateDetectionPage()),
+                    MaterialPageRoute(
+                      builder: (context) => const DuplicateDetectionPage(),
+                    ),
                   );
                 }
                 if (value == 3) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AuditLogPage()),
+                    MaterialPageRoute(
+                      builder: (context) => const AuditLogPage(),
+                    ),
                   );
                 }
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 0, child: ListTile(leading: Icon(Icons.table_rows), title: Text('Table View'))),
-                const PopupMenuItem(value: 1, child: ListTile(leading: Icon(Icons.view_kanban), title: Text('Kanban View'))),
-                const PopupMenuDivider(),
-                const PopupMenuItem(value: 2, child: ListTile(leading: Icon(Icons.copy_all), title: Text('Duplicates'))),
-                const PopupMenuItem(value: 3, child: ListTile(leading: Icon(Icons.history_edu), title: Text('Audit Log'))),
-              ],
+              itemBuilder:
+                  (context) => [
+                    const PopupMenuItem(
+                      value: 0,
+                      child: ListTile(
+                        leading: Icon(Icons.table_rows),
+                        title: Text('Table View'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 1,
+                      child: ListTile(
+                        leading: Icon(Icons.view_kanban),
+                        title: Text('Kanban View'),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 2,
+                      child: ListTile(
+                        leading: Icon(Icons.copy_all),
+                        title: Text('Duplicates'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 3,
+                      child: ListTile(
+                        leading: Icon(Icons.history_edu),
+                        title: Text('Audit Log'),
+                      ),
+                    ),
+                  ],
             ),
           IconButton(
             tooltip: 'Toggle date sort',
@@ -530,91 +585,235 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                return [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16).copyWith(bottom: 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                _MetricTile(label: 'Total Records', value: '${records.length}'),
-                                const SizedBox(width: 10),
-                                _MetricTile(label: 'Pipeline Value', value: 'KES ${_pipelineValue.toStringAsFixed(0)}'),
-                                const SizedBox(width: 10),
-                                _MetricTile(label: 'Weighted Forecast', value: 'KES ${_weightedForecast.toStringAsFixed(0)}'),
-                                const SizedBox(width: 10),
-                                _MetricTile(label: 'Leads', value: '${_countByStage('Lead')}'),
-                                const SizedBox(width: 10),
-                                _MetricTile(label: 'Proposals', value: '${_countByStage('Proposal')}'),
-                                const SizedBox(width: 10),
-                                _MetricTile(label: 'High Risk', value: '$_atRiskCount'),
-                              ],
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16).copyWith(bottom: 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SingleChildScrollView(
+                              scrollDirection:
+                                  isSmallScreen
+                                      ? Axis.horizontal
+                                      : Axis.vertical,
+                              child:
+                                  isSmallScreen
+                                      ? Row(
+                                        children: [
+                                          _MetricTile(
+                                            label: 'Total Records',
+                                            value: '${records.length}',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Won Pipeline',
+                                            value:
+                                                'KES ${_pipelineValue.toStringAsFixed(0)}',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Daily Perf.',
+                                            value:
+                                                '${_dailyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Weekly Perf.',
+                                            value:
+                                                '${_weeklyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Monthly Perf.',
+                                            value:
+                                                '${_monthlyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Yearly Perf.',
+                                            value:
+                                                '${_yearlyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Leads',
+                                            value: '${_countByStage('Lead')}',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'Proposals',
+                                            value:
+                                                '${_countByStage('Proposal')}',
+                                          ),
+                                          const SizedBox(width: 10),
+                                          _MetricTile(
+                                            label: 'High Risk',
+                                            value: '$_atRiskCount',
+                                          ),
+                                        ],
+                                      )
+                                      : Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children: [
+                                          _MetricTile(
+                                            label: 'Total Records',
+                                            value: '${records.length}',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Won Pipeline',
+                                            value:
+                                                'KES ${_pipelineValue.toStringAsFixed(0)}',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Daily Perf.',
+                                            value:
+                                                '${_dailyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Weekly Perf.',
+                                            value:
+                                                '${_weeklyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Monthly Perf.',
+                                            value:
+                                                '${_monthlyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Yearly Perf.',
+                                            value:
+                                                '${_yearlyPerformance['percent'] ?? '-'}%',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Leads',
+                                            value: '${_countByStage('Lead')}',
+                                          ),
+                                          _MetricTile(
+                                            label: 'Proposals',
+                                            value:
+                                                '${_countByStage('Proposal')}',
+                                          ),
+                                          _MetricTile(
+                                            label: 'High Risk',
+                                            value: '$_atRiskCount',
+                                          ),
+                                        ],
+                                      ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  onChanged: (_) => setState(() {}),
-                                  decoration: InputDecoration(
-                                    hintText: isSmallScreen ? 'Search...' : 'Search by school, contact, owner or notes',
-                                    prefixIcon: const Icon(Icons.search),
-                                    border: const OutlineInputBorder(),
-                                  ),
+                            const SizedBox(height: 14),
+                            isSmallScreen
+                                ? Column(
+                                  children: [
+                                    TextField(
+                                      controller: _searchController,
+                                      onChanged: (_) => setState(() {}),
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Search by school, contact, owner or notes',
+                                        prefixIcon: const Icon(Icons.search),
+                                        border: const OutlineInputBorder(),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _selectedStage,
+                                        items:
+                                            _stages
+                                                .map(
+                                                  (stage) => DropdownMenuItem(
+                                                    value: stage,
+                                                    child: Text(stage),
+                                                  ),
+                                                )
+                                                .toList(),
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setState(
+                                              () => _selectedStage = value,
+                                            );
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Stage',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                                : Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _searchController,
+                                        onChanged: (_) => setState(() {}),
+                                        decoration: InputDecoration(
+                                          hintText:
+                                              'Search by school, contact, owner or notes',
+                                          prefixIcon: const Icon(Icons.search),
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    SizedBox(
+                                      width: 180,
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _selectedStage,
+                                        items:
+                                            _stages
+                                                .map(
+                                                  (stage) => DropdownMenuItem(
+                                                    value: stage,
+                                                    child: Text(stage),
+                                                  ),
+                                                )
+                                                .toList(),
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setState(
+                                              () => _selectedStage = value,
+                                            );
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Stage',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: isSmallScreen ? 120 : 180,
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _selectedStage,
-                                  items: _stages
-                                      .map((stage) => DropdownMenuItem(
-                                            value: stage,
-                                            child: Text(stage, style: TextStyle(fontSize: isSmallScreen ? 12 : 14)),
-                                          ))
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _selectedStage = value);
-                                    }
-                                  },
-                                  decoration: const InputDecoration(
-                                    labelText: 'Stage',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                        ],
+                            const SizedBox(height: 14),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ];
-              },
-              body: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: records.isEmpty
-                    ? const Center(child: Text('No CRM records match filters'))
-                    : _isKanbanView
-                        ? _buildKanbanView(records)
-                        : isSmallScreen
-                            ? _buildResponsiveListView(records)
-                            : _buildDesktopDataTable(records),
+                  ];
+                },
+                body: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child:
+                      records.isEmpty
+                          ? const Center(
+                            child: Text('No CRM records match filters'),
+                          )
+                          : _isKanbanView && isDesktop
+                          ? _buildKanbanView(records)
+                          : isDesktop
+                          ? _buildDesktopDataTable(records)
+                          : _buildResponsiveListView(records),
+                ),
               ),
-            ),
     );
   }
 
@@ -649,7 +848,10 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => SchoolProfilePage(schoolId: record.schoolId),
+                                  builder:
+                                      (context) => SchoolProfilePage(
+                                        schoolId: record.schoolId,
+                                      ),
                                 ),
                               );
                             },
@@ -664,45 +866,41 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                         ),
                         DataCell(
                           record.isMapped
-                              ? const Icon(Icons.location_on, color: Colors.green, size: 18)
+                              ? const Icon(
+                                Icons.location_on,
+                                color: Colors.green,
+                                size: 18,
+                              )
                               : Tooltip(
-                                  message: 'Missing GPS: Not visible on Dashboard Map',
-                                  child: const Icon(Icons.location_off, color: Colors.red, size: 18),
+                                message:
+                                    'Missing GPS: Not visible on Dashboard Map',
+                                child: const Icon(
+                                  Icons.location_off,
+                                  color: Colors.red,
+                                  size: 18,
                                 ),
+                              ),
                         ),
                         DataCell(
                           Text(
                             record.leadScore.toString(),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: record.leadScore >= 70
-                                  ? Colors.green
-                                  : record.leadScore >= 40
+                              color:
+                                  record.leadScore >= 70
+                                      ? Colors.green
+                                      : record.leadScore >= 40
                                       ? Colors.orange
                                       : Colors.grey,
                             ),
                           ),
                         ),
-                        DataCell(
-                          Text(record.contact),
-                        ),
+                        DataCell(Text(record.contact)),
                         DataCell(Text(record.phone)),
-                        DataCell(
-                          _StageChip(
-                            stage: record.stage,
-                          ),
-                        ),
+                        DataCell(_StageChip(stage: record.stage)),
                         DataCell(Text(record.owner)),
-                        DataCell(
-                          Text(
-                            _formatDealValue(record),
-                          ),
-                        ),
-                        DataCell(
-                          Text(
-                            '${record.probability}%',
-                          ),
-                        ),
+                        DataCell(Text(_formatDealValue(record))),
+                        DataCell(Text('${record.probability}%')),
                         DataCell(
                           Text(
                             '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day.toString().padLeft(2, '0')}',
@@ -713,15 +911,12 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                             record.riskLevel,
                             style: TextStyle(
                               color:
-                                  record.riskLevel ==
-                                          'High'
+                                  record.riskLevel == 'High'
                                       ? Colors.red
-                                      : record.riskLevel ==
-                                          'Medium'
+                                      : record.riskLevel == 'Medium'
                                       ? Colors.orange
                                       : Colors.green,
-                              fontWeight:
-                                  FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -734,32 +929,18 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                           Row(
                             children: [
                               IconButton(
-                                icon: const Icon(
-                                  Icons.edit,
-                                ),
+                                icon: const Icon(Icons.edit),
                                 tooltip: 'Edit',
-                                onPressed:
-                                    () =>
-                                        _openEditDialog(
-                                          record,
-                                        ),
+                                onPressed: () => _openEditDialog(record),
                               ),
                               IconButton(
-                                icon: const Icon(
-                                  Icons
-                                      .delete_outline,
-                                ),
+                                icon: const Icon(Icons.delete_outline),
                                 tooltip: 'Delete',
                                 onPressed: () {
                                   _supabase
-                                      .from(
-                                        'school_sales',
-                                      )
+                                      .from('school_sales')
                                       .delete()
-                                      .eq(
-                                        'id',
-                                        record.id,
-                                      )
+                                      .eq('id', record.id)
                                       .then((_) {
                                         _loadCrmData();
                                       });
@@ -784,7 +965,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
         final record = records[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ExpansionTile(
             title: Row(
               children: [
@@ -793,19 +976,31 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => SchoolProfilePage(schoolId: record.schoolId)),
+                        MaterialPageRoute(
+                          builder:
+                              (context) =>
+                                  SchoolProfilePage(schoolId: record.schoolId),
+                        ),
                       );
                     },
                     child: Text(
-                      record.school, 
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, decoration: TextDecoration.underline)
+                      record.school,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ),
                 if (!record.isMapped)
                   const Padding(
                     padding: EdgeInsets.only(left: 4),
-                    child: Icon(Icons.location_off, color: Colors.red, size: 16),
+                    child: Icon(
+                      Icons.location_off,
+                      color: Colors.red,
+                      size: 16,
+                    ),
                   ),
               ],
             ),
@@ -820,8 +1015,14 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                     _infoRow('Lead Score', record.leadScore.toString()),
                     _infoRow('Probability', '${record.probability}%'),
                     _infoRow('Risk Level', record.riskLevel),
-                    _infoRow('Last Contact', '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day}'),
-                    _infoRow('Next Action', '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day}'),
+                    _infoRow(
+                      'Last Contact',
+                      '${record.lastContact.year}-${record.lastContact.month.toString().padLeft(2, '0')}-${record.lastContact.day}',
+                    ),
+                    _infoRow(
+                      'Next Action',
+                      '${record.nextActionDate.year}-${record.nextActionDate.month.toString().padLeft(2, '0')}-${record.nextActionDate.day}',
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -840,8 +1041,14 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                                 .eq('id', record.id)
                                 .then((_) => _loadCrmData());
                           },
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                          ),
+                          label: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red),
+                          ),
                         ),
                       ],
                     ),
@@ -861,8 +1068,14 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -945,7 +1158,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
   Widget _buildKanbanColumn(String stage, List<_CrmRecord> stageRecords) {
     final totalValue = stageRecords.fold(0.0, (sum, r) => sum + r.dealValue);
     final formattedTotalValue =
-        stage == 'Won' ? 'KES ${totalValue.toStringAsFixed(0)}' : totalValue.toStringAsFixed(0);
+        stage == 'Won'
+            ? 'KES ${totalValue.toStringAsFixed(0)}'
+            : totalValue.toStringAsFixed(0);
     return DragTarget<_CrmRecord>(
       onAcceptWithDetails: (details) async {
         final record = details.data;
@@ -967,9 +1182,9 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
               .eq('id', record.id);
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Failed to update stage: $e')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to update stage: $e')),
+            );
           }
           _loadCrmData();
         }
@@ -981,7 +1196,8 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: candidateData.isNotEmpty ? Colors.blue : Colors.transparent,
+              color:
+                  candidateData.isNotEmpty ? Colors.blue : Colors.transparent,
               width: 2,
             ),
           ),
@@ -1081,7 +1297,8 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SchoolProfilePage(schoolId: record.schoolId),
+              builder:
+                  (context) => SchoolProfilePage(schoolId: record.schoolId),
             ),
           );
         },
@@ -1092,7 +1309,10 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
             children: [
               Text(
                 record.school,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1103,8 +1323,8 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                   color: (record.leadScore >= 70
                           ? Colors.green
                           : record.leadScore >= 40
-                              ? Colors.orange
-                              : Colors.grey)
+                          ? Colors.orange
+                          : Colors.grey)
                       .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -1113,9 +1333,10 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: record.leadScore >= 70
-                        ? Colors.green
-                        : record.leadScore >= 40
+                    color:
+                        record.leadScore >= 70
+                            ? Colors.green
+                            : record.leadScore >= 40
                             ? Colors.orange
                             : Colors.grey.shade700,
                   ),
@@ -1141,12 +1362,19 @@ class _AdminCrmPageState extends State<AdminCrmPage> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+                  const Icon(
+                    Icons.person_outline,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       record.owner,
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1180,8 +1408,9 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
     return Container(
-      width: 170,
+      width: width < 720 ? 132 : 170,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,

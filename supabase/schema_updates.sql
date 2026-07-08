@@ -15,7 +15,7 @@ ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contact_title TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feedback TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS samples_left TEXT;
-ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS sample_book TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS sample_books TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_ownership TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_ownership_other TEXT;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS school_population INTEGER;
