@@ -118,4 +118,95 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'saveSchoolProfileWithStatus still marks school synced when CRM sync fails',
+    () async {
+      var schoolUpserts = 0;
+      final service = DatabaseService(
+        connectivityCheck: () async => [ConnectivityResult.wifi],
+        schoolBoxProvider: () async => schoolBox,
+        upsertSchoolOverride: (_) async => schoolUpserts++,
+        syncEngagementOverride: (_) async {
+          throw StateError('CRM unavailable');
+        },
+      );
+
+      final school = SchoolModel(
+        id: 'school-crm-failure',
+        name: 'Gamma School',
+        phone: '0733333333',
+        county: 'Nairobi',
+        focusAreas: const ['Science'],
+        engagementType: 'Lead',
+        isSynced: false,
+      );
+
+      final result = await service.saveSchoolProfileWithStatus(school);
+
+      expect(schoolUpserts, 1);
+      expect(result.syncedToDatabase, isTrue);
+      expect(result.message, contains('CRM sync'));
+      expect(
+        SchoolModel.fromMap(schoolBox.get('school-crm-failure')).isSynced,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'syncData skips catalog writes for non-manager roles',
+    () async {
+      var schoolUpserts = 0;
+      var catalogUpserts = 0;
+      final service = DatabaseService(
+        connectivityCheck: () async => [ConnectivityResult.wifi],
+        schoolBoxProvider: () async => schoolBox,
+        catalogBoxProvider: () async => catalogBox,
+        upsertSchoolOverride: (_) async => schoolUpserts++,
+        upsertCatalogOverride: (_) async => catalogUpserts++,
+        syncEngagementOverride: (_) async {},
+        currentUserRoleOverride: () async => 5,
+      );
+
+      await schoolBox.put(
+        'school-role-gate',
+        SchoolModel(
+          id: 'school-role-gate',
+          name: 'Role Gate School',
+          phone: '0744444444',
+          county: 'Nakuru',
+          focusAreas: const ['Science'],
+          isSynced: false,
+        ).toMap(),
+      );
+      await catalogBox.put(
+        'SKU-GATE',
+        CatalogItemModel(
+          id: 'cat-gate',
+          name: 'Blocked Book',
+          category: 'Primary',
+          sku: 'SKU-GATE',
+          itemType: 'sale',
+          unitPrice: 120,
+          isSynced: false,
+        ).toMap(),
+      );
+
+      await service.syncData();
+
+      expect(schoolUpserts, 1);
+      expect(catalogUpserts, 0);
+      expect(
+        SchoolModel.fromMap(schoolBox.get('school-role-gate')).isSynced,
+        isTrue,
+      );
+      expect(
+        CatalogItemModel.fromMap(
+          Map<String, dynamic>.from(catalogBox.get('SKU-GATE')),
+        ).isSynced,
+        isFalse,
+      );
+    },
+  );
 }

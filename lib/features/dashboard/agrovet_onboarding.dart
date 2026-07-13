@@ -33,6 +33,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _schoolOwnershipOtherController =
       TextEditingController();
+  final TextEditingController _institutionCategoryOtherController =
+      TextEditingController();
   final TextEditingController _schoolPopulationController =
       TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
@@ -41,10 +43,13 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   String? _shopCategory;
   String? _selectedProduct;
   String? _selectedBookProgram;
+  List<String> _selectedBookPrograms = [];
   String? _samplesLeft;
   List<String> _selectedSampleBooks = [];
   String? _selectedSampleCategory;
+  List<String> _selectedLearningMaterials = [];
   String? _partnerSubtype;
+  String? _samplesToBeReturned;
   String? _selectedCounty;
   String? _schoolOwnership;
   String? _schoolLifecycleStatus;
@@ -76,16 +81,53 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   ];
 
   static const List<String> _counties = [
-    'Nairobi',
     'Mombasa',
-    'Kisumu',
-    'Nakuru',
-    'Uasin Gishu',
-    'Kiambu',
-    'Machakos',
-    'Kajiado',
+    'Kwale',
+    'Kilifi',
+    'Tana River',
+    'Lamu',
+    'Taita-Taveta',
+    'Garissa',
+    'Wajir',
+    'Mandera',
+    'Marsabit',
+    'Isiolo',
     'Meru',
+    'Tharaka-Nithi',
+    'Embu',
+    'Kitui',
+    'Machakos',
+    'Makueni',
+    'Nyandarua',
+    'Nyeri',
+    'Kirinyaga',
+    'Murang\'a',
+    'Kiambu',
+    'Turkana',
+    'West Pokot',
+    'Samburu',
+    'Trans Nzoia',
+    'Uasin Gishu',
+    'Elgeyo-Marakwet',
+    'Nandi',
+    'Baringo',
+    'Laikipia',
+    'Nakuru',
+    'Narok',
+    'Kajiado',
+    'Kericho',
+    'Bomet',
     'Kakamega',
+    'Vihiga',
+    'Bungoma',
+    'Busia',
+    'Siaya',
+    'Kisumu',
+    'Homa Bay',
+    'Migori',
+    'Kisii',
+    'Nyamira',
+    'Nairobi',
   ];
 
   @override
@@ -99,6 +141,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     _feedbackController.dispose();
     _notesController.dispose();
     _schoolOwnershipOtherController.dispose();
+    _institutionCategoryOtherController.dispose();
     _schoolPopulationController.dispose();
     super.dispose();
   }
@@ -130,11 +173,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     final schoolName = _shopNameController.text.trim();
     final phone = _contactPhoneController.text.trim();
     final county = _selectedCounty?.trim() ?? '';
+    final labelType = _dealerType ?? 'School';
 
     if (schoolName.isEmpty || phone.isEmpty || county.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter school name, phone number, and county.'),
+        SnackBar(
+          content: Text(
+            'Please enter ${labelType.toLowerCase()} name, phone number, and county.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -290,7 +336,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Saved school, but could not save stamped receipt: $e',
+                  'Saved ${_dealerType ?? "school"}, but could not save stamped receipt: $e',
                 ),
                 backgroundColor: Colors.orange.shade700,
               ),
@@ -407,7 +453,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Onboard New School"),
+        title: Text("Onboard ${_dealerType ?? 'School'}"),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -493,7 +539,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           final twoCols = constraints.maxWidth >= 900;
           return Column(
             children: [
-              _buildSectionHeader("School Visuals & Location"),
+              _buildSectionHeader(
+                "${_dealerType ?? 'School'} Visuals & Location",
+              ),
               const SizedBox(height: 20),
               if (twoCols)
                 Row(
@@ -523,14 +571,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           _currentStep > 1
               ? StepState.complete
               : (_currentStep == 1 ? StepState.editing : StepState.indexed),
-      title: const Text("School"),
+      title: const Text("Classification"),
       content: Column(
         children: [
-          _buildSectionHeader("School Classification"),
+          _buildSectionHeader("Classification"),
           TextField(
             controller: _shopNameController,
             decoration: InputDecoration(
-              labelText: "School Name",
+              labelText: "${_dealerType ?? 'School'} Name",
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -574,8 +622,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             items: const [
               DropdownMenuItem(value: "School", child: Text("School")),
               DropdownMenuItem(
-                value: "Distributor",
-                child: Text("Distributor"),
+                value: "Institutions ",
+                child: Text("Institution"),
               ),
               DropdownMenuItem(value: "Bookshop", child: Text("Bookshop")),
             ],
@@ -606,34 +654,47 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           else if (_dealerType == "Bookshop")
             _buildDropdown(
               "Bookshop Category",
-              ["Retail", "Chain", "Independent"],
+              ["Retail", "Chain", "Distributor", "Others"],
               (val) => setState(() => _partnerSubtype = val),
               value: _partnerSubtype,
             )
-          else if (_dealerType == "Distributor")
+          else if (_dealerType == "Institution")
             _buildDropdown(
-              "Distributor Category",
-              ["Regional", "National", "Specialist"],
-              (val) => setState(() => _partnerSubtype = val),
+              "Institution Category",
+              ["Library", "County", "NGO", "Others"],
+              (val) => setState(() {
+                _partnerSubtype = val;
+                if (val != 'Others') {
+                  _institutionCategoryOtherController.clear();
+                }
+              }),
               value: _partnerSubtype,
             )
           else
             const SizedBox.shrink(),
           const SizedBox(height: 24),
+
           if (_dealerType == "School") ...[
-            _buildSectionHeader("Learning Materials Stocked"),
-            _buildSingleSelect([
-              "Readers",
-              "Workbooks",
-              "Reference",
-              "Teacher Guides",
-            ]),
-            const SizedBox(height: 16),
-            _buildDropdown(
-              "Book Program",
-              ["Book List", "Book Fund"],
-              (val) => setState(() => _selectedBookProgram = val),
-              value: _selectedBookProgram,
+            _buildSectionHeader("Book Program"),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final program in ["Book List", "Book Fund"])
+                  FilterChip(
+                    label: Text(program),
+                    selected: _selectedBookPrograms.contains(program),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedBookPrograms.add(program);
+                        } else {
+                          _selectedBookPrograms.remove(program);
+                        }
+                      });
+                    },
+                  ),
+              ],
             ),
           ] else if (_dealerType == "Bookshop") ...[
             _buildSectionHeader("Bookshop Services"),
@@ -644,22 +705,42 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               "Promotions",
             ]),
             const SizedBox(height: 16),
-            _buildDropdown(
-              "Book Program",
-              ["Book List", "Book Fund"],
-              (val) => setState(() => _selectedBookProgram = val),
-              value: _selectedBookProgram,
+            _buildSectionHeader("Learning Materials Stocked"),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in [
+                  'Course Books',
+                  'ECD Books',
+                  'Reference',
+                  'Teacher Guides',
+                ])
+                  FilterChip(
+                    label: Text(item),
+                    selected: _selectedLearningMaterials.contains(item),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedLearningMaterials.add(item);
+                        } else {
+                          _selectedLearningMaterials.remove(item);
+                        }
+                      });
+                    },
+                  ),
+              ],
             ),
-          ] else if (_dealerType == "Distributor") ...[
-            _buildSectionHeader("Distribution Coverage"),
-            _buildSingleSelect(["County", "Regional", "National", "Online"]),
-            const SizedBox(height: 16),
-            _buildDropdown(
-              "Book Program",
-              ["Book List", "Book Fund"],
-              (val) => setState(() => _selectedBookProgram = val),
-              value: _selectedBookProgram,
-            ),
+          ] else if (_dealerType == "Institution") ...[
+            _buildSectionHeader("Specify Institution Category"),
+            if (_partnerSubtype == "Others") ...[
+              const SizedBox(height: 8),
+              _buildTextField(
+                "Specify",
+                controller: _institutionCategoryOtherController,
+                maxLines: 2,
+              ),
+            ],
           ],
           if (_dealerType == "School") ...[
             const SizedBox(height: 16),
@@ -704,6 +785,15 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             const SizedBox(height: 16),
             _buildDropdown(
               "CRM Workflow Status",
+              _crmEngagementStages,
+              (val) => setState(() => _engagementType = val),
+              value: _engagementType,
+            ),
+          ] else if (_dealerType == "Bookshop" ||
+              _dealerType == "Institution") ...[
+            const SizedBox(height: 16),
+            _buildDropdown(
+              "${_dealerType == 'Bookshop' ? 'Bookshop' : 'Institution'} CRM Status",
               _crmEngagementStages,
               (val) => setState(() => _engagementType = val),
               value: _engagementType,
@@ -765,67 +855,43 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           ),
           if (_samplesLeft == "Yes") ...[
             const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildDropdown(
-              'Sample Category',
-              _sampleBookCategories,
-              (val) => setState(() {
-                _selectedSampleCategory = val;
-                _selectedSampleBooks = [];
-              }),
-              value: _selectedSampleCategory,
+              'To be returned?',
+              ['Yes', 'No'],
+              (val) => setState(() => _samplesToBeReturned = val),
+              value: _samplesToBeReturned,
             ),
-            const SizedBox(height: 12),
-            _buildTextField(
-              'Search Sample Book by Name',
-              onChanged: (value) {
-                setState(() {
-                  _sampleBookSearchQuery = value.trim().toLowerCase();
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMultiSelectSampleBooks(),
-            if (_sampleBookOptions.isEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'No sample books found in catalog_items (item_type=sample).',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _loadSampleBooks,
-                    child: const Text('Reload'),
-                  ),
-                ],
-              ),
-            ],
-            if (_selectedSampleBooks.isNotEmpty) ...[
-              const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            if (_dealerType == 'School') ...[
+              _buildSectionHeader('Learning Materials Left'),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final book in _selectedSampleBooks)
-                    Chip(
-                      label: Text(
-                        book,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onDeleted: () {
+                  for (final item in [
+                    'Course Books',
+                    'ECD Books',
+                    'Reference',
+                    'Teacher Guides',
+                  ])
+                    FilterChip(
+                      label: Text(item),
+                      selected: _selectedLearningMaterials.contains(item),
+                      onSelected: (selected) {
                         setState(() {
-                          _selectedSampleBooks.remove(book);
+                          if (selected) {
+                            _selectedLearningMaterials.add(item);
+                          } else {
+                            _selectedLearningMaterials.remove(item);
+                          }
                         });
                       },
-                      deleteIcon: const Icon(Icons.close, size: 18),
                     ),
                 ],
               ),
+              const SizedBox(height: 16),
             ],
-            const SizedBox(height: 16),
             _buildSampleProofPicker(),
           ],
         ],
@@ -858,6 +924,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }
 
   Step _buildPreviewStep() {
+    final displayType = _dealerType ?? 'School';
     return Step(
       isActive: _currentStep >= 4,
       state: _currentStep == 4 ? StepState.editing : StepState.indexed,
@@ -878,16 +945,18 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           ),
           const SizedBox(height: 12),
           _previewCard(
-            title: "School Classification",
+            title: "Classification",
             onEdit: () => setState(() => _currentStep = 1),
             lines: [
-              "School Name: ${_shopNameController.text.trim()}",
+              "$displayType Name: ${_shopNameController.text.trim()}",
               "County: ${_selectedCounty ?? '-'}",
-              "Client Type: ${_dealerType ?? '-'}",
+              "Client Type: $displayType",
               "Category: ${_shopCategory ?? _partnerSubtype ?? '-'}",
               "Product: ${_selectedProduct ?? '-'}",
-              "Book Program: ${_selectedBookProgram ?? '-'}",
-              "School Status: ${_schoolLifecycleStatus ?? '-'}",
+              if (_dealerType == "School") ...[
+                "Book Program: ${_selectedBookPrograms.isEmpty ? '-' : _selectedBookPrograms.join(', ')}",
+                "School Status: ${_schoolLifecycleStatus ?? '-'}",
+              ],
               "CRM Stage: ${_engagementType ?? '-'}",
             ],
           ),
@@ -901,9 +970,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               "${_contactEmailLabel}: ${_contactEmailController.text.trim().isEmpty ? '-' : _contactEmailController.text.trim()}",
               "${_contactTitleLabel}: ${_contactTitleController.text.trim().isEmpty ? '-' : _contactTitleController.text.trim()}",
               "Samples Left: ${_samplesLeft ?? '-'}",
-              _selectedSampleBooks.isEmpty
-                  ? "Selected Sample Book: -"
-                  : "Selected Sample Books: ${_selectedSampleBooks.join(', ')}",
+              "To be returned: ${_samplesToBeReturned ?? '-'}",
+              if (_dealerType == 'School')
+                "Learning Materials Stocked: ${_selectedLearningMaterials.isEmpty ? '-' : _selectedLearningMaterials.join(', ')}",
               "Sample Proof: ${_sampleProofPhoto != null ? 'Captured' : 'Not captured'}",
             ],
           ),
@@ -942,8 +1011,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Contact Person";
-      case "Distributor":
-        return "Distributor Contact Person";
+      case "Institution":
+        return "Institution Contact Person";
       case "School":
       default:
         return "Contact Person";
@@ -954,8 +1023,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Contact Name";
-      case "Distributor":
-        return "Distributor Contact Name";
+      case "Institution":
+        return "Institution Contact Name";
       case "School":
       default:
         return "Name";
@@ -966,8 +1035,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Phone Number";
-      case "Distributor":
-        return "Distributor Phone Number";
+      case "Institution":
+        return "Institution Phone Number";
       case "School":
       default:
         return "Phone Number";
@@ -978,8 +1047,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Email";
-      case "Distributor":
-        return "Distributor Email";
+      case "Institution":
+        return "Institution Email";
       case "School":
       default:
         return "Email";
@@ -990,8 +1059,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Title in the Bookshop";
-      case "Distributor":
-        return "Title in the Distributor";
+      case "Institution":
+        return "Title in the Institution";
       case "School":
       default:
         return "Title in the School";
@@ -1002,8 +1071,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Samples Left in Bookshop";
-      case "Distributor":
-        return "Samples Left for Distribution";
+      case "Institution":
+        return "Samples Left for Institution";
       case "School":
       default:
         return "Samples Left";
@@ -1014,7 +1083,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Any samples left?";
-      case "Distributor":
+      case "Institution":
         return "Any stock samples left?";
       case "School":
       default:
@@ -1026,8 +1095,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Feedback";
-      case "Distributor":
-        return "Distributor Feedback";
+      case "Institution":
+        return "Institution Feedback";
       case "School":
       default:
         return "Feedback";
@@ -1038,8 +1107,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Feedback";
-      case "Distributor":
-        return "Distributor Feedback";
+      case "Institution":
+        return "Institution Feedback";
       case "School":
       default:
         return "Feedback";
@@ -1050,8 +1119,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
     switch (_dealerType) {
       case "Bookshop":
         return "Bookshop Notes";
-      case "Distributor":
-        return "Distributor Notes";
+      case "Institution":
+        return "Institution Notes";
       case "School":
       default:
         return "Notes";
@@ -1184,6 +1253,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }
 
   Widget _buildMediaPicker() {
+    final displayType = _dealerType ?? 'School';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1194,9 +1264,9 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "School Photo",
-            style: TextStyle(fontWeight: FontWeight.bold),
+          Text(
+            "$displayType Photo",
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           AspectRatio(
@@ -1220,7 +1290,8 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              _captureStatus ?? "Take a photo of the school",
+                              _captureStatus ??
+                                  "Take a photo of the ${displayType.toLowerCase()}",
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
@@ -1398,7 +1469,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
         'photoPath': fileName,
       };
     } catch (e) {
-      debugPrint('School photo upload failed: $e');
+      debugPrint('Photo upload failed: $e');
       return {'photoUrl': null, 'photoPath': _capturedPhoto!.path};
     }
   }
@@ -1650,15 +1721,16 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   }
 
   String? _validateCurrentStep() {
+    final displayType = _dealerType ?? 'School';
     if (_currentStep == 1) {
       if (_shopNameController.text.trim().isEmpty) {
-        return 'School name is required.';
+        return '$displayType name is required.';
       }
       if ((_selectedCounty ?? '').trim().isEmpty) {
         return 'County is required.';
       }
       if (_dealerType == null) {
-        return 'Client Typr is required.';
+        return 'Client Type is required.';
       }
       if (_dealerType == 'School') {
         if ((_schoolOwnership ?? '').trim().isEmpty) {
@@ -1681,6 +1753,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
         if ((_engagementType ?? '').trim().isEmpty) {
           return 'Engagement type is required.';
         }
+      } else if (_dealerType == 'Bookshop' || _dealerType == 'Institution') {
+        if ((_engagementType ?? '').trim().isEmpty) {
+          return 'CRM Workflow Status is required.';
+        }
       }
     }
 
@@ -1692,14 +1768,13 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       if (_samplesLeft == null) {
         return 'Please indicate whether samples were left.';
       }
-      if (_samplesLeft == "Yes" && _selectedSampleBooks.isEmpty) {
-        return 'Please select at least one sample book left.';
-      }
-      if (_samplesLeft == "Yes" && _sampleBookOptions.isEmpty) {
-        return 'No sample books found. Add sample books in catalog first.';
-      }
-      if (_samplesLeft == "Yes" && _sampleProofPhoto == null) {
-        return 'Please capture the stamped document photo.';
+      if (_samplesLeft == "Yes") {
+        if ((_samplesToBeReturned ?? '').trim().isEmpty) {
+          return 'Please indicate whether samples will be returned.';
+        }
+        if (_sampleProofPhoto == null) {
+          return 'Please capture the stamped document photo.';
+        }
       }
     }
 

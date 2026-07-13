@@ -8,6 +8,7 @@ import '../../../models/farmer_model.dart';
 import '../../../models/task_model.dart';
 import '../../../models/user_model.dart';
 import 'analytics_page.dart';
+import 'regions_page.dart';
 import 'catalog_import_page.dart';
 import '../dashboard/my_orders_page.dart';
 import '../profile/messages_page.dart';
@@ -838,6 +839,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.pop(context);
                   }
                 }, isCollapsed: isCollapsed),
+                _buildSidebarItem(
+                  context,
+                  Icons.public,
+                  'Regions',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegionsPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
                 _buildSidebarItem(
                   context,
                   Icons.analytics_outlined,

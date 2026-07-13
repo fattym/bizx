@@ -23,6 +23,7 @@ class DatabaseService {
   final Future<void> Function(Map<String, dynamic>)? _upsertSchoolOverride;
   final Future<void> Function(SchoolModel)? _syncEngagementOverride;
   final Future<void> Function(Map<String, dynamic>)? _upsertCatalogOverride;
+  final Future<int> Function()? _currentUserRoleOverride;
 
   DatabaseService({
     Future<List<ConnectivityResult>> Function()? connectivityCheck,
@@ -32,13 +33,15 @@ class DatabaseService {
     Future<void> Function(Map<String, dynamic>)? upsertSchoolOverride,
     Future<void> Function(SchoolModel)? syncEngagementOverride,
     Future<void> Function(Map<String, dynamic>)? upsertCatalogOverride,
+    Future<int> Function()? currentUserRoleOverride,
   }) : _connectivityCheck = connectivityCheck,
        _schoolBoxProvider = schoolBoxProvider,
        _catalogBoxProvider = catalogBoxProvider,
        _pendingOpsBoxProvider = pendingOpsBoxProvider,
        _upsertSchoolOverride = upsertSchoolOverride,
        _syncEngagementOverride = syncEngagementOverride,
-       _upsertCatalogOverride = upsertCatalogOverride;
+       _upsertCatalogOverride = upsertCatalogOverride,
+       _currentUserRoleOverride = currentUserRoleOverride;
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -115,6 +118,30 @@ class DatabaseService {
     await syncData();
   }
 
+  Future<void> _upsertSchoolToRemote(SchoolModel school) async {
+    if (_upsertSchoolOverride != null) {
+      await _upsertSchoolOverride(school.toMap());
+      return;
+    }
+    await _supabase.from('schools').upsert(school.toMap());
+  }
+
+  Future<void> _syncSchoolEngagement(SchoolModel school) async {
+    if (_syncEngagementOverride != null) {
+      await _syncEngagementOverride(school);
+      return;
+    }
+    await _syncEngagementToPipeline(school);
+  }
+
+  Future<bool> _canManageCatalogItems() async {
+    final role =
+        _currentUserRoleOverride != null
+            ? await _currentUserRoleOverride()
+            : await getCurrentUserRole();
+    return role <= 3;
+  }
+
   Future<SchoolSaveResult> saveSchoolProfileWithStatus(
     SchoolModel school,
   ) async {
@@ -133,17 +160,20 @@ class DatabaseService {
     }
 
     try {
-      if (_upsertSchoolOverride != null) {
-        await _upsertSchoolOverride(school.toMap());
-      } else {
-        await _supabase.from('schools').upsert(school.toMap());
-      }
-      if (_syncEngagementOverride != null) {
-        await _syncEngagementOverride(school);
-      } else {
-        await _syncEngagementToPipeline(school);
-      }
+      await _upsertSchoolToRemote(school);
       await box.put(school.id, school.copyWithSynced(true).toMap());
+
+      try {
+        await _syncSchoolEngagement(school);
+      } catch (e) {
+        debugPrint("School ${school.id} synced, but engagement sync failed: $e");
+        return SchoolSaveResult(
+          syncedToDatabase: true,
+          message:
+              'Saved and synced to database, but CRM sync will retry later: $e',
+        );
+      }
+
       return const SchoolSaveResult(
         syncedToDatabase: true,
         message: 'Saved and synced to database.',
@@ -232,60 +262,70 @@ class DatabaseService {
 
     for (var school in unsynced) {
       try {
-        if (_upsertSchoolOverride != null) {
-          await _upsertSchoolOverride(school.toMap());
-        } else {
-          await _supabase.from('schools').upsert(school.toMap());
-        }
-        if (_syncEngagementOverride != null) {
-          await _syncEngagementOverride(school);
-        } else {
-          await _syncEngagementToPipeline(school);
-        }
+        await _upsertSchoolToRemote(school);
 
-        // Preserve all existing fields and only flip sync state.
+        // Preserve all existing fields and only flip sync state after the
+        // school row itself has been written successfully.
         final updatedSchool = school.copyWithSynced(true);
         await box.put(school.id, updatedSchool.toMap());
+
+        try {
+          await _syncSchoolEngagement(school);
+        } catch (e) {
+          debugPrint(
+            "Pipeline sync failed for ${school.id}, but school row is synced: $e",
+          );
+        }
       } catch (e) {
         debugPrint("Sync Error for ${school.id}: $e");
       }
     }
 
+    final canManageCatalogItems = await _canManageCatalogItems();
+
     // Sync Books (Catalog Items)
-    final catalogBox = await _catalogBox;
-    final catalogs =
-        catalogBox.values
-            .map((e) => CatalogItemModel.fromMap(Map<String, dynamic>.from(e)))
-            .toList();
-    final unsyncedCatalogs = catalogs.where((c) => !c.isSynced).toList();
+    if (canManageCatalogItems) {
+      final catalogBox = await _catalogBox;
+      final catalogs =
+          catalogBox.values
+              .map(
+                (e) => CatalogItemModel.fromMap(Map<String, dynamic>.from(e)),
+              )
+              .toList();
+      final unsyncedCatalogs = catalogs.where((c) => !c.isSynced).toList();
 
-    for (var catalog in unsyncedCatalogs) {
-      try {
-        if (_upsertCatalogOverride != null) {
-          await _upsertCatalogOverride(catalog.toMap());
-        } else {
-          await _supabase
-              .from('catalog_items')
-              .upsert(catalog.toMap(), onConflict: 'sku');
+      for (var catalog in unsyncedCatalogs) {
+        try {
+          if (_upsertCatalogOverride != null) {
+            await _upsertCatalogOverride(catalog.toMap());
+          } else {
+            await _supabase
+                .from('catalog_items')
+                .upsert(catalog.toMap(), onConflict: 'sku');
+          }
+
+          // Update local status to synced
+          final updatedCatalog = CatalogItemModel(
+            id: catalog.id,
+            name: catalog.name,
+            category: catalog.category,
+            sku: catalog.sku,
+            itemType: catalog.itemType,
+            unitPrice: catalog.unitPrice,
+            stockQty: catalog.stockQty,
+            description: catalog.description,
+            isActive: catalog.isActive,
+            isSynced: true,
+          );
+          await catalogBox.put(catalog.sku, updatedCatalog.toMap());
+        } catch (e) {
+          debugPrint("Sync Error for Catalog ${catalog.sku}: $e");
         }
-
-        // Update local status to synced
-        final updatedCatalog = CatalogItemModel(
-          id: catalog.id,
-          name: catalog.name,
-          category: catalog.category,
-          sku: catalog.sku,
-          itemType: catalog.itemType,
-          unitPrice: catalog.unitPrice,
-          stockQty: catalog.stockQty,
-          description: catalog.description,
-          isActive: catalog.isActive,
-          isSynced: true,
-        );
-        await catalogBox.put(catalog.sku, updatedCatalog.toMap());
-      } catch (e) {
-        debugPrint("Sync Error for Catalog ${catalog.sku}: $e");
       }
+    } else {
+      debugPrint(
+        'Skipping catalog sync because the current user does not have catalog write access.',
+      );
     }
 
     await _syncPendingOps();
@@ -698,7 +738,13 @@ class DatabaseService {
         );
         await box.put(item.sku, localItem.toMap());
       }
-      await syncData(); // Push unsynced data immediately
+      if (await _canManageCatalogItems()) {
+        await syncData(); // Push unsynced data immediately
+      } else {
+        debugPrint(
+          'Catalog items saved locally only because the current user cannot write catalog data.',
+        );
+      }
     } catch (e) {
       debugPrint("Error saving catalog items locally: $e");
       rethrow;

@@ -76,7 +76,7 @@ class SchoolSaleModel {
       ),
       probability: _toInt(map['probability']),
       closedAt: _parseDate(map['closed_at'] ?? map['closedAt']),
-      isSynced: map['isSynced'] ?? false,
+      isSynced: map['isSynced'] ?? map['is_synced'] ?? false,
       createdAt: _parseDate(map['created_at'] ?? map['createdAt']),
       updatedAt: _parseDate(map['updated_at'] ?? map['updatedAt']),
     );

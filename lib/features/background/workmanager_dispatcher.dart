@@ -17,7 +17,9 @@ void callbackDispatcher() {
     final box = await Hive.openBox('school_box');
 
     final supabase = Supabase.instance.client;
-    final unsynced = box.values.where((f) => f['isSynced'] == false);
+    final unsynced = box.values.where(
+      (f) => f['isSynced'] == false || f['is_synced'] == false,
+    );
 
     for (var school in unsynced) {
       try {
@@ -26,6 +28,7 @@ void callbackDispatcher() {
             .upsert(Map<String, dynamic>.from(school));
 
         school['isSynced'] = true;
+        school['is_synced'] = true;
         await box.put(school['id'], school);
       } catch (_) {
         return Future.value(false);

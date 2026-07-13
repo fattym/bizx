@@ -164,7 +164,7 @@ class SchoolModel {
       schoolLifecycleStatus:
           map['school_lifecycle_status'] ?? map['schoolLifecycleStatus'],
       engagementType: map['engagement_type'] ?? map['engagementType'],
-      isSynced: map['isSynced'] ?? false,
+      isSynced: map['isSynced'] ?? map['is_synced'] ?? false,
       createdAt: _parseDate(map['created_at'] ?? map['createdAt']),
       updatedAt: _parseDate(map['updated_at'] ?? map['updatedAt']),
     );
