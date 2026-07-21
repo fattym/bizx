@@ -1273,7 +1273,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
           icon: Icon(Icons.inventory_2_outlined),
           label: "Samples",
         ),
-        BottomNavigationBarItem(icon: Icon(Icons.school), label: "My Schools"),
+        BottomNavigationBarItem(icon: Icon(Icons.school), label: "Onboard"),
         BottomNavigationBarItem(
           icon: Icon(Icons.notifications_none),
           label: "Alerts",

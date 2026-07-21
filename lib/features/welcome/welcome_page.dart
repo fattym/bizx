@@ -1,9 +1,30 @@
 import 'auth/login_page.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/colors.dart';
 
-class WelcomePage extends StatelessWidget {
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  String _version = '1.0.0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _version = info.version);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +139,7 @@ class WelcomePage extends StatelessWidget {
                       showAboutDialog(
                         context: context,
                         applicationName: 'Longhorn Publishers PLC',
-                        applicationVersion: '1.0.0',
+                        applicationVersion: _version,
                         applicationIcon: Container(
                           padding: const EdgeInsets.all(8),
                           color: Colors.white,

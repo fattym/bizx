@@ -13,6 +13,7 @@ import '../database/database_service.dart';
 import '../../models/farmer_model.dart';
 import 'agrovet_onboarding.dart';
 import 'school_action_menu_page.dart';
+import 'client_type_selector.dart';
 
 class MyShopsPage extends StatefulWidget {
   const MyShopsPage({super.key});
@@ -28,6 +29,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
 
   late Future<List<SchoolModel>> _schoolsFuture;
   String _searchQuery = '';
+  ClientType? _selectedClientType;
   Position? _currentPosition;
   bool _isLocating = false;
   String? _locationError;
@@ -124,9 +126,16 @@ class _MyShopsPageState extends State<MyShopsPage> {
               return distanceMeters <= _nearbyRadiusKm * 1000;
             }).toList();
 
+    final typeFiltered =
+        _selectedClientType == null
+            ? nearbySchools
+            : nearbySchools
+                .where((school) => _selectedClientType!.matches(school.dealerType))
+                .toList();
+
     final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return nearbySchools;
-    return nearbySchools.where((school) {
+    if (q.isEmpty) return typeFiltered;
+    return typeFiltered.where((school) {
       return school.name.toLowerCase().contains(q) ||
           school.county.toLowerCase().contains(q) ||
           (school.bookCategory ?? '').toLowerCase().contains(q) ||
@@ -139,7 +148,11 @@ class _MyShopsPageState extends State<MyShopsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F7),
       appBar: AppBar(
-        title: Text('My Schools (${_nearbyRadiusKm.toInt()}km)'),
+        title: Text(
+          _selectedClientType == null
+              ? 'My Schools (${_nearbyRadiusKm.toInt()}km)'
+              : '${_selectedClientType!.shortLabel}s (${_nearbyRadiusKm.toInt()}km)',
+        ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -164,6 +177,10 @@ class _MyShopsPageState extends State<MyShopsPage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
+                ClientTypeFilterBar(
+                  selected: _selectedClientType,
+                  onChanged: (value) => setState(() => _selectedClientType = value),
+                ),
                 _buildSearchBar(),
                 _buildNearbySearchActions(),
                 const SizedBox(height: 12),
@@ -205,6 +222,9 @@ class _MyShopsPageState extends State<MyShopsPage> {
   }
 
   Widget _buildSearchBar() {
+    final placeholder =
+        _selectedClientType?.searchPlaceholder ??
+        'Search by school, county, or book category...';
     return Container(
       padding: const EdgeInsets.all(16),
       color: AppColors.primaryGreen,
@@ -212,7 +232,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
         controller: _searchController,
         onChanged: (value) => setState(() => _searchQuery = value),
         decoration: InputDecoration(
-          hintText: 'Search by school, county, or book category...',
+          hintText: placeholder,
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           filled: true,
           fillColor: Colors.white,
@@ -227,6 +247,10 @@ class _MyShopsPageState extends State<MyShopsPage> {
   }
 
   Widget _buildNearbySearchActions() {
+    final aroundMeLabel =
+        _selectedClientType == null
+            ? 'Search Schools Around Me'
+            : 'Search ${_selectedClientType!.shortLabel}s Around Me';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Row(
@@ -238,14 +262,18 @@ class _MyShopsPageState extends State<MyShopsPage> {
               icon: const Icon(Icons.travel_explore),
               label: Text(
                 _isSearchingGoogle
-                    ? 'Searching nearby schools...'
-                    : 'Search Schools Around Me',
+                    ? 'Searching nearby clients...'
+                    : aroundMeLabel,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  String get _nearbySearchKeyword {
+    return _selectedClientType?.shortLabel.toLowerCase() ?? 'school';
   }
 
   Widget _buildSchoolCard(SchoolModel school) {
@@ -690,8 +718,12 @@ class _MyShopsPageState extends State<MyShopsPage> {
       final lng = _currentPosition?.longitude;
       final fallbackUri =
           (lat != null && lng != null)
-              ? Uri.parse('https://www.google.com/maps/search/schools/@$lat,$lng,13z')
-              : Uri.parse('https://www.google.com/maps/search/schools+near+me');
+              ? Uri.parse(
+                'https://www.google.com/maps/search/${_nearbySearchKeyword}/@$lat,$lng,13z',
+              )
+              : Uri.parse(
+                'https://www.google.com/maps/search/${_nearbySearchKeyword}+near+me',
+              );
 
       final opened = await launchUrl(
         fallbackUri,
@@ -744,7 +776,7 @@ class _MyShopsPageState extends State<MyShopsPage> {
       final radiusMeters = (_nearbyRadiusKm * 1000).round();
       final uri = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
-        '?location=$lat,$lng&radius=$radiusMeters&keyword=school&key=${GoogleMapsConfig.apiKey}',
+        '?location=$lat,$lng&radius=$radiusMeters&keyword=${_nearbySearchKeyword}&key=${GoogleMapsConfig.apiKey}',
       );
       final response = await http.get(uri);
       if (response.statusCode != 200) {

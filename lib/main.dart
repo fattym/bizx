@@ -12,6 +12,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/bas_dashboard_page.dart';
 import 'core/constants/agent_dashboard_page.dart';
 import 'features/profile/profile_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'services/github_release_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +96,7 @@ class _SessionEntryPageState extends State<_SessionEntryPage> {
         _destination = const WelcomePage();
         _loading = false;
       });
+      _checkForUpdate();
       return;
     }
 
@@ -140,13 +143,66 @@ class _SessionEntryPageState extends State<_SessionEntryPage> {
         _destination = destination;
         _loading = false;
       });
+      _checkForUpdate();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _destination = const WelcomePage();
         _loading = false;
       });
+      _checkForUpdate();
     }
+  }
+
+  Future<void> _checkForUpdate() async {
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
+
+    final updateAvailable = await GithubReleaseService(
+      owner: 'dehus',
+      repo: 'dehus',
+    ).isUpdateAvailable();
+
+    if (!mounted || !updateAvailable) return;
+
+    final release = await GithubReleaseService(
+      owner: 'dehus',
+      repo: 'dehus',
+    ).fetchLatestRelease();
+    if (!mounted || release == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Text(
+          'A new version (${release.tagName.replaceFirst(RegExp(r'^v'), '')}) is available.\n\nPlease update to get the latest features and bug fixes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final uri = Uri.parse(
+                release.apkDownloadUrl ?? release.htmlUrl,
+              );
+              if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open update link')),
+                  );
+                }
+              }
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

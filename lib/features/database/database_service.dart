@@ -166,7 +166,9 @@ class DatabaseService {
       try {
         await _syncSchoolEngagement(school);
       } catch (e) {
-        debugPrint("School ${school.id} synced, but engagement sync failed: $e");
+        debugPrint(
+          "School ${school.id} synced, but engagement sync failed: $e",
+        );
         return SchoolSaveResult(
           syncedToDatabase: true,
           message:
@@ -372,7 +374,7 @@ class DatabaseService {
   Future<List<SchoolModel>> getMySchools() async {
     final currentUserId = _supabase.auth.currentUser?.id;
     if (currentUserId == null) return <SchoolModel>[];
-    
+
     try {
       await syncData();
     } catch (e) {
@@ -380,8 +382,9 @@ class DatabaseService {
     }
 
     final localSchools = await getAllSchoolProfiles();
-    final myLocalSchools = localSchools.where((s) => s.capturedBy == currentUserId).toList();
-    
+    final myLocalSchools =
+        localSchools.where((s) => s.capturedBy == currentUserId).toList();
+
     try {
       final data = await _supabase
           .from('schools')
@@ -466,8 +469,10 @@ class DatabaseService {
             : 720.0;
     final currentUserId = _supabase.auth.currentUser?.id;
     final agentId = role == 1 ? null : currentUserId;
-    final startIso = start.toIso8601String();
-    final nowIso = now.toIso8601String();
+    // Align the window to UTC so it matches the database's stored
+    // timestamptz (created_at / visited_at) regardless of device timezone.
+    final startIso = start.toUtc().toIso8601String();
+    final nowIso = now.toUtc().toIso8601String();
 
     Future<int> countRows(
       String table,
@@ -523,6 +528,101 @@ class DatabaseService {
       'period': period,
       'percent': percent,
       'target': target.round(),
+      'visits': visits,
+      'orders': orders,
+      'wonSales': wonSales,
+      'visitedSchools': visitedSchools,
+    };
+  }
+
+  Future<Map<String, dynamic>> getIndividualPerformance({
+    required String agentId,
+    required DateTime start,
+    required DateTime end,
+    double dailyTarget = 15.0,
+  }) async {
+    // Align the window to UTC so it matches the database's stored
+    // timestamptz (created_at / visited_at) regardless of device timezone.
+    final startIso = start.toUtc().toIso8601String();
+    final nowIso = end.toUtc().toIso8601String();
+
+    Future<int> countRows(
+      String table,
+      String dateColumn, {
+      String? status,
+      String? statusColumn,
+    }) async {
+      var query = _supabase
+          .from(table)
+          .select('id')
+          .eq('agent_id', agentId);
+      query = query.gte(dateColumn, startIso).lte(dateColumn, nowIso);
+      if (status != null) {
+        query = query.eq(statusColumn ?? 'status', status);
+      }
+      final response = await query;
+      return (response as List).length;
+    }
+
+    Future<Set<String>> visitedSchoolIdsFromVisits() async {
+      final response = await _supabase
+          .from('school_visits')
+          .select('school_id')
+          .eq('agent_id', agentId)
+          .gte('visited_at', startIso)
+          .lte('visited_at', nowIso);
+      return (response as List)
+          .map((row) => row['school_id']?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    }
+
+    // Onboarding activity lives in the schools table (captured_by /
+    // captured_at). Grounds people primarily onboard, so without this their
+    // historical data would be missing from the performance view.
+    // Fetch the onboarded schools once and derive both metrics from it.
+    Future<List<String>> onboardedSchoolIdList() async {
+      final response = await _supabase
+          .from('schools')
+          .select('id')
+          .eq('captured_by', agentId)
+          .gte('captured_at', startIso)
+          .lte('captured_at', nowIso);
+      return (response as List)
+          .map((row) => row['id']?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toList();
+    }
+
+    final onboardedIds = await onboardedSchoolIdList();
+    final onboardedVisits = onboardedIds.length;
+    final visits = (await countRows('school_visits', 'visited_at')) + onboardedVisits;
+    final orders = await countRows(
+      'orders',
+      'created_at',
+      status: 'paid',
+      statusColumn: 'status',
+    );
+    final wonSales = await countRows(
+      'school_sales',
+      'created_at',
+      status: 'won',
+      statusColumn: 'sale_status',
+    );
+    final visitedFromVisits = await visitedSchoolIdsFromVisits();
+    final visitedSchools = <String>{
+      ...visitedFromVisits,
+      ...onboardedIds,
+    }.length;
+    final percent =
+        visits == 0 ? 0 : ((visits / dailyTarget) * 100).clamp(0, 100).round();
+
+    return {
+      'period': 'custom',
+      'percent': percent,
+      'target': dailyTarget.round(),
       'visits': visits,
       'orders': orders,
       'wonSales': wonSales,
@@ -780,6 +880,8 @@ class DatabaseService {
     String? notes,
     String? stampedReceiptUrl,
     String? stampedReceiptPath,
+    String? clientType,
+    int returnedQty = 0,
   }) async {
     try {
       final payload = <String, dynamic>{
@@ -787,7 +889,9 @@ class DatabaseService {
         'agent_id': agentId ?? getCurrentUserId(),
         'sample_name': sampleName,
         'sample_category': sampleCategory,
+        'client_type': clientType,
         'quantity': quantity,
+        'returned_qty': returnedQty,
         'stamped_receipt_url': stampedReceiptUrl,
         'stamped_receipt_path': stampedReceiptPath,
         'notes': notes,
@@ -801,6 +905,165 @@ class DatabaseService {
       debugPrint("Error saving sample distribution record: $e");
       rethrow;
     }
+  }
+
+  Future<void> recordSchoolVisit({
+    required String schoolId,
+    required String agentId,
+    String? outcome,
+    String? notes,
+    String? visitStatus,
+    double? latitude,
+    double? longitude,
+    String? photoUrl,
+    String? photoPath,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'school_id': schoolId,
+        'agent_id': agentId,
+        'outcome': outcome,
+        'notes': notes,
+        'visit_status': visitStatus ?? 'completed',
+        'latitude': latitude,
+        'longitude': longitude,
+        'photo_url': photoUrl,
+        'photo_path': photoPath,
+        'visited_at': DateTime.now().toIso8601String(),
+      };
+      await _insertWithOfflineQueue(table: 'school_visits', payload: payload);
+    } catch (e) {
+      debugPrint('Error recording school visit: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateSampleReturnedQty(
+    String distributionId,
+    int returnedQty,
+  ) async {
+    try {
+      await _supabase
+          .from('school_sample_distributions')
+          .update({'returned_qty': returnedQty < 0 ? 0 : returnedQty})
+          .eq('id', distributionId);
+    } catch (e) {
+      debugPrint("Error updating returned sample quantity: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSampleDistributions({
+    String? agentId,
+    String? clientType,
+    String? schoolId,
+  }) async {
+    try {
+      var query = _supabase
+          .from('school_sample_distributions')
+          .select(
+            'id, school_id, sample_name, sample_category, client_type, quantity, returned_qty, notes, distributed_at, schools(name, county, dealer_type)',
+          );
+      if (agentId != null) {
+        query = query.eq('agent_id', agentId);
+      }
+      if (clientType != null) {
+        query = query.eq('client_type', clientType);
+      }
+      if (schoolId != null) {
+        query = query.eq('school_id', schoolId);
+      }
+      final res = await query
+          .order('distributed_at', ascending: false)
+          .limit(5000);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint("Error loading sample distributions: $e");
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<Map<String, dynamic>> createSampleRequest({
+    String? schoolId,
+    required List<Map<String, dynamic>> items,
+    String? clientType,
+    String? requestedBy,
+    String? purpose,
+    String? notes,
+    DateTime? neededBy,
+  }) async {
+    final requestCode =
+        'SR-${DateTime.now().millisecondsSinceEpoch}-${(DateTime.now().microsecondsSinceEpoch % 10000).toString().padLeft(4, '0')}';
+    final payload = <String, dynamic>{
+      'request_code': requestCode,
+      'school_id': schoolId,
+      'client_type': clientType,
+      'requested_by': requestedBy ?? getCurrentUserId(),
+      'purpose': purpose,
+      'notes': notes,
+      'status': 'PENDING',
+      'needed_by': neededBy?.toIso8601String(),
+      'requested_at': DateTime.now().toIso8601String(),
+      'items': items,
+    };
+    final res =
+        await _supabase
+            .from('sample_requests')
+            .insert(payload)
+            .select()
+            .single();
+    return Map<String, dynamic>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> getSampleRequests({
+    String? status,
+    String? agentId,
+    String? schoolId,
+  }) async {
+    try {
+      var query = _supabase
+          .from('sample_requests')
+          .select(
+            'id, request_code, school_id, client_type, purpose, notes, status, rejection_reason, needed_by, requested_at, reviewed_at, items, schools(name, county)',
+          );
+      if (status != null) {
+        query = query.eq('status', status);
+      }
+      if (agentId != null) {
+        query = query.eq('requested_by', agentId);
+      }
+      if (schoolId != null) {
+        query = query.eq('school_id', schoolId);
+      }
+      final res = await query
+          .order('requested_at', ascending: false)
+          .limit(5000);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('Error loading sample requests: $e');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> updateSampleRequestStatus({
+    required String requestId,
+    required String status,
+    String? reviewedBy,
+    String? rejectionReason,
+    List<Map<String, dynamic>>? approvedItems,
+  }) async {
+    final payload = <String, dynamic>{
+      'status': status,
+      'reviewed_at': DateTime.now().toIso8601String(),
+      'reviewed_by': reviewedBy ?? getCurrentUserId(),
+    };
+    if (status == 'REJECTED') {
+      payload['rejection_reason'] = rejectionReason;
+    }
+    if (status == 'APPROVED' && approvedItems != null) {
+      payload['items'] = approvedItems;
+    }
+    await _supabase.from('sample_requests').update(payload).eq('id', requestId);
   }
 
   Future<void> saveDebtCollection({

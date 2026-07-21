@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/colors.dart';
 import '../database/database_service.dart';
 import '../../models/farmer_model.dart';
+import 'client_type_selector.dart';
 
 class SchoolOnboarding extends StatefulWidget {
   const SchoolOnboarding({super.key});
@@ -150,9 +151,29 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectClientType();
       _watchConnectivity();
       _fetchCurrentLocation();
       _loadSampleBooks();
+    });
+  }
+
+  Future<void> _selectClientType() async {
+    if (!mounted) return;
+    final selected = await showClientTypeModal(context, includeAll: false);
+    if (!mounted) return;
+    if (selected == null) {
+      if (_dealerType == null) {
+        setState(() {});
+      }
+      return;
+    }
+    setState(() {
+      _dealerType = selected.value;
+      _shopCategory = null;
+      _partnerSubtype = null;
+      _selectedProduct = null;
+      _selectedBookProgram = null;
     });
   }
 
@@ -312,6 +333,24 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
       final saveResult = await _dbService.saveSchoolProfileWithStatus(school);
       syncedToDatabase = saveResult.syncedToDatabase;
       syncMessage = saveResult.message;
+
+      try {
+        await _dbService.recordSchoolVisit(
+          schoolId: school.id,
+          agentId: _dbService.getCurrentUserId() ?? '',
+          outcome: _engagementType,
+          notes: _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
+          visitStatus: 'completed',
+          latitude: _currentPosition?.latitude,
+          longitude: _currentPosition?.longitude,
+          photoUrl: uploadedPhoto['photoUrl'],
+          photoPath: uploadedPhoto['photoPath'],
+        );
+      } catch (e) {
+        debugPrint('Could not record onboarding school visit: $e');
+      }
       if (_samplesLeft == 'Yes' &&
           (uploadedSampleProof['proofUrl'] ?? '').trim().isNotEmpty &&
           _selectedSampleBooks.isNotEmpty) {
@@ -451,6 +490,52 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
 
   @override
   Widget build(BuildContext context) {
+    if (_dealerType == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Onboard Client')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.app_registration_outlined,
+                    size: 36,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Select a Client Type',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Choose the type of client you want to onboard to continue.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _selectClientType,
+                  icon: const Icon(Icons.touch_app_outlined),
+                  label: const Text('Choose Client Type'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Onboard ${_dealerType ?? 'School'}"),
@@ -622,7 +707,7 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
             items: const [
               DropdownMenuItem(value: "School", child: Text("School")),
               DropdownMenuItem(
-                value: "Institutions ",
+                value: "Institution",
                 child: Text("Institution"),
               ),
               DropdownMenuItem(value: "Bookshop", child: Text("Bookshop")),

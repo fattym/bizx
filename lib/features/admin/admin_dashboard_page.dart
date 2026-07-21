@@ -23,10 +23,12 @@ import 'sample_receipts_page.dart';
 import 'admin_crm_page.dart';
 import 'admin_social_pipeline_page.dart';
 import 'project_form_builder_page.dart';
+import 'admin_sample_requests_page.dart';
 import 'project_form_responses_page.dart';
 import 'role2_route_plan_page.dart';
 import '../dashboard/sample_distribution_page.dart';
 import 'school_profile_page.dart';
+import 'admin_individual_performance_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -43,6 +45,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String? _selectedUserIdForMap;
   DateTimeRange? _mapDateRange;
   bool _showOnlyCrmSchools = false;
+  bool _showRegions = false;
   bool _showTasks = true;
   String? _selectedUserIdForTasks;
   DateTimeRange? _taskDateRange;
@@ -65,7 +68,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       final salesRes = await Supabase.instance.client
           .from('school_sales')
           .select('school_id, sale_status');
-      
+
       final Map<String, String> stageMap = {};
       for (var row in (salesRes as List)) {
         final schoolId = (row['school_id'] ?? '').toString();
@@ -405,14 +408,48 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildSectionHeader(
+                            "Regional Performance",
+                            subtitle:
+                                "Sales targets, school coverage, and YoY growth per region.",
+                          ),
+                          TextButton.icon(
+                            onPressed:
+                                () => setState(() => _showRegions = !_showRegions),
+                            icon: Icon(
+                              _showRegions
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                            label: Text(
+                              _showRegions ? "Hide Regions" : "Show Regions",
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_showRegions) ...[
+                        const SizedBox(height: 12),
+                        const RegionsPage(isEmbedded: true),
+                      ],
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader(
                             "Tasks",
                             subtitle:
                                 "Filter and review tasks assigned to specific people or roles.",
                           ),
                           TextButton.icon(
-                            onPressed: () => setState(() => _showTasks = !_showTasks),
-                            icon: Icon(_showTasks ? Icons.expand_less : Icons.expand_more),
-                            label: Text(_showTasks ? "Hide Tasks" : "Show Tasks"),
+                            onPressed:
+                                () => setState(() => _showTasks = !_showTasks),
+                            icon: Icon(
+                              _showTasks
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                            label: Text(
+                              _showTasks ? "Hide Tasks" : "Show Tasks",
+                            ),
                           ),
                         ],
                       ),
@@ -420,257 +457,258 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         const SizedBox(height: 12),
                         if (isNarrow) ...[
                           DropdownButtonFormField<String?>(
-
-                          initialValue: _selectedUserIdForTasks,
-                          decoration: InputDecoration(
-                            labelText: 'Filter by Person',
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
+                            initialValue: _selectedUserIdForTasks,
+                            decoration: InputDecoration(
+                              labelText: 'Filter by Person',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
                               ),
-                            ),
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('All Users'),
-                            ),
-                            ...data.users.map(
-                              (u) => DropdownMenuItem(
-                                value: u.id,
-                                child: Text(
-                                  u.fullName ?? u.email,
-                                  overflow: TextOverflow.ellipsis,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
                                 ),
                               ),
                             ),
-                          ],
-                          onChanged:
-                              (val) => setState(
-                                () => _selectedUserIdForTasks = val,
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('All Users'),
                               ),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: _taskTimeFilter,
-                          decoration: InputDecoration(
-                            labelText: 'Timeframe',
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
-                              ),
-                            ),
-                          ),
-                          items:
-                              ['All', 'Daily', 'Weekly', 'Monthly']
-                                  .map(
-                                    (f) => DropdownMenuItem(
-                                      value: f,
-                                      child: Text(f),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (val) =>
-                                  setState(() => _taskTimeFilter = val!),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: _taskStatusFilter,
-                          decoration: InputDecoration(
-                            labelText: 'Status',
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
-                              ),
-                            ),
-                          ),
-                          items:
-                              ['All', 'Open', 'In Progress', 'Closed']
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(s),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (val) => setState(
-                                () => _taskStatusFilter = val ?? 'All',
-                              ),
-                        ),
-                      ] else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String?>(
-                                initialValue: _selectedUserIdForTasks,
-                                decoration: InputDecoration(
-                                  labelText: 'Filter by Person',
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
+                              ...data.users.map(
+                                (u) => DropdownMenuItem(
+                                  value: u.id,
+                                  child: Text(
+                                    u.fullName ?? u.email,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: null,
-                                    child: Text('All Users'),
-                                  ),
-                                  ...data.users.map(
-                                    (u) => DropdownMenuItem(
-                                      value: u.id,
-                                      child: Text(
-                                        u.fullName ?? u.email,
-                                        overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            onChanged:
+                                (val) => setState(
+                                  () => _selectedUserIdForTasks = val,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _taskTimeFilter,
+                            decoration: InputDecoration(
+                              labelText: 'Timeframe',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                            ),
+                            items:
+                                ['All', 'Daily', 'Weekly', 'Monthly']
+                                    .map(
+                                      (f) => DropdownMenuItem(
+                                        value: f,
+                                        child: Text(f),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (val) => setState(() => _taskTimeFilter = val!),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _taskStatusFilter,
+                            decoration: InputDecoration(
+                              labelText: 'Status',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                            ),
+                            items:
+                                ['All', 'Open', 'In Progress', 'Closed']
+                                    .map(
+                                      (s) => DropdownMenuItem(
+                                        value: s,
+                                        child: Text(s),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (val) => setState(
+                                  () => _taskStatusFilter = val ?? 'All',
+                                ),
+                          ),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String?>(
+                                  initialValue: _selectedUserIdForTasks,
+                                  decoration: InputDecoration(
+                                    labelText: 'Filter by Person',
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
                                       ),
                                     ),
                                   ),
-                                ],
-                                onChanged:
-                                    (val) => setState(
-                                      () => _selectedUserIdForTasks = val,
+                                  items: [
+                                    const DropdownMenuItem(
+                                      value: null,
+                                      child: Text('All Users'),
                                     ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _taskTimeFilter,
-                                decoration: InputDecoration(
-                                  labelText: 'Timeframe',
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
+                                    ...data.users.map(
+                                      (u) => DropdownMenuItem(
+                                        value: u.id,
+                                        child: Text(
+                                          u.fullName ?? u.email,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                  ],
+                                  onChanged:
+                                      (val) => setState(
+                                        () => _selectedUserIdForTasks = val,
+                                      ),
                                 ),
-                                items:
-                                    ['All', 'Daily', 'Weekly', 'Monthly']
-                                        .map(
-                                          (f) => DropdownMenuItem(
-                                            value: f,
-                                            child: Text(f),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged:
-                                    (val) =>
-                                        setState(() => _taskTimeFilter = val!),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _taskStatusFilter,
-                                decoration: InputDecoration(
-                                  labelText: 'Status',
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _taskTimeFilter,
+                                  decoration: InputDecoration(
+                                    labelText: 'Timeframe',
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
                                     ),
                                   ),
+                                  items:
+                                      ['All', 'Daily', 'Weekly', 'Monthly']
+                                          .map(
+                                            (f) => DropdownMenuItem(
+                                              value: f,
+                                              child: Text(f),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged:
+                                      (val) => setState(
+                                        () => _taskTimeFilter = val!,
+                                      ),
                                 ),
-                                items:
-                                    ['All', 'Open', 'In Progress', 'Closed']
-                                        .map(
-                                          (s) => DropdownMenuItem(
-                                            value: s,
-                                            child: Text(s),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged:
-                                    (val) => setState(
-                                      () => _taskStatusFilter = val ?? 'All',
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _taskStatusFilter,
+                                  decoration: InputDecoration(
+                                    labelText: 'Status',
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
                                     ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                  ),
+                                  items:
+                                      ['All', 'Open', 'In Progress', 'Closed']
+                                          .map(
+                                            (s) => DropdownMenuItem(
+                                              value: s,
+                                              child: Text(s),
+                                            ),
+                                          )
+                                          .toList(),
+                                  onChanged:
+                                      (val) => setState(
+                                        () => _taskStatusFilter = val ?? 'All',
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _pickTaskDateRange,
+                              icon: const Icon(Icons.calendar_month_outlined),
+                              label: Text(
+                                _taskDateRange == null
+                                    ? 'Task Date Filter'
+                                    : '${_taskDateRange!.start.year}-${_taskDateRange!.start.month.toString().padLeft(2, '0')}-${_taskDateRange!.start.day.toString().padLeft(2, '0')} -> ${_taskDateRange!.end.year}-${_taskDateRange!.end.month.toString().padLeft(2, '0')}-${_taskDateRange!.end.day.toString().padLeft(2, '0')}',
                               ),
                             ),
+                            if (_taskDateRange != null)
+                              IconButton(
+                                tooltip: 'Clear task date filter',
+                                onPressed: _clearTaskDateRange,
+                                icon: const Icon(Icons.clear),
+                              ),
                           ],
                         ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _pickTaskDateRange,
-                            icon: const Icon(Icons.calendar_month_outlined),
-                            label: Text(
-                              _taskDateRange == null
-                                  ? 'Task Date Filter'
-                                  : '${_taskDateRange!.start.year}-${_taskDateRange!.start.month.toString().padLeft(2, '0')}-${_taskDateRange!.start.day.toString().padLeft(2, '0')} -> ${_taskDateRange!.end.year}-${_taskDateRange!.end.month.toString().padLeft(2, '0')}-${_taskDateRange!.end.day.toString().padLeft(2, '0')}',
+                        const SizedBox(height: 16),
+                        if (filteredTasks.isEmpty)
+                          _buildEmptyCard(
+                            "No tasks match the selected filters.",
+                          )
+                        else
+                          ...filteredTasks.map(
+                            (task) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _TaskCard(
+                                task: task,
+                                onDelete: () => _deleteTask(task),
+                              ),
                             ),
                           ),
-                          if (_taskDateRange != null)
-                            IconButton(
-                              tooltip: 'Clear task date filter',
-                              onPressed: _clearTaskDateRange,
-                              icon: const Icon(Icons.clear),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      if (filteredTasks.isEmpty)
-                        _buildEmptyCard("No tasks match the selected filters.")
-                      else
-                        ...filteredTasks.map(
-                          (task) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _TaskCard(
-                              task: task,
-                              onDelete: () => _deleteTask(task),
-                            ),
-                          ),
-                          ),
-                          ],
-                          const SizedBox(height: 20),
-                          _buildSectionHeader(
-                          "User Access Control",
+                      ],
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(
+                        "User Access Control",
                         subtitle:
                             "Promote or demote users directly from Supabase-backed records.",
                       ),
@@ -841,8 +879,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 }, isCollapsed: isCollapsed),
                 _buildSidebarItem(
                   context,
-                  Icons.public,
-                  'Regions',
+                  Icons.insights_outlined,
+                  'Individual Performance',
                   () {
                     if (MediaQuery.of(context).size.width < 800) {
                       Navigator.pop(context);
@@ -850,12 +888,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const RegionsPage(),
+                        builder: (context) =>
+                            const AdminIndividualPerformancePage(),
                       ),
                     );
                   },
                   isCollapsed: isCollapsed,
                 ),
+                _buildSidebarItem(context, Icons.public, 'Regions', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RegionsPage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
                 _buildSidebarItem(
                   context,
                   Icons.analytics_outlined,
@@ -971,6 +1021,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SampleReceiptsPage(),
+                      ),
+                    );
+                  },
+                  isCollapsed: isCollapsed,
+                ),
+                _buildSidebarItem(
+                  context,
+                  Icons.playlist_add_check_circle_outlined,
+                  'Sample Requests',
+                  () {
+                    if (MediaQuery.of(context).size.width < 800) {
+                      Navigator.pop(context);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminSampleRequestsPage(),
                       ),
                     );
                   },
@@ -1121,18 +1188,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _buildSidebarItem(
-                context,
-                Icons.logout,
-                'Sign Out',
-                () {
-                  if (!isDesktop) {
-                    Navigator.pop(context);
-                  }
-                  _signOut();
-                },
-                isCollapsed: isCollapsed,
-              ),
+              child: _buildSidebarItem(context, Icons.logout, 'Sign Out', () {
+                if (!isDesktop) {
+                  Navigator.pop(context);
+                }
+                _signOut();
+              }, isCollapsed: isCollapsed),
             ),
           ),
         ],
@@ -1178,7 +1239,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     // CRM Pipeline Alignment Fix
     if (_showOnlyCrmSchools) {
-      mapSchools = mapSchools.where((s) => _schoolStages.containsKey(s.id)).toList();
+      mapSchools =
+          mapSchools.where((s) => _schoolStages.containsKey(s.id)).toList();
     }
 
     if (_mapDateRange != null) {
@@ -1285,7 +1347,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const AdminGeofenceMapScreen(),
+                            builder:
+                                (context) => const AdminGeofenceMapScreen(),
                           ),
                         ),
                     icon: const Icon(Icons.add_location_alt, size: 18),
@@ -1359,12 +1422,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Pipeline Only', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                    const Text(
+                      'Pipeline Only',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     Switch(
                       value: _showOnlyCrmSchools,
-                      activeTrackColor: AppColors.primaryGreen.withValues(alpha: 0.5),
+                      activeTrackColor: AppColors.primaryGreen.withValues(
+                        alpha: 0.5,
+                      ),
                       activeThumbColor: AppColors.primaryGreen,
-                      onChanged: (val) => setState(() => _showOnlyCrmSchools = val),
+                      onChanged:
+                          (val) => setState(() => _showOnlyCrmSchools = val),
                     ),
                   ],
                 ),
@@ -1422,7 +1494,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 TileLayer(
                                   urlTemplate:
                                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  userAgentPackageName: 'dehus.longhorn.publishers',
+                                  userAgentPackageName:
+                                      'dehus.longhorn.publishers',
                                   maxNativeZoom: 19,
                                   panBuffer: 2,
                                 ),
@@ -1431,31 +1504,31 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 MarkerLayer(
                                   markers: _schoolMarkers(context, mapSchools),
                                 ),
-                                ],
-                                ),
-                                ),
-                                if (_showOnlyCrmSchools && mapSchools.isNotEmpty)
-                                Positioned(
-                                right: 12,
-                                top: 12,
-                                child: _buildMapLegend(),
-                                ),
-                                if (mapSchools.isNotEmpty)
-                                Positioned(
-                                left: 12,
-                                bottom: 12,
+                              ],
+                            ),
+                  ),
+                  if (_showOnlyCrmSchools && mapSchools.isNotEmpty)
+                    Positioned(right: 12, top: 12, child: _buildMapLegend()),
+                  if (mapSchools.isNotEmpty)
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
 
                       child: FilledButton.icon(
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => _FullScreenMapPage(
-                                schools: mapSchools,
-                                polygons: polygons,
-                                polylines: polylines,
-                                markers: _schoolMarkers(context, mapSchools),
-                              ),
+                              builder:
+                                  (_) => _FullScreenMapPage(
+                                    schools: mapSchools,
+                                    polygons: polygons,
+                                    polylines: polylines,
+                                    markers: _schoolMarkers(
+                                      context,
+                                      mapSchools,
+                                    ),
+                                  ),
                             ),
                           );
                         },
@@ -1488,7 +1561,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           children: [
             const Text(
               'Pipeline Key',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.longhornMaroon),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.longhornMaroon,
+              ),
             ),
             const Divider(height: 16),
             _legendItem('Lead', Colors.blue),
@@ -1516,11 +1593,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               color: color,
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 1.5),
-              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 4)],
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 4),
+              ],
             ),
           ),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -1671,45 +1753,43 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   List<Marker> _schoolMarkers(BuildContext context, List<SchoolModel> schools) {
     return schools
         .where((school) => school.latitude != null && school.longitude != null)
-        .map(
-          (school) {
-            final stage = _schoolStages[school.id];
-            final color = _stageColor(stage);
-            return Marker(
-              point: LatLng(
-                school.latitude!.toDouble(),
-                school.longitude!.toDouble(),
-              ),
-              width: 44, // Slightly larger hit area for easier tapping
-              height: 44,
-              child: GestureDetector(
-                onTap: () => _showSchoolDetails(context, school),
-                child: Tooltip(
-                  message: '${school.name} (${stage ?? 'Lead'})',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.95),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.location_on,
-                      size: 20,
-                      color: Colors.white,
-                    ),
+        .map((school) {
+          final stage = _schoolStages[school.id];
+          final color = _stageColor(stage);
+          return Marker(
+            point: LatLng(
+              school.latitude!.toDouble(),
+              school.longitude!.toDouble(),
+            ),
+            width: 44, // Slightly larger hit area for easier tapping
+            height: 44,
+            child: GestureDetector(
+              onTap: () => _showSchoolDetails(context, school),
+              child: Tooltip(
+                message: '${school.name} (${stage ?? 'Lead'})',
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.95),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    size: 20,
+                    color: Colors.white,
                   ),
                 ),
               ),
-            );
-          },
-        )
+            ),
+          );
+        })
         .toList();
   }
 
@@ -1754,7 +1834,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     color: AppColors.primaryGreen,
                   ),
                   title: const Text('Phone Number'),
-                  subtitle: Text(school.phone.isEmpty ? 'Not provided' : school.phone),
+                  subtitle: Text(
+                    school.phone.isEmpty ? 'Not provided' : school.phone,
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const Divider(),
@@ -1764,7 +1846,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     color: AppColors.primaryGreen,
                   ),
                   title: const Text('County'),
-                  subtitle: Text(school.county.isEmpty ? 'Not provided' : school.county),
+                  subtitle: Text(
+                    school.county.isEmpty ? 'Not provided' : school.county,
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const Divider(),
@@ -1796,7 +1880,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SchoolProfilePage(schoolId: school.id),
+                          builder:
+                              (context) =>
+                                  SchoolProfilePage(schoolId: school.id),
                         ),
                       );
                       _refreshDashboard();

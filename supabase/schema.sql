@@ -213,6 +213,7 @@ create table if not exists public.schools (
   capture_status text,
   contact_name text,
   contact_phone text,
+  contact_email text,
   contact_title text,
   feedback text,
   notes text,
@@ -286,6 +287,9 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'contact_title') then
     alter table public.schools add column contact_title text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'contact_email') then
+    alter table public.schools add column contact_email text;
   end if;
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'feedback') then
     alter table public.schools add column feedback text;
@@ -1326,7 +1330,9 @@ create table if not exists public.school_sample_distributions (
   agent_id uuid references public.users (id) on delete set null,
   sample_name text not null,
   sample_category text,
+  client_type text,
   quantity integer not null default 1,
+  returned_qty integer not null default 0,
   stamped_receipt_url text,
   stamped_receipt_path text,
   notes text,
@@ -1346,6 +1352,12 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'stamped_receipt_path') then
     alter table public.school_sample_distributions add column stamped_receipt_path text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'client_type') then
+    alter table public.school_sample_distributions add column client_type text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'school_sample_distributions' and column_name = 'returned_qty') then
+    alter table public.school_sample_distributions add column returned_qty integer not null default 0;
   end if;
 end $$;
 
@@ -2112,3 +2124,37 @@ for all
 to authenticated
 using (agent_id = auth.uid() or public.is_manager_or_admin())
 with check (agent_id = auth.uid() or public.is_manager_or_admin());
+
+create table if not exists public.sample_requests (
+  id uuid primary key default gen_random_uuid(),
+  request_code text not null unique,
+  school_id uuid references public.schools (id) on delete cascade,
+  client_type text,
+  requested_by uuid references public.users (id) on delete set null,
+  purpose text,
+  notes text,
+  status text not null default 'PENDING',
+  rejection_reason text,
+  needed_by timestamptz,
+  requested_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.users (id) on delete set null,
+  items jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists touch_sample_requests_updated_at on public.sample_requests;
+create trigger touch_sample_requests_updated_at
+before update on public.sample_requests
+for each row execute procedure public.set_updated_at();
+
+alter table public.sample_requests enable row level security;
+
+drop policy if exists "users_can_manage_sample_requests" on public.sample_requests;
+create policy "users_can_manage_sample_requests"
+on public.sample_requests
+for all
+to authenticated
+using (requested_by = auth.uid() or public.is_manager_or_admin())
+with check (requested_by = auth.uid() or public.is_manager_or_admin());

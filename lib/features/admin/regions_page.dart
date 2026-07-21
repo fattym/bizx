@@ -7,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/colors.dart';
 
 class RegionsPage extends StatefulWidget {
-  const RegionsPage({super.key});
+  const RegionsPage({super.key, this.isEmbedded = false});
+  final bool isEmbedded;
 
   @override
   State<RegionsPage> createState() => _RegionsPageState();
@@ -371,7 +372,7 @@ class _RegionsPageState extends State<RegionsPage> {
   }
 
   static bool _isBookshopOutlet(Map<String, dynamic> school) {
-    final buffer = <String>[
+    final buffer = [
       school['dealer_type'],
       school['shop_category'],
       school['selected_product'],
@@ -390,7 +391,7 @@ class _RegionsPageState extends State<RegionsPage> {
   }
 
   static bool _isCallActivity(Map<String, dynamic> activity) {
-    final buffer = <String>[
+    final buffer = [
       activity['activity_type'],
       activity['activity_outcome'],
       activity['notes'],
@@ -435,6 +436,55 @@ class _RegionsPageState extends State<RegionsPage> {
 
     rows.sort((a, b) => b.salesActualSelected.compareTo(a.salesActualSelected));
 
+    final innerContent = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeroCard(metrics),
+            const SizedBox(height: 16),
+            _buildFilterBar(),
+            const SizedBox(height: 8),
+            Text(
+              'Targets are benchmarked from prior-year performance and active outlet counts because the current schema does not store explicit regional target tables.',
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildSummaryGrid(metrics),
+            const SizedBox(height: 24),
+            _buildSalesSection(rows, metrics),
+            const SizedBox(height: 24),
+            _buildSchoolSection(rows, metrics),
+            const SizedBox(height: 24),
+            _buildBookshopSection(rows, metrics),
+            const SizedBox(height: 24),
+            _buildDailySection(rows, metrics),
+            const SizedBox(height: 24),
+            _buildTrendSection(),
+          ],
+        ),
+      ),
+    );
+
+    if (widget.isEmbedded) {
+      return _isLoading ? const Center(child: CircularProgressIndicator()) : innerContent;
+    }
+
+    final content = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: innerContent,
+            ),
+          );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Regions'),
@@ -446,49 +496,7 @@ class _RegionsPageState extends State<RegionsPage> {
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                onRefresh: _loadData,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1400),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHeroCard(metrics),
-                          const SizedBox(height: 16),
-                          _buildFilterBar(),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Targets are benchmarked from prior-year performance and active outlet counts because the current schema does not store explicit regional target tables.',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildSummaryGrid(metrics),
-                          const SizedBox(height: 24),
-                          _buildSalesSection(rows, metrics),
-                          const SizedBox(height: 24),
-                          _buildSchoolSection(rows, metrics),
-                          const SizedBox(height: 24),
-                          _buildBookshopSection(rows, metrics),
-                          const SizedBox(height: 24),
-                          _buildDailySection(rows, metrics),
-                          const SizedBox(height: 24),
-                          _buildTrendSection(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+      body: content,
     );
   }
 
@@ -612,58 +620,69 @@ class _RegionsPageState extends State<RegionsPage> {
   Widget _buildSummaryGrid(_RegionMetrics metrics) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth >= 1100 ? 4 : 2;
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: constraints.maxWidth >= 1100 ? 2.7 : 2.2,
+        final double cardWidth = constraints.maxWidth >= 1100 
+            ? (constraints.maxWidth - 36) / 4 
+            : constraints.maxWidth >= 600
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+
+        Widget buildCard(Widget child) => SizedBox(width: cardWidth, child: child);
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            _summaryCard(
-              title: 'Sales Performance',
-              icon: Icons.payments_outlined,
-              accent: const Color(0xFF80AC4A),
-              lines: [
-                'Target: ${_formatCurrency(metrics.selectedSalesTarget)}',
-                'Actual: ${_formatCurrency(metrics.salesActualSelected)}',
-                'Achievement: ${metrics.salesAchievement.toStringAsFixed(1)}%',
-                'YoY: ${_formatGrowthValue(metrics.salesYoYAbsolute, metrics.salesYoYPercent)}',
-              ],
+            buildCard(
+              _summaryCard(
+                title: 'Sales Performance',
+                icon: Icons.payments_outlined,
+                accent: const Color(0xFF80AC4A),
+                lines: [
+                  'Target: ${_formatCurrency(metrics.selectedSalesTarget)}',
+                  'Actual: ${_formatCurrency(metrics.salesActualSelected)}',
+                  'Achievement: ${metrics.salesAchievement.toStringAsFixed(1)}%',
+                  'YoY: ${_formatGrowthValue(metrics.salesYoYAbsolute, metrics.salesYoYPercent)}',
+                ],
+              ),
             ),
-            _summaryCard(
-              title: 'School Coverage',
-              icon: Icons.school_outlined,
-              accent: Colors.blue,
-              lines: [
-                'Visits: ${_formatInt(metrics.selectedSchoolVisits)} / ${_formatInt(metrics.selectedSchoolVisitTarget)}',
-                'Calls: ${_formatInt(metrics.selectedSchoolCalls)} / ${_formatInt(metrics.selectedSchoolCallTarget)}',
-                'YTD Visits Target: ${_formatInt(metrics.schoolVisitYtdTarget)}',
-                'YTD Calls Target: ${_formatInt(metrics.schoolCallYtdTarget)}',
-              ],
+            buildCard(
+              _summaryCard(
+                title: 'School Coverage',
+                icon: Icons.school_outlined,
+                accent: Colors.blue,
+                lines: [
+                  'Visits: ${_formatInt(metrics.selectedSchoolVisits)} / ${_formatInt(metrics.selectedSchoolVisitTarget)}',
+                  'Calls: ${_formatInt(metrics.selectedSchoolCalls)} / ${_formatInt(metrics.selectedSchoolCallTarget)}',
+                  'YTD Visits Target: ${_formatInt(metrics.schoolVisitYtdTarget)}',
+                  'YTD Calls Target: ${_formatInt(metrics.schoolCallYtdTarget)}',
+                ],
+              ),
             ),
-            _summaryCard(
-              title: 'Bookshop Coverage',
-              icon: Icons.storefront_outlined,
-              accent: Colors.deepOrange,
-              lines: [
-                'Visits: ${_formatInt(metrics.selectedBookshopVisits)} / ${_formatInt(metrics.selectedBookshopVisitTarget)}',
-                'Calls: ${_formatInt(metrics.selectedBookshopCalls)} / ${_formatInt(metrics.selectedBookshopCallTarget)}',
-                'YTD Visits Target: ${_formatInt(metrics.bookshopVisitYtdTarget)}',
-                'YTD Calls Target: ${_formatInt(metrics.bookshopCallYtdTarget)}',
-              ],
+            buildCard(
+              _summaryCard(
+                title: 'Bookshop Coverage',
+                icon: Icons.storefront_outlined,
+                accent: Colors.deepOrange,
+                lines: [
+                  'Visits: ${_formatInt(metrics.selectedBookshopVisits)} / ${_formatInt(metrics.selectedBookshopVisitTarget)}',
+                  'Calls: ${_formatInt(metrics.selectedBookshopCalls)} / ${_formatInt(metrics.selectedBookshopCallTarget)}',
+                  'YTD Visits Target: ${_formatInt(metrics.bookshopVisitYtdTarget)}',
+                  'YTD Calls Target: ${_formatInt(metrics.bookshopCallYtdTarget)}',
+                ],
+              ),
             ),
-            _summaryCard(
-              title: 'Daily Coverage',
-              icon: Icons.today_outlined,
-              accent: Colors.purple,
-              lines: [
-                'Schools visited today: ${_formatInt(metrics.todaySchoolVisits)}',
-                'Schools called today: ${_formatInt(metrics.todaySchoolCalls)}',
-                'Bookshops visited today: ${_formatInt(metrics.todayBookshopVisits)}',
-                'Bookshops called today: ${_formatInt(metrics.todayBookshopCalls)}',
-              ],
+            buildCard(
+              _summaryCard(
+                title: 'Daily Coverage',
+                icon: Icons.today_outlined,
+                accent: Colors.purple,
+                lines: [
+                  'Schools visited today: ${_formatInt(metrics.todaySchoolVisits)}',
+                  'Schools called today: ${_formatInt(metrics.todaySchoolCalls)}',
+                  'Bookshops visited today: ${_formatInt(metrics.todayBookshopVisits)}',
+                  'Bookshops called today: ${_formatInt(metrics.todayBookshopCalls)}',
+                ],
+              ),
             ),
           ],
         );
@@ -1012,129 +1031,139 @@ class _RegionsPageState extends State<RegionsPage> {
     required Color previousColor,
     required String Function(double value) valueFormatter,
   }) {
-    return SizedBox(
-      width: 400,
-      child: Card(
-        elevation: 0,
-        color: AppColors.primaryPale.withValues(alpha: 0.35),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 10,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < 400 ? constraints.maxWidth : 400.0;
+        return SizedBox(
+          width: width,
+          child: Card(
+            elevation: 0,
+            color: AppColors.primaryPale.withValues(alpha: 0.35),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _legendDot(currentColor, 'Current year'),
-                  _legendDot(previousColor, 'Previous year'),
-                ],
-              ),
-              const SizedBox(height: 10),
-              AspectRatio(
-                aspectRatio: 1.5,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: Colors.grey.withValues(alpha: 0.18),
-                        strokeWidth: 1,
-                      ),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                    titlesData: FlTitlesData(
-                      show: true,
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 24,
-                          interval: 1,
-                          getTitlesWidget: (value, meta) {
-                            const months = [
-                              'Jan',
-                              'Feb',
-                              'Mar',
-                              'Apr',
-                              'May',
-                              'Jun',
-                              'Jul',
-                              'Aug',
-                              'Sep',
-                              'Oct',
-                              'Nov',
-                              'Dec',
-                            ];
-                            if (value >= 0 &&
-                                value < 12 &&
-                                value.toInt() % 2 == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  months[value.toInt()],
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                              );
-                            }
-                            return const Text('');
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 34,
-                          getTitlesWidget: (value, meta) => Text(
-                            valueFormatter(value),
-                            style: const TextStyle(fontSize: 9),
-                          ),
-                        ),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    minX: 0,
-                    maxX: 11,
-                    minY: 0,
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _buildMonthlySpots(currentSeries),
-                        isCurved: true,
-                        color: currentColor,
-                        barWidth: 3,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: currentColor.withValues(alpha: 0.12),
-                        ),
-                      ),
-                      LineChartBarData(
-                        spots: _buildMonthlySpots(previousSeries),
-                        isCurved: true,
-                        color: previousColor,
-                        barWidth: 2,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: false),
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      _legendDot(currentColor, 'Current year'),
+                      _legendDot(previousColor, 'Previous year'),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  AspectRatio(
+                    aspectRatio: 1.5,
+                    child: LineChart(
+                      LineChartData(
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          getDrawingHorizontalLine: (value) => FlLine(
+                            color: Colors.grey.withValues(alpha: 0.18),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 24,
+                              interval: 1,
+                              getTitlesWidget: (value, meta) {
+                                const months = [
+                                  'Jan',
+                                  'Feb',
+                                  'Mar',
+                                  'Apr',
+                                  'May',
+                                  'Jun',
+                                  'Jul',
+                                  'Aug',
+                                  'Sep',
+                                  'Oct',
+                                  'Nov',
+                                  'Dec',
+                                ];
+                                if (value >= 0 &&
+                                    value < 12 &&
+                                    value.toInt() % 2 == 0) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      months[value.toInt()],
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
+                                  );
+                                }
+                                return const Text('');
+                              },
+                            ),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 34,
+                              getTitlesWidget: (value, meta) => Text(
+                                valueFormatter(value),
+                                style: const TextStyle(fontSize: 9),
+                              ),
+                            ),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        minX: 0,
+                        maxX: 11,
+                        minY: 0,
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: _buildMonthlySpots(currentSeries),
+                            isCurved: true,
+                            color: currentColor,
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: currentColor.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          LineChartBarData(
+                            spots: _buildMonthlySpots(previousSeries),
+                            isCurved: true,
+                            color: previousColor,
+                            barWidth: 2,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
