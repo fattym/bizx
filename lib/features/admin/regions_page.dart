@@ -62,11 +62,13 @@ class _RegionsPageState extends State<RegionsPage> {
     );
     final currentYear = now.year;
     final previousYear = now.year - 1;
-    final yearLength = DateTime(now.year + 1, 1, 1)
-        .difference(DateTime(now.year, 1, 1))
-        .inDays;
-    final yearProgress =
-        now.difference(DateTime(now.year, 1, 1)).inDays + 1;
+    final yearLength =
+        DateTime(
+          now.year + 1,
+          1,
+          1,
+        ).difference(DateTime(now.year, 1, 1)).inDays;
+    final yearProgress = now.difference(DateTime(now.year, 1, 1)).inDays + 1;
     final periodDays =
         currentPeriod.end.difference(currentPeriod.start).inDays + 1;
     final periodRatio = periodDays / yearLength;
@@ -74,51 +76,48 @@ class _RegionsPageState extends State<RegionsPage> {
     final previousYearStartIso = DateTime(previousYear, 1, 1).toIso8601String();
     final nowIso = now.toIso8601String();
 
-    final results = await Future.wait<List<Map<String, dynamic>>>(
-      [
-        _fetchRows(
-          () => _supabase.from('users').select('id, region'),
-          'users',
-        ),
-        _fetchRows(
-          () => _supabase.from('schools').select(
-                'id, name, county, dealer_type, shop_category, selected_product, partner_subtype, book_category, captured_by',
-              ),
-          'schools',
-        ),
-        _fetchRows(
-          () => _supabase
-              .from('school_visits')
-              .select('id, school_id, visited_at, visit_status')
-              .gte('visited_at', previousYearStartIso)
-              .lte('visited_at', nowIso),
-          'visits',
-        ),
-        _fetchRows(
-          () => _supabase
-              .from('school_sales')
-              .select(
-                'id, school_id, expected_value, sale_status, created_at, closed_at, stage_updated_at',
-              )
-              .eq('sale_status', 'won')
-              .or(
-                'created_at.gte.$previousYearStartIso,closed_at.gte.$previousYearStartIso,stage_updated_at.gte.$previousYearStartIso',
-              )
-              .lte('created_at', nowIso),
-          'sales',
-        ),
-        _fetchRows(
-          () => _supabase
-              .from('opportunity_activities')
-              .select(
-                'id, school_id, activity_type, activity_outcome, notes, next_action, created_at',
-              )
-              .gte('created_at', previousYearStartIso)
-              .lte('created_at', nowIso),
-          'activities',
-        ),
-      ],
-    );
+    final results = await Future.wait<List<Map<String, dynamic>>>([
+      _fetchRows(() => _supabase.from('users').select('id, region'), 'users'),
+      _fetchRows(
+        () => _supabase
+            .from('schools')
+            .select(
+              'id, name, county, dealer_type, shop_category, selected_product, partner_subtype, book_category, captured_by',
+            ),
+        'schools',
+      ),
+      _fetchRows(
+        () => _supabase
+            .from('school_visits')
+            .select('id, school_id, visited_at, visit_status')
+            .gte('visited_at', previousYearStartIso)
+            .lte('visited_at', nowIso),
+        'visits',
+      ),
+      _fetchRows(
+        () => _supabase
+            .from('school_sales')
+            .select(
+              'id, school_id, expected_value, sale_status, created_at, closed_at, stage_updated_at',
+            )
+            .eq('sale_status', 'won')
+            .or(
+              'created_at.gte.$previousYearStartIso,closed_at.gte.$previousYearStartIso,stage_updated_at.gte.$previousYearStartIso',
+            )
+            .lte('created_at', nowIso),
+        'sales',
+      ),
+      _fetchRows(
+        () => _supabase
+            .from('opportunity_activities')
+            .select(
+              'id, school_id, activity_type, activity_outcome, notes, next_action, created_at',
+            )
+            .gte('created_at', previousYearStartIso)
+            .lte('created_at', nowIso),
+        'activities',
+      ),
+    ]);
 
     final users = results[0];
     final schools = results[1];
@@ -168,8 +167,22 @@ class _RegionsPageState extends State<RegionsPage> {
         continue;
       }
 
-      bucket.recordSales(date, amount, currentPeriod, previousPeriod, currentYear, previousYear);
-      department.recordSales(date, amount, currentPeriod, previousPeriod, currentYear, previousYear);
+      bucket.recordSales(
+        date,
+        amount,
+        currentPeriod,
+        previousPeriod,
+        currentYear,
+        previousYear,
+      );
+      department.recordSales(
+        date,
+        amount,
+        currentPeriod,
+        previousPeriod,
+        currentYear,
+        previousYear,
+      );
     }
 
     for (final visit in visits) {
@@ -310,10 +323,7 @@ class _RegionsPageState extends State<RegionsPage> {
       );
     }
     if (_selectedPeriod == 'Month') {
-      return DateTimeRange(
-        start: DateTime(now.year, now.month, 1),
-        end: now,
-      );
+      return DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
     }
     if (_selectedPeriod == 'YTD') {
       return DateTimeRange(start: DateTime(now.year, 1, 1), end: now);
@@ -373,13 +383,16 @@ class _RegionsPageState extends State<RegionsPage> {
 
   static bool _isBookshopOutlet(Map<String, dynamic> school) {
     final buffer = [
-      school['dealer_type'],
-      school['shop_category'],
-      school['selected_product'],
-      school['partner_subtype'],
-      school['book_category'],
-      school['name'],
-    ].where((value) => value != null).map((value) => value.toString().toLowerCase()).join(' ');
+          school['dealer_type'],
+          school['shop_category'],
+          school['selected_product'],
+          school['partner_subtype'],
+          school['book_category'],
+          school['name'],
+        ]
+        .where((value) => value != null)
+        .map((value) => value.toString().toLowerCase())
+        .join(' ');
 
     return buffer.contains('bookshop') ||
         buffer.contains('book shop') ||
@@ -392,11 +405,14 @@ class _RegionsPageState extends State<RegionsPage> {
 
   static bool _isCallActivity(Map<String, dynamic> activity) {
     final buffer = [
-      activity['activity_type'],
-      activity['activity_outcome'],
-      activity['notes'],
-      activity['next_action'],
-    ].where((value) => value != null).map((value) => value.toString().toLowerCase()).join(' ');
+          activity['activity_type'],
+          activity['activity_outcome'],
+          activity['notes'],
+          activity['next_action'],
+        ]
+        .where((value) => value != null)
+        .map((value) => value.toString().toLowerCase())
+        .join(' ');
 
     return buffer.contains('call');
   }
@@ -448,10 +464,7 @@ class _RegionsPageState extends State<RegionsPage> {
             const SizedBox(height: 8),
             Text(
               'Targets are benchmarked from prior-year performance and active outlet counts because the current schema does not store explicit regional target tables.',
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
             ),
             const SizedBox(height: 16),
             _buildSummaryGrid(metrics),
@@ -471,19 +484,22 @@ class _RegionsPageState extends State<RegionsPage> {
     );
 
     if (widget.isEmbedded) {
-      return _isLoading ? const Center(child: CircularProgressIndicator()) : innerContent;
+      return _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : innerContent;
     }
 
-    final content = _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _loadData,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: innerContent,
-            ),
-          );
+    final content =
+        _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: innerContent,
+              ),
+            );
 
     return Scaffold(
       appBar: AppBar(
@@ -535,10 +551,29 @@ class _RegionsPageState extends State<RegionsPage> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _buildHeroPill('Regions', _selectedRegion == 'All Regions' ? '${_regions.length - 1}' : '1'),
-              _buildHeroPill('Sales Achievement', '${metrics.salesAchievement.toStringAsFixed(1)}%'),
-              _buildHeroPill('School Activity', _formatInt(metrics.selectedSchoolVisits + metrics.selectedSchoolCalls)),
-              _buildHeroPill('Bookshop Activity', _formatInt(metrics.selectedBookshopVisits + metrics.selectedBookshopCalls)),
+              _buildHeroPill(
+                'Regions',
+                _selectedRegion == 'All Regions'
+                    ? '${_regions.length - 1}'
+                    : '1',
+              ),
+              _buildHeroPill(
+                'Sales Achievement',
+                '${metrics.salesAchievement.toStringAsFixed(1)}%',
+              ),
+              _buildHeroPill(
+                'School Activity',
+                _formatInt(
+                  metrics.selectedSchoolVisits + metrics.selectedSchoolCalls,
+                ),
+              ),
+              _buildHeroPill(
+                'Bookshop Activity',
+                _formatInt(
+                  metrics.selectedBookshopVisits +
+                      metrics.selectedBookshopCalls,
+                ),
+              ),
             ],
           ),
           if (_lastUpdatedAt != null) ...[
@@ -563,7 +598,10 @@ class _RegionsPageState extends State<RegionsPage> {
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -620,13 +658,15 @@ class _RegionsPageState extends State<RegionsPage> {
   Widget _buildSummaryGrid(_RegionMetrics metrics) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double cardWidth = constraints.maxWidth >= 1100 
-            ? (constraints.maxWidth - 36) / 4 
-            : constraints.maxWidth >= 600
+        final double cardWidth =
+            constraints.maxWidth >= 1100
+                ? (constraints.maxWidth - 36) / 4
+                : constraints.maxWidth >= 600
                 ? (constraints.maxWidth - 12) / 2
                 : constraints.maxWidth;
 
-        Widget buildCard(Widget child) => SizedBox(width: cardWidth, child: child);
+        Widget buildCard(Widget child) =>
+            SizedBox(width: cardWidth, child: child);
 
         return Wrap(
           spacing: 12,
@@ -731,7 +771,10 @@ class _RegionsPageState extends State<RegionsPage> {
             ...lines.map(
               (line) => Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text(line, style: TextStyle(color: Colors.grey.shade800)),
+                child: Text(
+                  line,
+                  style: TextStyle(color: Colors.grey.shade800),
+                ),
               ),
             ),
           ],
@@ -744,18 +787,25 @@ class _RegionsPageState extends State<RegionsPage> {
     return _tableSection(
       title: 'Sales Performance by Region',
       subtitle: 'Sales target vs actual achievement and YoY movement.',
-      columns: const ['Region', 'Target', 'Actual', 'Achievement', 'YoY Growth'],
-      rows: rows
-          .map(
-            (row) => [
-              row.region,
-              _formatCurrency(row.selectedSalesTarget),
-              _formatCurrency(row.salesActualSelected),
-              '${row.salesAchievement.toStringAsFixed(1)}%',
-              _formatGrowthValue(row.salesYoYAbsolute, row.salesYoYPercent),
-            ],
-          )
-          .toList(),
+      columns: const [
+        'Region',
+        'Target',
+        'Actual',
+        'Achievement',
+        'YoY Growth',
+      ],
+      rows:
+          rows
+              .map(
+                (row) => [
+                  row.region,
+                  _formatCurrency(row.selectedSalesTarget),
+                  _formatCurrency(row.salesActualSelected),
+                  '${row.salesAchievement.toStringAsFixed(1)}%',
+                  _formatGrowthValue(row.salesYoYAbsolute, row.salesYoYPercent),
+                ],
+              )
+              .toList(),
       totalRow: [
         'Department Total',
         _formatCurrency(metrics.selectedSalesTarget),
@@ -766,7 +816,10 @@ class _RegionsPageState extends State<RegionsPage> {
     );
   }
 
-  Widget _buildSchoolSection(List<_RegionMetrics> rows, _RegionMetrics metrics) {
+  Widget _buildSchoolSection(
+    List<_RegionMetrics> rows,
+    _RegionMetrics metrics,
+  ) {
     return _tableSection(
       title: 'School Coverage',
       subtitle: 'Weekly targets, YTD targets, actual visits and calls.',
@@ -780,23 +833,24 @@ class _RegionsPageState extends State<RegionsPage> {
         'Actual Calls',
         'YoY Growth',
       ],
-      rows: rows
-          .map(
-            (row) => [
-              row.region,
-              _formatInt(row.schoolVisitWeeklyTarget),
-              _formatInt(row.schoolCallWeeklyTarget),
-              _formatInt(row.schoolVisitYtdTarget),
-              _formatInt(row.schoolCallYtdTarget),
-              _formatInt(row.selectedSchoolVisits),
-              _formatInt(row.selectedSchoolCalls),
-              _formatGrowthValue(
-                row.schoolActivityYoYAbsolute,
-                row.schoolActivityYoYPercent,
-              ),
-            ],
-          )
-          .toList(),
+      rows:
+          rows
+              .map(
+                (row) => [
+                  row.region,
+                  _formatInt(row.schoolVisitWeeklyTarget),
+                  _formatInt(row.schoolCallWeeklyTarget),
+                  _formatInt(row.schoolVisitYtdTarget),
+                  _formatInt(row.schoolCallYtdTarget),
+                  _formatInt(row.selectedSchoolVisits),
+                  _formatInt(row.selectedSchoolCalls),
+                  _formatGrowthValue(
+                    row.schoolActivityYoYAbsolute,
+                    row.schoolActivityYoYPercent,
+                  ),
+                ],
+              )
+              .toList(),
       totalRow: [
         'Department Total',
         _formatInt(metrics.schoolVisitWeeklyTarget),
@@ -813,7 +867,10 @@ class _RegionsPageState extends State<RegionsPage> {
     );
   }
 
-  Widget _buildBookshopSection(List<_RegionMetrics> rows, _RegionMetrics metrics) {
+  Widget _buildBookshopSection(
+    List<_RegionMetrics> rows,
+    _RegionMetrics metrics,
+  ) {
     return _tableSection(
       title: 'Bookshop Coverage',
       subtitle: 'Weekly targets, YTD targets, actual visits and calls.',
@@ -827,23 +884,24 @@ class _RegionsPageState extends State<RegionsPage> {
         'Actual Calls',
         'YoY Growth',
       ],
-      rows: rows
-          .map(
-            (row) => [
-              row.region,
-              _formatInt(row.bookshopVisitWeeklyTarget),
-              _formatInt(row.bookshopCallWeeklyTarget),
-              _formatInt(row.bookshopVisitYtdTarget),
-              _formatInt(row.bookshopCallYtdTarget),
-              _formatInt(row.selectedBookshopVisits),
-              _formatInt(row.selectedBookshopCalls),
-              _formatGrowthValue(
-                row.bookshopActivityYoYAbsolute,
-                row.bookshopActivityYoYPercent,
-              ),
-            ],
-          )
-          .toList(),
+      rows:
+          rows
+              .map(
+                (row) => [
+                  row.region,
+                  _formatInt(row.bookshopVisitWeeklyTarget),
+                  _formatInt(row.bookshopCallWeeklyTarget),
+                  _formatInt(row.bookshopVisitYtdTarget),
+                  _formatInt(row.bookshopCallYtdTarget),
+                  _formatInt(row.selectedBookshopVisits),
+                  _formatInt(row.selectedBookshopCalls),
+                  _formatGrowthValue(
+                    row.bookshopActivityYoYAbsolute,
+                    row.bookshopActivityYoYPercent,
+                  ),
+                ],
+              )
+              .toList(),
       totalRow: [
         'Department Total',
         _formatInt(metrics.bookshopVisitWeeklyTarget),
@@ -873,19 +931,20 @@ class _RegionsPageState extends State<RegionsPage> {
         'Schools Today',
         'Bookshops Today',
       ],
-      rows: rows
-          .map(
-            (row) => [
-              row.region,
-              _formatInt(row.dailySchoolVisitTarget),
-              _formatInt(row.dailySchoolCallTarget),
-              _formatInt(row.todaySchoolVisits),
-              _formatInt(row.todaySchoolCalls),
-              _formatInt(row.todaySchoolsCoveredIds.length),
-              _formatInt(row.todayBookshopsCoveredIds.length),
-            ],
-          )
-          .toList(),
+      rows:
+          rows
+              .map(
+                (row) => [
+                  row.region,
+                  _formatInt(row.dailySchoolVisitTarget),
+                  _formatInt(row.dailySchoolCallTarget),
+                  _formatInt(row.todaySchoolVisits),
+                  _formatInt(row.todaySchoolCalls),
+                  _formatInt(row.todaySchoolsCoveredIds.length),
+                  _formatInt(row.todayBookshopsCoveredIds.length),
+                ],
+              )
+              .toList(),
       totalRow: [
         'Department Total',
         _formatInt(metrics.dailySchoolVisitTarget),
@@ -925,7 +984,9 @@ class _RegionsPageState extends State<RegionsPage> {
                           (column) => DataColumn(
                             label: Text(
                               column,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         )
@@ -937,7 +998,10 @@ class _RegionsPageState extends State<RegionsPage> {
                           row
                               .map(
                                 (cell) => DataCell(
-                                  Text(cell, style: const TextStyle(fontSize: 13)),
+                                  Text(
+                                    cell,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -1070,10 +1134,11 @@ class _RegionsPageState extends State<RegionsPage> {
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
-                          getDrawingHorizontalLine: (value) => FlLine(
-                            color: Colors.grey.withValues(alpha: 0.18),
-                            strokeWidth: 1,
-                          ),
+                          getDrawingHorizontalLine:
+                              (value) => FlLine(
+                                color: Colors.grey.withValues(alpha: 0.18),
+                                strokeWidth: 1,
+                              ),
                         ),
                         titlesData: FlTitlesData(
                           show: true,
@@ -1116,10 +1181,11 @@ class _RegionsPageState extends State<RegionsPage> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 34,
-                              getTitlesWidget: (value, meta) => Text(
-                                valueFormatter(value),
-                                style: const TextStyle(fontSize: 9),
-                              ),
+                              getTitlesWidget:
+                                  (value, meta) => Text(
+                                    valueFormatter(value),
+                                    style: const TextStyle(fontSize: 9),
+                                  ),
                             ),
                           ),
                           topTitles: const AxisTitles(
@@ -1205,9 +1271,9 @@ class _RegionsPageState extends State<RegionsPage> {
 
   static String _formatInt(int value) {
     return value.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (match) => '${match[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]},',
+    );
   }
 
   static String _formatIntShort(double value) {
@@ -1238,10 +1304,12 @@ class _RegionsPageState extends State<RegionsPage> {
 
   static String _formatGrowthValue(double absolute, double? percent) {
     final sign = absolute > 0 ? '+' : '';
-    final absText = absolute.abs() >= 1000
-        ? _formatDoubleWithCommas(absolute.abs())
-        : absolute.abs().toStringAsFixed(0);
-    final percentText = percent == null ? '--' : '${percent.toStringAsFixed(1)}%';
+    final absText =
+        absolute.abs() >= 1000
+            ? _formatDoubleWithCommas(absolute.abs())
+            : absolute.abs().toStringAsFixed(0);
+    final percentText =
+        percent == null ? '--' : '${percent.toStringAsFixed(1)}%';
     return '$sign$absText ($percentText)';
   }
 
@@ -1294,10 +1362,22 @@ class _RegionMetrics {
 
   final List<double> salesMonthlyCurrentYear = List<double>.filled(12, 0);
   final List<double> salesMonthlyPreviousYear = List<double>.filled(12, 0);
-  final List<double> schoolActivityMonthlyCurrentYear = List<double>.filled(12, 0);
-  final List<double> schoolActivityMonthlyPreviousYear = List<double>.filled(12, 0);
-  final List<double> bookshopActivityMonthlyCurrentYear = List<double>.filled(12, 0);
-  final List<double> bookshopActivityMonthlyPreviousYear = List<double>.filled(12, 0);
+  final List<double> schoolActivityMonthlyCurrentYear = List<double>.filled(
+    12,
+    0,
+  );
+  final List<double> schoolActivityMonthlyPreviousYear = List<double>.filled(
+    12,
+    0,
+  );
+  final List<double> bookshopActivityMonthlyCurrentYear = List<double>.filled(
+    12,
+    0,
+  );
+  final List<double> bookshopActivityMonthlyPreviousYear = List<double>.filled(
+    12,
+    0,
+  );
 
   double annualSalesTarget = 0;
   double annualSchoolVisitTarget = 0;
@@ -1366,9 +1446,9 @@ class _RegionMetrics {
     DateTimeRange previousPeriod,
     DateTimeRange todayRange,
     int currentYear,
-    int previousYear,
-    {String? schoolId}
-  ) {
+    int previousYear, {
+    String? schoolId,
+  }) {
     if (date.year == currentYear) {
       currentSchoolVisitsYear += 1;
       schoolActivityMonthlyCurrentYear[date.month - 1] += 1;
@@ -1397,9 +1477,9 @@ class _RegionMetrics {
     DateTimeRange previousPeriod,
     DateTimeRange todayRange,
     int currentYear,
-    int previousYear,
-    {String? schoolId}
-  ) {
+    int previousYear, {
+    String? schoolId,
+  }) {
     if (date.year == currentYear) {
       currentSchoolCallsYear += 1;
       schoolActivityMonthlyCurrentYear[date.month - 1] += 1;
@@ -1428,9 +1508,9 @@ class _RegionMetrics {
     DateTimeRange previousPeriod,
     DateTimeRange todayRange,
     int currentYear,
-    int previousYear,
-    {String? schoolId}
-  ) {
+    int previousYear, {
+    String? schoolId,
+  }) {
     if (date.year == currentYear) {
       currentBookshopVisitsYear += 1;
       bookshopActivityMonthlyCurrentYear[date.month - 1] += 1;
@@ -1459,9 +1539,9 @@ class _RegionMetrics {
     DateTimeRange previousPeriod,
     DateTimeRange todayRange,
     int currentYear,
-    int previousYear,
-    {String? schoolId}
-  ) {
+    int previousYear, {
+    String? schoolId,
+  }) {
     if (date.year == currentYear) {
       currentBookshopCallsYear += 1;
       bookshopActivityMonthlyCurrentYear[date.month - 1] += 1;
@@ -1519,8 +1599,10 @@ class _RegionMetrics {
     selectedSalesTarget = annualSalesTarget * periodRatio;
     selectedSchoolVisitTarget = (annualSchoolVisitTarget * periodRatio).round();
     selectedSchoolCallTarget = (annualSchoolCallTarget * periodRatio).round();
-    selectedBookshopVisitTarget = (annualBookshopVisitTarget * periodRatio).round();
-    selectedBookshopCallTarget = (annualBookshopCallTarget * periodRatio).round();
+    selectedBookshopVisitTarget =
+        (annualBookshopVisitTarget * periodRatio).round();
+    selectedBookshopCallTarget =
+        (annualBookshopCallTarget * periodRatio).round();
 
     schoolVisitWeeklyTarget = (annualSchoolVisitTarget / 52).round();
     schoolCallWeeklyTarget = (annualSchoolCallTarget / 52).round();
@@ -1536,11 +1618,16 @@ class _RegionMetrics {
     dailyBookshopCallTarget = (annualBookshopCallTarget / yearLength).round();
 
     salesYoYAbsolute = salesActualSelected - salesPreviousSelected;
-    salesYoYPercent = _growthPercent(salesPreviousSelected, salesActualSelected);
+    salesYoYPercent = _growthPercent(
+      salesPreviousSelected,
+      salesActualSelected,
+    );
 
     final currentSchoolTotal = selectedSchoolVisits + selectedSchoolCalls;
-    final previousSchoolTotal = selectedSchoolVisitsPrevious + selectedSchoolCallsPrevious;
-    schoolActivityYoYAbsolute = currentSchoolTotal.toDouble() - previousSchoolTotal.toDouble();
+    final previousSchoolTotal =
+        selectedSchoolVisitsPrevious + selectedSchoolCallsPrevious;
+    schoolActivityYoYAbsolute =
+        currentSchoolTotal.toDouble() - previousSchoolTotal.toDouble();
     schoolActivityYoYPercent = _growthPercent(
       previousSchoolTotal.toDouble(),
       currentSchoolTotal.toDouble(),

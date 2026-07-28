@@ -72,14 +72,26 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
           demoMode
               ? _demoSchools()
               : List<Map<String, dynamic>>.from(
-                (schoolsRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
+                (schoolsRes as List).map(
+                  (e) => Map<String, dynamic>.from(e as Map),
+                ),
               );
-      final seededOrders = demoMode ? _demoOrders() : List<Map<String, dynamic>>.from(
-        (ordersRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-      );
-      final seededSales = demoMode ? _demoSales() : List<Map<String, dynamic>>.from(
-        (salesRes as List).map((e) => Map<String, dynamic>.from(e as Map)),
-      );
+      final seededOrders =
+          demoMode
+              ? _demoOrders()
+              : List<Map<String, dynamic>>.from(
+                (ordersRes as List).map(
+                  (e) => Map<String, dynamic>.from(e as Map),
+                ),
+              );
+      final seededSales =
+          demoMode
+              ? _demoSales()
+              : List<Map<String, dynamic>>.from(
+                (salesRes as List).map(
+                  (e) => Map<String, dynamic>.from(e as Map),
+                ),
+              );
 
       setState(() {
         _isDemoData = demoMode;
@@ -213,7 +225,9 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                           color: AppColors.primaryPale,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppColors.primaryGreen.withValues(alpha: 0.18),
+                            color: AppColors.primaryGreen.withValues(
+                              alpha: 0.18,
+                            ),
                           ),
                         ),
                         child: const Text(
@@ -394,9 +408,12 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     int crossAxisCount = 2;
-    if (screenWidth > 1200) crossAxisCount = 5;
-    else if (screenWidth > 900) crossAxisCount = 4;
-    else if (screenWidth > 600) crossAxisCount = 3;
+    if (screenWidth > 1200)
+      crossAxisCount = 5;
+    else if (screenWidth > 900)
+      crossAxisCount = 4;
+    else if (screenWidth > 600)
+      crossAxisCount = 3;
 
     return GridView.builder(
       padding: const EdgeInsets.all(12),
@@ -424,9 +441,12 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     int crossAxisCount = 2;
-    if (screenWidth > 1200) crossAxisCount = 5;
-    else if (screenWidth > 900) crossAxisCount = 4;
-    else if (screenWidth > 600) crossAxisCount = 3;
+    if (screenWidth > 1200)
+      crossAxisCount = 5;
+    else if (screenWidth > 900)
+      crossAxisCount = 4;
+    else if (screenWidth > 600)
+      crossAxisCount = 3;
 
     return GridView.builder(
       padding: const EdgeInsets.all(12),
@@ -457,7 +477,10 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 900;
-    final crossAxisCount = screenWidth > 1200 ? 4 : (screenWidth > 900 ? 3 : (screenWidth > 600 ? 2 : 1));
+    final crossAxisCount =
+        screenWidth > 1200
+            ? 4
+            : (screenWidth > 900 ? 3 : (screenWidth > 600 ? 2 : 1));
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -477,7 +500,9 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         final qty = row['quantity']?.toString() ?? '1';
         final url = row['stamped_receipt_url']?.toString() ?? '';
 
-        final hasActiveSale = _salesCache.any((s) => s['school_id']?.toString() == schoolId);
+        final hasActiveSale = _salesCache.any(
+          (s) => s['school_id']?.toString() == schoolId,
+        );
 
         return Card(
           elevation: 2,
@@ -500,7 +525,10 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                     ),
                     if (hasActiveSale)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.green.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -509,9 +537,20 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle, size: 12, color: Colors.green),
+                            Icon(
+                              Icons.check_circle,
+                              size: 12,
+                              color: Colors.green,
+                            ),
                             SizedBox(width: 4),
-                            Text('CRM Linked', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                            Text(
+                              'CRM Linked',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -533,7 +572,10 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
                             (_, __, ___) => Container(
                               color: Colors.grey.shade200,
                               alignment: Alignment.center,
-                              child: const Text('Could not load receipt image', textAlign: TextAlign.center),
+                              child: const Text(
+                                'Could not load receipt image',
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                       ),
                     ),
@@ -699,11 +741,16 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'sample_category': 'Reference',
         'quantity': 2,
         'notes': 'Demo receipt row',
-        'distributed_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-        'stamped_receipt_url': 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200',
+        'distributed_at':
+            DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+        'stamped_receipt_url':
+            'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200',
         'stamped_receipt_path': 'demo/receipt_1.jpg',
         'schools': {'name': 'Bahati Primary School'},
-        'users': {'full_name': 'Grounds Demo User', 'email': 'grounds.demo@dehus.com'},
+        'users': {
+          'full_name': 'Grounds Demo User',
+          'email': 'grounds.demo@dehus.com',
+        },
       },
       {
         'id': 'demo-receipt-2',
@@ -713,11 +760,16 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'sample_category': 'Primary',
         'quantity': 3,
         'notes': 'Demo receipt row',
-        'distributed_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
-        'stamped_receipt_url': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
+        'distributed_at':
+            DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+        'stamped_receipt_url':
+            'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
         'stamped_receipt_path': 'demo/receipt_2.jpg',
         'schools': {'name': 'Mwangaza Academy'},
-        'users': {'full_name': 'Agent Demo User', 'email': 'agent.demo@dehus.com'},
+        'users': {
+          'full_name': 'Agent Demo User',
+          'email': 'agent.demo@dehus.com',
+        },
       },
       {
         'id': 'demo-receipt-3',
@@ -727,11 +779,16 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'sample_category': 'Test',
         'quantity': 1,
         'notes': 'Demo receipt row',
-        'distributed_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-        'stamped_receipt_url': 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
+        'distributed_at':
+            DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        'stamped_receipt_url':
+            'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
         'stamped_receipt_path': 'demo/receipt_3.jpg',
         'schools': {'name': 'Kisumu West School'},
-        'users': {'full_name': 'Grounds Demo User', 'email': 'grounds.demo@dehus.com'},
+        'users': {
+          'full_name': 'Grounds Demo User',
+          'email': 'grounds.demo@dehus.com',
+        },
       },
     ];
   }
@@ -742,25 +799,34 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'id': 'demo-school-1',
         'name': 'Bahati Primary School',
         'county': 'Nakuru',
-        'photo_url': 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1200',
-        'sample_proof_url': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200',
-        'created_at': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
+        'photo_url':
+            'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1200',
+        'sample_proof_url':
+            'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200',
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
       },
       {
         'id': 'demo-school-2',
         'name': 'Mwangaza Academy',
         'county': 'Kisumu',
-        'photo_url': 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?w=1200',
-        'sample_proof_url': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
-        'created_at': DateTime.now().subtract(const Duration(days: 8)).toIso8601String(),
+        'photo_url':
+            'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?w=1200',
+        'sample_proof_url':
+            'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200',
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 8)).toIso8601String(),
       },
       {
         'id': 'demo-school-3',
         'name': 'Kisumu West School',
         'county': 'Kisumu',
-        'photo_url': 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=1200',
-        'sample_proof_url': 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
-        'created_at': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
+        'photo_url':
+            'https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=1200',
+        'sample_proof_url':
+            'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1200',
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
       },
     ];
   }
@@ -771,19 +837,22 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'agent_id': 'demo-agent-1',
         'checkout_amount': 68000,
         'status': 'approved',
-        'created_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
       },
       {
         'agent_id': 'demo-agent-2',
         'checkout_amount': 54000,
         'status': 'paid',
-        'created_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
       },
       {
         'agent_id': 'demo-agent-1',
         'checkout_amount': 42000,
         'status': 'pending',
-        'created_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
       },
     ];
   }
@@ -795,21 +864,24 @@ class _SampleReceiptsPageState extends State<SampleReceiptsPage> {
         'agent_id': 'demo-agent-1',
         'expected_value': 98000,
         'sale_status': 'won',
-        'created_at': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
       },
       {
         'school_id': 'demo-school-2',
         'agent_id': 'demo-agent-2',
         'expected_value': 76000,
         'sale_status': 'negotiation',
-        'created_at': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
       },
       {
         'school_id': 'demo-school-3',
         'agent_id': 'demo-agent-1',
         'expected_value': 112000,
         'sale_status': 'won',
-        'created_at': DateTime.now().subtract(const Duration(days: 6)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(days: 6)).toIso8601String(),
       },
     ];
   }

@@ -25,18 +25,26 @@ class _AuditLogPageState extends State<AuditLogPage> {
     setState(() => _isLoading = true);
     try {
       // 1. Fetch from audit_events
-      var query = _supabase.from('audit_events').select('*, users!actor_id(full_name)');
+      var query = _supabase
+          .from('audit_events')
+          .select('*, users!actor_id(full_name)');
       if (widget.entityId != null) {
         query = query.eq('entity_id', widget.entityId!);
       }
-      final auditRes = await query.order('created_at', ascending: false).limit(100);
+      final auditRes = await query
+          .order('created_at', ascending: false)
+          .limit(100);
 
       // 2. Fetch from pipeline_history
-      var pipeQuery = _supabase.from('pipeline_history').select('*, users!changed_by(full_name)');
+      var pipeQuery = _supabase
+          .from('pipeline_history')
+          .select('*, users!changed_by(full_name)');
       if (widget.entityId != null) {
         pipeQuery = pipeQuery.eq('pipeline_id', widget.entityId!);
       }
-      final pipeRes = await pipeQuery.order('changed_at', ascending: false).limit(100);
+      final pipeRes = await pipeQuery
+          .order('changed_at', ascending: false)
+          .limit(100);
 
       final List<Map<String, dynamic>> combined = [];
 
@@ -62,7 +70,9 @@ class _AuditLogPageState extends State<AuditLogPage> {
         });
       }
 
-      combined.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+      combined.sort(
+        (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+      );
       _logs = combined;
     } catch (e) {
       debugPrint('Error fetching audit logs: $e');
@@ -74,37 +84,54 @@ class _AuditLogPageState extends State<AuditLogPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.entityId != null ? 'Audit History' : 'Global Audit Log')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _logs.isEmpty
+      appBar: AppBar(
+        title: Text(
+          widget.entityId != null ? 'Audit History' : 'Global Audit Log',
+        ),
+      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _logs.isEmpty
               ? const Center(child: Text('No audit events found.'))
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _logs.length,
-                  itemBuilder: (context, index) {
-                    final log = _logs[index];
-                    final date = log['date'] as DateTime;
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(log['icon'] as IconData, color: log['color'] as Color),
-                        title: Text(log['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(log['subtitle'] as String),
-                            Text(log['details'] as String, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          ],
-                        ),
+                padding: const EdgeInsets.all(16),
+                itemCount: _logs.length,
+                itemBuilder: (context, index) {
+                  final log = _logs[index];
+                  final date = log['date'] as DateTime;
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(
+                        log['icon'] as IconData,
+                        color: log['color'] as Color,
                       ),
-                    );
-                  },
-                ),
+                      title: Text(
+                        log['title'] as String,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(log['subtitle'] as String),
+                          Text(
+                            log['details'] as String,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
     );
   }
 }

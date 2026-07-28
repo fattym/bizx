@@ -55,26 +55,29 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
           .eq('role', 5)
           .order('full_name', ascending: true);
       final schoolModels = await _dbService.getAllSchools();
-      final localSchools = schoolModels
-          .map((SchoolModel s) => <String, dynamic>{
-                'id': s.id,
-                'name': s.name,
-                'county': s.county,
-                'latitude': s.latitude,
-                'longitude': s.longitude,
-                'school_lifecycle_status': s.schoolLifecycleStatus,
-                'engagement_type': s.engagementType,
-              })
-          .toList()
-        ..sort(
-          (a, b) => (a['name'] ?? '')
-              .toString()
-              .toLowerCase()
-              .compareTo((b['name'] ?? '').toString().toLowerCase()),
-        );
+      final localSchools =
+          schoolModels
+              .map(
+                (SchoolModel s) => <String, dynamic>{
+                  'id': s.id,
+                  'name': s.name,
+                  'county': s.county,
+                  'latitude': s.latitude,
+                  'longitude': s.longitude,
+                  'school_lifecycle_status': s.schoolLifecycleStatus,
+                  'engagement_type': s.engagementType,
+                },
+              )
+              .toList()
+            ..sort(
+              (a, b) => (a['name'] ?? '').toString().toLowerCase().compareTo(
+                (b['name'] ?? '').toString().toLowerCase(),
+              ),
+            );
       final remoteSchools = await _fetchAllSchoolsFromSupabase();
       final localById = {
-        for (final school in localSchools) (school['id'] ?? '').toString(): school,
+        for (final school in localSchools)
+          (school['id'] ?? '').toString(): school,
       };
       for (final remote in remoteSchools) {
         final id = (remote['id'] ?? '').toString();
@@ -91,13 +94,12 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
           existing['longitude'] = remote['longitude'];
         }
       }
-      final schoolsResponse = localById.values.toList()
-        ..sort(
-          (a, b) => (a['name'] ?? '')
-              .toString()
-              .toLowerCase()
-              .compareTo((b['name'] ?? '').toString().toLowerCase()),
-        );
+      final schoolsResponse =
+          localById.values.toList()..sort(
+            (a, b) => (a['name'] ?? '').toString().toLowerCase().compareTo(
+              (b['name'] ?? '').toString().toLowerCase(),
+            ),
+          );
       final salesResponse = await _supabase
           .from('school_sales')
           .select('school_id, sale_status, stage_updated_at, created_at')
@@ -176,15 +178,15 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
 
   Future<void> _createRoutePlan() async {
     if (_selectedAgentId == null || _selectedAgentId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a Field Agent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select a Field Agent.')));
       return;
     }
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pick a route date.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Pick a route date.')));
       return;
     }
     if (_selectedSchoolIds.isEmpty) {
@@ -196,9 +198,10 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
 
     try {
       final routeDate = _selectedDate!.toIso8601String().split('T').first;
-      final selectedSchools = _selectedSchoolIds.map((id) {
-        return _schools.firstWhere((s) => s['id'].toString() == id);
-      }).toList();
+      final selectedSchools =
+          _selectedSchoolIds.map((id) {
+            return _schools.firstWhere((s) => s['id'].toString() == id);
+          }).toList();
 
       for (var i = 0; i < selectedSchools.length; i++) {
         final school = selectedSchools[i];
@@ -232,13 +235,13 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Route plan created successfully.')),
       );
-      
+
       setState(() {
         _selectedSchoolIds.clear();
         _selectedDate = null;
         _schoolSearchController.clear();
       });
-      
+
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -265,29 +268,33 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   List<String> get _countyFilters {
-    final counties = _schools
-        .map((s) => (s['county'] ?? '').toString().trim())
-        .where((c) => c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final counties =
+        _schools
+            .map((s) => (s['county'] ?? '').toString().trim())
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return ['All Counties', ...counties];
   }
 
   List<Map<String, dynamic>> get _visibleSchools {
     List<Map<String, dynamic>> schools = _schools;
     if (_selectedCounty != 'All Counties') {
-      schools = schools.where((school) {
-        final county = (school['county'] ?? '').toString().trim().toLowerCase();
-        return county == _selectedCounty.toLowerCase();
-      }).toList();
+      schools =
+          schools.where((school) {
+            final county =
+                (school['county'] ?? '').toString().trim().toLowerCase();
+            return county == _selectedCounty.toLowerCase();
+          }).toList();
     }
     if (_schoolSearchQuery.isNotEmpty) {
       final q = _schoolSearchQuery.toLowerCase();
-      schools = schools.where((s) {
-        final name = (s['name'] ?? '').toString().toLowerCase();
-        return name.contains(q);
-      }).toList();
+      schools =
+          schools.where((s) {
+            final name = (s['name'] ?? '').toString().toLowerCase();
+            return name.contains(q);
+          }).toList();
     }
     return schools;
   }
@@ -330,7 +337,12 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
     if (stage.isEmpty) return 'No Stage';
     return stage
         .split('_')
-        .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+        .map(
+          (part) =>
+              part.isEmpty
+                  ? part
+                  : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
         .join(' ');
   }
 
@@ -338,15 +350,14 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
     final schoolId = (school['id']?.toString() ?? '').trim();
     final salesStage = _stageBySchoolId[schoolId];
     if (salesStage != null && salesStage.isNotEmpty) return salesStage;
-    final lifecycle =
-        (school['school_lifecycle_status']?.toString().trim() ?? '')
-            .toLowerCase()
-            .replaceAll(' ', '_');
+    final lifecycle = (school['school_lifecycle_status']?.toString().trim() ??
+            '')
+        .toLowerCase()
+        .replaceAll(' ', '_');
     if (lifecycle.isNotEmpty) return lifecycle;
-    final engagement =
-        (school['engagement_type']?.toString().trim() ?? '')
-            .toLowerCase()
-            .replaceAll(' ', '_');
+    final engagement = (school['engagement_type']?.toString().trim() ?? '')
+        .toLowerCase()
+        .replaceAll(' ', '_');
     return engagement;
   }
 
@@ -402,80 +413,83 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
           IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 1100;
-                final isTablet = constraints.maxWidth >= 750;
-                // Cap map height to ensure it fits better on shorter screens
-                final mapHeight = (isWide ? 560.0 : (isTablet ? 420.0 : 300.0))
-                    .clamp(150.0, constraints.maxHeight * 0.7);
-                final pagePadding = isWide ? 20.0 : (isTablet ? 16.0 : 10.0);
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 1100;
+                  final isTablet = constraints.maxWidth >= 750;
+                  // Cap map height to ensure it fits better on shorter screens
+                  final mapHeight = (isWide
+                          ? 560.0
+                          : (isTablet ? 420.0 : 300.0))
+                      .clamp(150.0, constraints.maxHeight * 0.7);
+                  final pagePadding = isWide ? 20.0 : (isTablet ? 16.0 : 10.0);
 
-                final formSection = _buildFormSection();
-                final mapSection = _buildMapSection(mapHeight);
-                final schoolSection = _buildSchoolSection();
-                final missingGpsSection = _buildMissingGpsSection();
+                  final formSection = _buildFormSection();
+                  final mapSection = _buildMapSection(mapHeight);
+                  final schoolSection = _buildSchoolSection();
+                  final missingGpsSection = _buildMissingGpsSection();
 
-                if (isWide) {
-                  return Padding(
+                  if (isWide) {
+                    return Padding(
+                      padding: EdgeInsets.all(pagePadding),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 4,
+                            child: ListView(
+                              children: [
+                                formSection,
+                                const SizedBox(height: 16),
+                                schoolSection,
+                                const SizedBox(height: 16),
+                                missingGpsSection,
+                                const SizedBox(height: 16),
+                                _buildCreateButton(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(child: mapSection),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView(
                     padding: EdgeInsets.all(pagePadding),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: ListView(
-                            children: [
-                              formSection,
-                              const SizedBox(height: 16),
-                              schoolSection,
-                              const SizedBox(height: 16),
-                              missingGpsSection,
-                              const SizedBox(height: 16),
-                              _buildCreateButton(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 5,
-                          child: SingleChildScrollView(
-                            child: mapSection,
-                          ),
-                        ),
-                      ],
-                    ),
+                    children: [
+                      formSection,
+                      const SizedBox(height: 12),
+                      mapSection,
+                      const SizedBox(height: 12),
+                      schoolSection,
+                      const SizedBox(height: 12),
+                      missingGpsSection,
+                      const SizedBox(height: 12),
+                      _buildCreateButton(),
+                    ],
                   );
-                }
-
-                return ListView(
-                  padding: EdgeInsets.all(pagePadding),
-                  children: [
-                    formSection,
-                    const SizedBox(height: 12),
-                    mapSection,
-                    const SizedBox(height: 12),
-                    schoolSection,
-                    const SizedBox(height: 12),
-                    missingGpsSection,
-                    const SizedBox(height: 12),
-                    _buildCreateButton(),
-                  ],
-                );
-              },
-            ),
+                },
+              ),
     );
   }
 
   Widget _buildFormSection() {
-    final hasSelectedAgent = _selectedAgentId != null &&
+    final hasSelectedAgent =
+        _selectedAgentId != null &&
         _agents.any((agent) => agent['id'].toString() == _selectedAgentId);
     final selectedAgentValue = hasSelectedAgent ? _selectedAgentId : null;
-    final selectedCountyValue = _countyFilters.contains(_selectedCounty)
-        ? _selectedCounty
-        : 'All Counties';
+    final selectedCountyValue =
+        _countyFilters.contains(_selectedCounty)
+            ? _selectedCounty
+            : 'All Counties';
 
     return Card(
       child: Padding(
@@ -494,14 +508,16 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                 labelText: 'Assign To (Field Agent)',
                 border: OutlineInputBorder(),
               ),
-              items: _agents.map((agent) {
-                final label =
-                    (agent['full_name'] ?? agent['email'] ?? 'Unknown').toString();
-                return DropdownMenuItem<String>(
-                  value: agent['id'].toString(),
-                  child: Text(label),
-                );
-              }).toList(),
+              items:
+                  _agents.map((agent) {
+                    final label =
+                        (agent['full_name'] ?? agent['email'] ?? 'Unknown')
+                            .toString();
+                    return DropdownMenuItem<String>(
+                      value: agent['id'].toString(),
+                      child: Text(label),
+                    );
+                  }).toList(),
               onChanged: (value) => setState(() => _selectedAgentId = value),
             ),
             const SizedBox(height: 12),
@@ -511,14 +527,15 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                 labelText: 'County Filter',
                 border: OutlineInputBorder(),
               ),
-              items: _countyFilters
-                  .map(
-                    (county) => DropdownMenuItem<String>(
-                      value: county,
-                      child: Text(county),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  _countyFilters
+                      .map(
+                        (county) => DropdownMenuItem<String>(
+                          value: county,
+                          child: Text(county),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) {
                 if (value == null) return;
                 setState(() => _selectedCounty = value);
@@ -546,29 +563,35 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
     final center = _defaultMapCenter();
     final totalVisibleSchools = _visibleSchools.length;
     var geocodedSchools = 0;
-    final markers = _visibleSchools.map((school) {
-      final lat = _toDouble(school['latitude']);
-      final lng = _toDouble(school['longitude']);
-      if (lat == null || lng == null) return null;
-      geocodedSchools += 1;
-      final isSelected = _selectedSchoolIds.contains(school['id'].toString());
-      final stage = _schoolStage(school);
-      final baseColor = _stageColor(stage);
-      return Marker(
-        point: LatLng(lat, lng),
-        width: 40,
-        height: 40,
-        child: Tooltip(
-          message:
-              '${(school['name'] ?? 'School').toString()}\n${_stageLabel(stage)}',
-          child: Icon(
-            Icons.location_on,
-            color: baseColor,
-            size: isSelected ? 34 : 28,
-          ),
-        ),
-      );
-    }).whereType<Marker>().toList();
+    final markers =
+        _visibleSchools
+            .map((school) {
+              final lat = _toDouble(school['latitude']);
+              final lng = _toDouble(school['longitude']);
+              if (lat == null || lng == null) return null;
+              geocodedSchools += 1;
+              final isSelected = _selectedSchoolIds.contains(
+                school['id'].toString(),
+              );
+              final stage = _schoolStage(school);
+              final baseColor = _stageColor(stage);
+              return Marker(
+                point: LatLng(lat, lng),
+                width: 40,
+                height: 40,
+                child: Tooltip(
+                  message:
+                      '${(school['name'] ?? 'School').toString()}\n${_stageLabel(stage)}',
+                  child: Icon(
+                    Icons.location_on,
+                    color: baseColor,
+                    size: isSelected ? 34 : 28,
+                  ),
+                ),
+              );
+            })
+            .whereType<Marker>()
+            .toList();
 
     return Card(
       child: Padding(
@@ -657,11 +680,12 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => _Role2RouteFullScreenMapPage(
-                              center: center,
-                              routePoints: routePoints,
-                              markers: markers,
-                            ),
+                            builder:
+                                (_) => _Role2RouteFullScreenMapPage(
+                                  center: center,
+                                  routePoints: routePoints,
+                                  markers: markers,
+                                ),
                           ),
                         );
                       },
@@ -696,7 +720,10 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
               children: [
                 Text(
                   'Schools (${_selectedSchoolIds.length} selected)',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 if (visible.isNotEmpty)
                   TextButton(
@@ -736,7 +763,8 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                   dense: true,
                   value: isSelected,
                   contentPadding: EdgeInsets.zero,
-                  onChanged: (checked) => _toggleSchool(schoolId, checked ?? false),
+                  onChanged:
+                      (checked) => _toggleSchool(schoolId, checked ?? false),
                   title: Text(
                     (school['name'] ?? 'Unnamed School').toString(),
                     style: const TextStyle(
@@ -746,22 +774,23 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                     ),
                   ),
                   isThreeLine: true,
-                  secondary: isSelected
-                      ? CircleAvatar(
-                          radius: 12,
-                          backgroundColor: Colors.orange.shade100,
-                          child: Text(
-                            '$sequence',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                  secondary:
+                      isSelected
+                          ? CircleAvatar(
+                            radius: 12,
+                            backgroundColor: Colors.orange.shade100,
+                            child: Text(
+                              '$sequence',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
+                          )
+                          : Icon(
+                            Icons.location_on,
+                            color: _stageColor(_schoolStage(school)),
                           ),
-                        )
-                      : Icon(
-                          Icons.location_on,
-                          color: _stageColor(_schoolStage(school)),
-                        ),
                   subtitle: Text(
                     '${(school['county'] ?? 'No county').toString()} • ${_stageLabel(_schoolStage(school))}',
                     style: TextStyle(color: Colors.grey.shade700),
@@ -774,7 +803,11 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
                   child: Center(
                     child: Text(
                       'Showing first 50 of ${visible.length} schools. Use search to find others.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ),
@@ -786,7 +819,8 @@ class _Role2RoutePlanPageState extends State<Role2RoutePlanPage> {
   }
 
   Widget _buildCreateButton() {
-    final bool canCreate = _selectedAgentId != null &&
+    final bool canCreate =
+        _selectedAgentId != null &&
         _selectedAgentId!.isNotEmpty &&
         _selectedDate != null &&
         _selectedSchoolIds.isNotEmpty;

@@ -130,7 +130,9 @@ class _MyShopsPageState extends State<MyShopsPage> {
         _selectedClientType == null
             ? nearbySchools
             : nearbySchools
-                .where((school) => _selectedClientType!.matches(school.dealerType))
+                .where(
+                  (school) => _selectedClientType!.matches(school.dealerType),
+                )
                 .toList();
 
     final q = _searchQuery.trim().toLowerCase();
@@ -179,7 +181,8 @@ class _MyShopsPageState extends State<MyShopsPage> {
               children: [
                 ClientTypeFilterBar(
                   selected: _selectedClientType,
-                  onChanged: (value) => setState(() => _selectedClientType = value),
+                  onChanged:
+                      (value) => setState(() => _selectedClientType = value),
                 ),
                 _buildSearchBar(),
                 _buildNearbySearchActions(),

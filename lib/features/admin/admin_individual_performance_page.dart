@@ -54,13 +54,15 @@ class _AdminIndividualPerformancePageState
       _selectedDate.day,
     );
     final start = _weeklyMode ? _startOfWeek(dayStart) : dayStart;
-    final end = _weeklyMode
-        ? start.add(const Duration(days: 5))
-        : dayStart.add(const Duration(days: 1));
+    final end =
+        _weeklyMode
+            ? start.add(const Duration(days: 5))
+            : dayStart.add(const Duration(days: 1));
 
-    final selected = _selectedUserId == null
-        ? _users
-        : _users.where((u) => u.id == _selectedUserId).toList();
+    final selected =
+        _selectedUserId == null
+            ? _users
+            : _users.where((u) => u.id == _selectedUserId).toList();
 
     // Fetch every user's metrics concurrently instead of one-by-one so the
     // whole roster loads in a single batched round-trip rather than N serial
@@ -222,7 +224,11 @@ class _AdminIndividualPerformancePageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_weeklyMode ? 'Individual 5-Day Performance' : 'Individual Daily Performance'),
+        title: Text(
+          _weeklyMode
+              ? 'Individual 5-Day Performance'
+              : 'Individual Daily Performance',
+        ),
         backgroundColor: const Color(0xFF6D273F),
         foregroundColor: Colors.white,
         actions: [
@@ -248,11 +254,12 @@ class _AdminIndividualPerformancePageState
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _rows.isEmpty
-                  ? const Center(child: Text('No performance data found.'))
-                  : _buildTable(),
+              child:
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _rows.isEmpty
+                      ? const Center(child: Text('No performance data found.'))
+                      : _buildTable(),
             ),
           ],
         ),
@@ -270,7 +277,9 @@ class _AdminIndividualPerformancePageState
           onPressed: _pickDate,
           icon: const Icon(Icons.calendar_today),
           label: Text(
-            _weeklyMode ? 'Week of: ${_formatDate(_startOfWeek(_selectedDate))}' : 'Date: ${_formatDate(_selectedDate)}',
+            _weeklyMode
+                ? 'Week of: ${_formatDate(_startOfWeek(_selectedDate))}'
+                : 'Date: ${_formatDate(_selectedDate)}',
           ),
         ),
         SegmentedButton<bool>(
@@ -331,19 +340,20 @@ class _AdminIndividualPerformancePageState
           DataColumn(label: Text('Schools Visited')),
           DataColumn(label: Text('Target %')),
         ],
-        rows: _rows.map((row) {
-          return DataRow(
-            cells: [
-              DataCell(Text(row.user.fullName ?? row.user.email)),
-              DataCell(Text(_roleLabel(row.user.role))),
-              DataCell(Text(row.visits.toString())),
-              DataCell(Text(row.orders.toString())),
-              DataCell(Text(row.wonSales.toString())),
-              DataCell(Text(row.visitedSchools.toString())),
-              DataCell(Text('${row.percent}%')),
-            ],
-          );
-        }).toList(),
+        rows:
+            _rows.map((row) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(row.user.fullName ?? row.user.email)),
+                  DataCell(Text(_roleLabel(row.user.role))),
+                  DataCell(Text(row.visits.toString())),
+                  DataCell(Text(row.orders.toString())),
+                  DataCell(Text(row.wonSales.toString())),
+                  DataCell(Text(row.visitedSchools.toString())),
+                  DataCell(Text('${row.percent}%')),
+                ],
+              );
+            }).toList(),
       ),
     );
   }

@@ -339,9 +339,10 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
           schoolId: school.id,
           agentId: _dbService.getCurrentUserId() ?? '',
           outcome: _engagementType,
-          notes: _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
+          notes:
+              _notesController.text.trim().isEmpty
+                  ? null
+                  : _notesController.text.trim(),
           visitStatus: 'completed',
           latitude: _currentPosition?.latitude,
           longitude: _currentPosition?.longitude,

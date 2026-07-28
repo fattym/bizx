@@ -29,7 +29,8 @@ class GithubRelease {
       tagName: json['tag_name'] as String,
       name: json['name'] as String,
       htmlUrl: json['html_url'] as String,
-      apkDownloadUrl: apkAsset != null ? apkAsset['browser_download_url'] as String : null,
+      apkDownloadUrl:
+          apkAsset != null ? apkAsset['browser_download_url'] as String : null,
       publishedAt: json['published_at'] as String,
     );
   }

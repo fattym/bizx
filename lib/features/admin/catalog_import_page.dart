@@ -143,7 +143,10 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
       final unitPriceRaw = record['unit_price']?.trim() ?? '';
       final double unitPrice =
           unitPriceRaw.isNotEmpty
-              ? (double.tryParse(unitPriceRaw.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0)
+              ? (double.tryParse(
+                    unitPriceRaw.replaceAll(RegExp(r'[^0-9.]'), ''),
+                  ) ??
+                  0.0)
               : (resolvedType == 'sample' ? 0.0 : 0.0);
 
       items.add(
@@ -164,7 +167,9 @@ class _CatalogImportPageState extends State<CatalogImportPage> {
     // Intelligent Sorting: Arrange items by Category then by Name
     // This matches the database logical order for better manageability.
     items.sort((a, b) {
-      final catComp = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+      final catComp = a.category.toLowerCase().compareTo(
+        b.category.toLowerCase(),
+      );
       if (catComp != 0) return catComp;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });

@@ -165,9 +165,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                     child: Padding(
                       padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
-                      child: isSmallScreen
-                          ? _buildMobileLayout(context)
-                          : _buildWideLayout(context),
+                      child:
+                          isSmallScreen
+                              ? _buildMobileLayout(context)
+                              : _buildWideLayout(context),
                     ),
                   ),
                 ),
@@ -198,10 +199,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           width: 260,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 8),
-              _buildAvatarSection(),
-            ],
+            children: [const SizedBox(height: 8), _buildAvatarSection()],
           ),
         ),
         const SizedBox(width: 24),
@@ -228,11 +226,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             backgroundImage: imageProvider,
             child:
                 imageProvider == null
-                    ? const Icon(
-                      Icons.camera_alt,
-                      size: 42,
-                      color: Colors.grey,
-                    )
+                    ? const Icon(Icons.camera_alt, size: 42, color: Colors.grey)
                     : null,
           ),
         ),

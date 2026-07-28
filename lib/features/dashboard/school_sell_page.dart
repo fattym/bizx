@@ -336,7 +336,8 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
     try {
       final contextNotes = _buildStageContextNotes();
       final mergedNotes = [
-        if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+        if (_notesController.text.trim().isNotEmpty)
+          _notesController.text.trim(),
         if (contextNotes.isNotEmpty) contextNotes,
       ].join('\n');
       final sale = SchoolSaleModel(
@@ -703,7 +704,9 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed:
-                (_saving || _isViewOnlyRole || (_isCheckoutStage && !_canCheckout))
+                (_saving ||
+                        _isViewOnlyRole ||
+                        (_isCheckoutStage && !_canCheckout))
                     ? null
                     : () async => _proceedToOrderBuilder(),
             icon:

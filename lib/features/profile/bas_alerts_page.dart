@@ -217,7 +217,8 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
                     final isWide = constraints.maxWidth >= 1100;
                     final isTablet = constraints.maxWidth >= 760;
                     final padding = isTablet ? 20.0 : 12.0;
-                    final mapHeight = isWide ? 500.0 : (isTablet ? 420.0 : 300.0);
+                    final mapHeight =
+                        isWide ? 500.0 : (isTablet ? 420.0 : 300.0);
 
                     if (isWide) {
                       return ListView(
@@ -346,7 +347,8 @@ class _BasAlertsPageState extends State<BasAlertsPage> {
                           minZoom: 2,
                           maxZoom: 19,
                           interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                            flags:
+                                InteractiveFlag.all & ~InteractiveFlag.rotate,
                           ),
                         ),
                         children: [

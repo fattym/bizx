@@ -69,8 +69,7 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
       }
       if (!mounted) return;
 
-      final categories =
-          items.map((i) => i.category).toSet().toList()..sort();
+      final categories = items.map((i) => i.category).toSet().toList()..sort();
 
       setState(() {
         _books = items.where((i) => i.unitPrice > 0).toList();
@@ -98,7 +97,8 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
 
   int _qtyFor(String sku) => _qtyBySku[sku] ?? 1;
 
-  double _lineTotal(CatalogItemModel item) => item.unitPrice * _qtyFor(item.sku);
+  double _lineTotal(CatalogItemModel item) =>
+      item.unitPrice * _qtyFor(item.sku);
 
   double get _grandTotal {
     return _selectedBooks.fold(0, (sum, b) => sum + _lineTotal(b));
@@ -128,8 +128,13 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
         'QT-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
     final selectedSchool = _schools.firstWhere(
       (s) => s.id == _selectedSchoolId,
-      orElse: () =>
-          SchoolModel(name: 'School', phone: '', county: '', focusAreas: const []),
+      orElse:
+          () => SchoolModel(
+            name: 'School',
+            phone: '',
+            county: '',
+            focusAreas: const [],
+          ),
     );
     setState(() {
       _generatedAt = now;
@@ -139,7 +144,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   }
 
   Future<void> _downloadQuotationPdf() async {
-    if (_generatedAt == null || _quoteNumber == null || _selectedBooks.isEmpty) {
+    if (_generatedAt == null ||
+        _quoteNumber == null ||
+        _selectedBooks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Generate a quotation first.')),
       );
@@ -171,7 +178,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   }
 
   Future<void> _shareQuotationPdf() async {
-    if (_generatedAt == null || _quoteNumber == null || _selectedBooks.isEmpty) {
+    if (_generatedAt == null ||
+        _quoteNumber == null ||
+        _selectedBooks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Generate a quotation first.')),
       );
@@ -193,18 +202,20 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
     final quoteNumber = _quoteNumber!;
     final selectedSchool = _schools.firstWhere(
       (s) => s.id == _selectedSchoolId,
-      orElse: () => SchoolModel(
-        name: 'Unknown School',
-        phone: '',
-        county: '',
-        focusAreas: const [],
-      ),
+      orElse:
+          () => SchoolModel(
+            name: 'Unknown School',
+            phone: '',
+            county: '',
+            focusAreas: const [],
+          ),
     );
     final preparedPhone =
         _role5Phone.isNotEmpty ? _role5Phone : _phoneController.text.trim();
-    final quotationTitle = (_quotationTitle == null || _quotationTitle!.isEmpty)
-        ? 'Official Quotation'
-        : _quotationTitle!;
+    final quotationTitle =
+        (_quotationTitle == null || _quotationTitle!.isEmpty)
+            ? 'Official Quotation'
+            : _quotationTitle!;
 
     doc.addPage(
       pw.Page(
@@ -337,7 +348,10 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
               ),
               pw.SizedBox(height: 16),
               pw.Table(
-                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.7),
+                border: pw.TableBorder.all(
+                  color: PdfColors.grey300,
+                  width: 0.7,
+                ),
                 columnWidths: {
                   0: const pw.FlexColumnWidth(4),
                   1: const pw.FlexColumnWidth(1),
@@ -346,7 +360,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                 },
                 children: [
                   pw.TableRow(
-                    decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey200,
+                    ),
                     children: [
                       _cell('Book'),
                       _cell('Qty'),
@@ -392,7 +408,10 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
               pw.Divider(color: PdfColors.grey300),
               pw.Text(
                 'Thank you for partnering with Longhorn Publishers PLC.',
-                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                style: const pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.grey700,
+                ),
               ),
             ],
           );
@@ -413,16 +432,20 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   Widget _buildRecommendations() {
     final school = _schools.firstWhere(
       (s) => s.id == _selectedSchoolId,
-      orElse: () => SchoolModel(name: '', phone: '', county: '', focusAreas: []),
+      orElse:
+          () => SchoolModel(name: '', phone: '', county: '', focusAreas: []),
     );
     if (school.focusAreas.isEmpty) return const SizedBox.shrink();
 
     final recommended =
-        _books.where((b) {
-          return school.focusAreas.any(
-            (area) => b.name.toLowerCase().contains(area.toLowerCase()),
-          );
-        }).take(5).toList();
+        _books
+            .where((b) {
+              return school.focusAreas.any(
+                (area) => b.name.toLowerCase().contains(area.toLowerCase()),
+              );
+            })
+            .take(5)
+            .toList();
 
     if (recommended.isEmpty) return const SizedBox.shrink();
 
@@ -486,7 +509,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
   }
 
   void _showQtyDialog(CatalogItemModel book) {
-    final controller = TextEditingController(text: _qtyFor(book.sku).toString());
+    final controller = TextEditingController(
+      text: _qtyFor(book.sku).toString(),
+    );
     showDialog(
       context: context,
       builder: (context) {
@@ -887,7 +912,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                                     _quotationTitle!.trim().isNotEmpty)
                                   Text('Title: ${_quotationTitle!.trim()}'),
                                 if (_phoneController.text.trim().isNotEmpty)
-                                  Text('Phone: ${_phoneController.text.trim()}'),
+                                  Text(
+                                    'Phone: ${_phoneController.text.trim()}',
+                                  ),
                                 if (_role5Name.isNotEmpty)
                                   Text('Field Agent: $_role5Name'),
                                 if (_role5Phone.isNotEmpty)
@@ -903,7 +930,9 @@ class _GroundsQuotationPageState extends State<GroundsQuotationPage> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Expanded(child: Text('${b.name} x$qty')),
+                                        Expanded(
+                                          child: Text('${b.name} x$qty'),
+                                        ),
                                         Text(
                                           'KES ${_lineTotal(b).toStringAsFixed(2)}',
                                         ),

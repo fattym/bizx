@@ -552,10 +552,7 @@ class DatabaseService {
       String? status,
       String? statusColumn,
     }) async {
-      var query = _supabase
-          .from(table)
-          .select('id')
-          .eq('agent_id', agentId);
+      var query = _supabase.from(table).select('id').eq('agent_id', agentId);
       query = query.gte(dateColumn, startIso).lte(dateColumn, nowIso);
       if (status != null) {
         query = query.eq(statusColumn ?? 'status', status);
@@ -598,7 +595,8 @@ class DatabaseService {
 
     final onboardedIds = await onboardedSchoolIdList();
     final onboardedVisits = onboardedIds.length;
-    final visits = (await countRows('school_visits', 'visited_at')) + onboardedVisits;
+    final visits =
+        (await countRows('school_visits', 'visited_at')) + onboardedVisits;
     final orders = await countRows(
       'orders',
       'created_at',
@@ -612,10 +610,8 @@ class DatabaseService {
       statusColumn: 'sale_status',
     );
     final visitedFromVisits = await visitedSchoolIdsFromVisits();
-    final visitedSchools = <String>{
-      ...visitedFromVisits,
-      ...onboardedIds,
-    }.length;
+    final visitedSchools =
+        <String>{...visitedFromVisits, ...onboardedIds}.length;
     final percent =
         visits == 0 ? 0 : ((visits / dailyTarget) * 100).clamp(0, 100).round();
 

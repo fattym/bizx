@@ -54,28 +54,29 @@ class _CrmSettingsPageState extends State<CrmSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  'CRM Notifications',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: SwitchListTile(
-                    value: _crmPushEnabled,
-                    onChanged: _setCrmPushEnabled,
-                    title: const Text('Push Notifications'),
-                    subtitle: const Text(
-                      'Receive push alerts for CRM leads, follow-ups, and stage updates.',
+      body:
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    'CRM Notifications',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: SwitchListTile(
+                      value: _crmPushEnabled,
+                      onChanged: _setCrmPushEnabled,
+                      title: const Text('Push Notifications'),
+                      subtitle: const Text(
+                        'Receive push alerts for CRM leads, follow-ups, and stage updates.',
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
     );
   }
 }

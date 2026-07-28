@@ -63,9 +63,9 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load responses: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load responses: $e')));
     }
   }
 
@@ -90,9 +90,9 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingMore = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load more: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load more: $e')));
     }
   }
 
@@ -129,9 +129,10 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
     }
 
     final filter = _filterController.text.trim();
-    final suffix = filter.isEmpty
-        ? 'all_forms'
-        : filter.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final suffix =
+        filter.isEmpty
+            ? 'all_forms'
+            : filter.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
     final fileName =
         'project_form_responses_${suffix}_${DateTime.now().millisecondsSinceEpoch}.csv';
 
@@ -152,9 +153,9 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
@@ -192,43 +193,11 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
             children: [
               Padding(
                 padding: EdgeInsets.all(isSmall ? 12 : 16),
-                child: isSmall
-                    ? Column(
-                        children: [
-                          TextField(
-                            controller: _filterController,
-                            decoration: const InputDecoration(
-                              labelText: 'Filter by form name',
-                              border: OutlineInputBorder(),
-                            ),
-                            onSubmitted: (_) => _applyFilter(),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: _applyFilter,
-                                  icon: const Icon(Icons.search),
-                                  label: const Text('Filter'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _downloadExcelLikeCsv,
-                                  icon: const Icon(Icons.download_outlined),
-                                  label: const Text('Download Excel'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
+                child:
+                    isSmall
+                        ? Column(
+                          children: [
+                            TextField(
                               controller: _filterController,
                               decoration: const InputDecoration(
                                 labelText: 'Filter by form name',
@@ -236,101 +205,145 @@ class _ProjectFormResponsesPageState extends State<ProjectFormResponsesPage> {
                               ),
                               onSubmitted: (_) => _applyFilter(),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: _applyFilter,
-                            icon: const Icon(Icons.search),
-                            label: const Text('Filter'),
-                          ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            onPressed: _downloadExcelLikeCsv,
-                            icon: const Icon(Icons.download_outlined),
-                            label: const Text('Download Excel'),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _applyFilter,
+                                    icon: const Icon(Icons.search),
+                                    label: const Text('Filter'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _downloadExcelLikeCsv,
+                                    icon: const Icon(Icons.download_outlined),
+                                    label: const Text('Download Excel'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                        : Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _filterController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Filter by form name',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: (_) => _applyFilter(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.icon(
+                              onPressed: _applyFilter,
+                              icon: const Icon(Icons.search),
+                              label: const Text('Filter'),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: _downloadExcelLikeCsv,
+                              icon: const Icon(Icons.download_outlined),
+                              label: const Text('Download Excel'),
+                            ),
+                          ],
+                        ),
               ),
               Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _responses.isEmpty
-                    ? const Center(
-                        child: Text('No collected data found for this filter.'),
-                      )
-                    : ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          isSmall ? 12 : 16,
-                          0,
-                          isSmall ? 12 : 16,
-                          isSmall ? 12 : 16,
-                        ),
-                        itemCount: _responses.length + 1,
-                        separatorBuilder: (_, __) =>
-                            SizedBox(height: isSmall ? 8 : 10),
-                        itemBuilder: (context, index) {
-                          if (index == _responses.length) {
-                            if (!_hasMore) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Center(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoadingMore ? null : _loadMore,
-                                  icon: _isLoadingMore
-                                      ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.expand_more),
-                                  label: Text(
-                                    _isLoadingMore ? 'Loading...' : 'Load More',
+                child:
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _responses.isEmpty
+                        ? const Center(
+                          child: Text(
+                            'No collected data found for this filter.',
+                          ),
+                        )
+                        : ListView.separated(
+                          padding: EdgeInsets.fromLTRB(
+                            isSmall ? 12 : 16,
+                            0,
+                            isSmall ? 12 : 16,
+                            isSmall ? 12 : 16,
+                          ),
+                          itemCount: _responses.length + 1,
+                          separatorBuilder:
+                              (_, __) => SizedBox(height: isSmall ? 8 : 10),
+                          itemBuilder: (context, index) {
+                            if (index == _responses.length) {
+                              if (!_hasMore) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        _isLoadingMore ? null : _loadMore,
+                                    icon:
+                                        _isLoadingMore
+                                            ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                            : const Icon(Icons.expand_more),
+                                    label: Text(
+                                      _isLoadingMore
+                                          ? 'Loading...'
+                                          : 'Load More',
+                                    ),
                                   ),
+                                ),
+                              );
+                            }
+
+                            final r = _responses[index];
+                            return Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(isSmall ? 12 : 14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r.formTitle,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: isSmall ? 15 : 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Submitted by: ${r.respondentId}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      'Submitted at: ${_formatDateTime(r.submittedAt)}',
+                                    ),
+                                    const Divider(height: 20),
+                                    ...r.answers.entries.map(
+                                      (e) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: Text('${e.key}: ${e.value}'),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
-                          }
-
-                          final r = _responses[index];
-                          return Card(
-                            child: Padding(
-                              padding: EdgeInsets.all(isSmall ? 12 : 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    r.formTitle,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: isSmall ? 15 : 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Submitted by: ${r.respondentId}',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'Submitted at: ${_formatDateTime(r.submittedAt)}',
-                                  ),
-                                  const Divider(height: 20),
-                                  ...r.answers.entries.map(
-                                    (e) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: Text('${e.key}: ${e.value}'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                          },
+                        ),
               ),
             ],
           ),

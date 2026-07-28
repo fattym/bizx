@@ -97,7 +97,9 @@ Future<ClientType?> showClientTypeModal(
   return showDialog<ClientType?>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => _ClientTypeModal(includeAll: includeAll, selected: selected),
+    builder:
+        (context) =>
+            _ClientTypeModal(includeAll: includeAll, selected: selected),
   );
 }
 
@@ -199,7 +201,10 @@ class _ClientTypeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final selected = option.isSelected;
     return Material(
-      color: selected ? AppColors.primaryGreen.withValues(alpha: 0.12) : Colors.white,
+      color:
+          selected
+              ? AppColors.primaryGreen.withValues(alpha: 0.12)
+              : Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),

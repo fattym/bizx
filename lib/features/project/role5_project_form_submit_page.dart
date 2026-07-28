@@ -12,7 +12,8 @@ class Role5ProjectFormSubmitPage extends StatefulWidget {
       _Role5ProjectFormSubmitPageState();
 }
 
-class _Role5ProjectFormSubmitPageState extends State<Role5ProjectFormSubmitPage> {
+class _Role5ProjectFormSubmitPageState
+    extends State<Role5ProjectFormSubmitPage> {
   final Map<int, dynamic> _answers = <int, dynamic>{};
   bool _isSubmitting = false;
 
@@ -95,9 +96,9 @@ class _Role5ProjectFormSubmitPageState extends State<Role5ProjectFormSubmitPage>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Submit failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Submit failed: $e')));
     }
   }
 
@@ -178,48 +179,54 @@ class _Role5ProjectFormSubmitPageState extends State<Role5ProjectFormSubmitPage>
       case ProjectQuestionType.matrixGrid:
         final options = q.options.isEmpty ? <String>['Option 1'] : q.options;
         return Column(
-          children: options
-              .map(
-                (o) => RadioListTile<String>(
-                  value: o,
-                  groupValue: value?.toString(),
-                  onChanged: (v) => setState(() => _answers[index] = v ?? ''),
-                  title: Text(o),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              )
-              .toList(),
+          children:
+              options
+                  .map(
+                    (o) => RadioListTile<String>(
+                      value: o,
+                      groupValue: value?.toString(),
+                      onChanged:
+                          (v) => setState(() => _answers[index] = v ?? ''),
+                      title: Text(o),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  )
+                  .toList(),
         );
       case ProjectQuestionType.checkboxes:
         final options = q.options.isEmpty ? <String>['Option 1'] : q.options;
         final selected = (value is List ? value.cast<String>() : <String>[]);
         return Column(
-          children: options
-              .map(
-                (o) => CheckboxListTile(
-                  value: selected.contains(o),
-                  onChanged: (checked) {
-                    final next = List<String>.from(selected);
-                    if (checked == true) {
-                      if (!next.contains(o)) next.add(o);
-                    } else {
-                      next.remove(o);
-                    }
-                    setState(() => _answers[index] = next);
-                  },
-                  title: Text(o),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              )
-              .toList(),
+          children:
+              options
+                  .map(
+                    (o) => CheckboxListTile(
+                      value: selected.contains(o),
+                      onChanged: (checked) {
+                        final next = List<String>.from(selected);
+                        if (checked == true) {
+                          if (!next.contains(o)) next.add(o);
+                        } else {
+                          next.remove(o);
+                        }
+                        setState(() => _answers[index] = next);
+                      },
+                      title: Text(o),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  )
+                  .toList(),
         );
       case ProjectQuestionType.dropdown:
         final options = q.options.isEmpty ? <String>['Option 1'] : q.options;
         return DropdownButtonFormField<String>(
           value: options.contains(value) ? value.toString() : null,
-          items: options
-              .map((o) => DropdownMenuItem<String>(value: o, child: Text(o)))
-              .toList(),
+          items:
+              options
+                  .map(
+                    (o) => DropdownMenuItem<String>(value: o, child: Text(o)),
+                  )
+                  .toList(),
           onChanged: (v) => setState(() => _answers[index] = v ?? ''),
           decoration: const InputDecoration(border: OutlineInputBorder()),
         );
@@ -267,7 +274,9 @@ class _Role5ProjectFormSubmitPageState extends State<Role5ProjectFormSubmitPage>
               padding: const EdgeInsets.only(top: 12, bottom: 20),
               child: FilledButton(
                 onPressed: _isSubmitting ? null : _submit,
-                child: Text(_isSubmitting ? 'Submitting...' : 'Submit Response'),
+                child: Text(
+                  _isSubmitting ? 'Submitting...' : 'Submit Response',
+                ),
               ),
             );
           }

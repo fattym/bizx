@@ -28,7 +28,8 @@ class _Role5ProjectFormsPageState extends State<Role5ProjectFormsPage> {
     });
   }
 
-  Future<Map<String, List<ProjectFormResponse>>> _loadMyResponsesByForm() async {
+  Future<Map<String, List<ProjectFormResponse>>>
+  _loadMyResponsesByForm() async {
     final rows = await ProjectFormStore.fetchMyResponses();
     final grouped = <String, List<ProjectFormResponse>>{};
     for (final row in rows) {
@@ -119,13 +120,16 @@ class _Role5ProjectFormsPageState extends State<Role5ProjectFormsPage> {
               }
               final forms = formSnapshot.data ?? <ProjectForm>[];
               if (forms.isEmpty) {
-                return const Center(child: Text('No published project forms yet.'));
+                return const Center(
+                  child: Text('No published project forms yet.'),
+                );
               }
 
               return FutureBuilder<Map<String, List<ProjectFormResponse>>>(
                 future: _myResponsesByFormFuture,
                 builder: (context, responseSnapshot) {
-                  if (responseSnapshot.connectionState == ConnectionState.waiting) {
+                  if (responseSnapshot.connectionState ==
+                      ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   final grouped =
@@ -138,9 +142,11 @@ class _Role5ProjectFormsPageState extends State<Role5ProjectFormsPage> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final form = forms[index];
-                      final myRows = form.id == null
-                          ? const <ProjectFormResponse>[]
-                          : (grouped[form.id!] ?? const <ProjectFormResponse>[]);
+                      final myRows =
+                          form.id == null
+                              ? const <ProjectFormResponse>[]
+                              : (grouped[form.id!] ??
+                                  const <ProjectFormResponse>[]);
 
                       return Card(
                         child: Padding(
@@ -179,32 +185,40 @@ class _Role5ProjectFormsPageState extends State<Role5ProjectFormsPage> {
                               SizedBox(
                                 width: isSmall ? double.infinity : null,
                                 child: Align(
-                                  alignment: isSmall
-                                      ? Alignment.centerLeft
-                                      : Alignment.centerRight,
+                                  alignment:
+                                      isSmall
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
                                   child: FilledButton.icon(
-                                    onPressed: form.id == null
-                                        ? null
-                                        : () async {
-                                            final submitted = await Navigator.push<bool>(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    Role5ProjectFormSubmitPage(
-                                                      form: form,
+                                    onPressed:
+                                        form.id == null
+                                            ? null
+                                            : () async {
+                                              final submitted =
+                                                  await Navigator.push<bool>(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder:
+                                                          (_) =>
+                                                              Role5ProjectFormSubmitPage(
+                                                                form: form,
+                                                              ),
                                                     ),
-                                              ),
-                                            );
-                                            if (submitted == true) {
-                                              _reloadData();
-                                              if (!context.mounted) return;
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('Response submitted.'),
-                                                ),
-                                              );
-                                            }
-                                          },
+                                                  );
+                                              if (submitted == true) {
+                                                _reloadData();
+                                                if (!context.mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Response submitted.',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
                                     icon: const Icon(Icons.send_outlined),
                                     label: const Text('Submit Response'),
                                   ),
@@ -226,7 +240,6 @@ class _Role5ProjectFormsPageState extends State<Role5ProjectFormsPage> {
       ),
     );
   }
-
 }
 
 class _MySubmissionsSection extends StatelessWidget {
@@ -264,37 +277,38 @@ class _MySubmissionsSection extends StatelessWidget {
         'My Previous Submissions (${submissions.length})',
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      children: submissions.map((r) {
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Submitted: ${_formatDateTime(r.submittedAt)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
+      children:
+          submissions.map((r) {
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 6),
-              ...r.answers.entries.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('${e.key}: ${e.value}'),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Submitted: ${_formatDateTime(r.submittedAt)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...r.answers.entries.map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('${e.key}: ${e.value}'),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
   }
 }

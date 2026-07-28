@@ -7,9 +7,7 @@ class WelcomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Welcome')),
-      body: const Center(
-        child: Text('Welcome to My App'),
-      ),
+      body: const Center(child: Text('Welcome to My App')),
     );
   }
 }

@@ -22,9 +22,11 @@ Future<void> downloadCsvTemplate(String fileName, String content) async {
     }
   }
 
-  final directory = Platform.isIOS
-      ? await getApplicationDocumentsDirectory()
-      : (await getExternalStorageDirectory()) ?? await getTemporaryDirectory();
+  final directory =
+      Platform.isIOS
+          ? await getApplicationDocumentsDirectory()
+          : (await getExternalStorageDirectory()) ??
+              await getTemporaryDirectory();
   final file = File('${directory.path}/$fileName');
   await file.writeAsString(content);
 }

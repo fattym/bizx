@@ -363,7 +363,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
         'price': checkoutAmount,
         'sku': 'CUSTOM',
         'qty': 1,
-        });
+      });
     }
 
     String? schoolId = selectedSchool.id;
@@ -448,7 +448,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
                   probability: 100,
                   closedAt: DateTime.now(),
                   isSynced: false,
-              ),
+                ),
               );
 
       try {

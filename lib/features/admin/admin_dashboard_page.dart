@@ -414,7 +414,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ),
                           TextButton.icon(
                             onPressed:
-                                () => setState(() => _showRegions = !_showRegions),
+                                () => setState(
+                                  () => _showRegions = !_showRegions,
+                                ),
                             icon: Icon(
                               _showRegions
                                   ? Icons.expand_less
@@ -888,8 +890,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const AdminIndividualPerformancePage(),
+                        builder:
+                            (context) => const AdminIndividualPerformancePage(),
                       ),
                     );
                   },

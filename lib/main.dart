@@ -158,59 +158,65 @@ class _SessionEntryPageState extends State<_SessionEntryPage> {
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
 
-    final updateAvailable = await GithubReleaseService(
-      owner: 'dehus',
-      repo: 'dehus',
-    ).isUpdateAvailable();
+    final updateAvailable =
+        await GithubReleaseService(
+          owner: 'dehus',
+          repo: 'dehus',
+        ).isUpdateAvailable();
 
     if (!mounted || !updateAvailable) return;
 
-    final release = await GithubReleaseService(
-      owner: 'dehus',
-      repo: 'dehus',
-    ).fetchLatestRelease();
+    final release =
+        await GithubReleaseService(
+          owner: 'dehus',
+          repo: 'dehus',
+        ).fetchLatestRelease();
     if (!mounted || release == null) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Update Available'),
-        content: Text(
-          'A new version (${release.tagName.replaceFirst(RegExp(r'^v'), '')}) is available.\n\nPlease update to get the latest features and bug fixes.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Later'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final uri = Uri.parse(
-                release.apkDownloadUrl ?? release.htmlUrl,
-              );
-              if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Could not open update link')),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Update Available'),
+            content: Text(
+              'A new version (${release.tagName.replaceFirst(RegExp(r'^v'), '')}) is available.\n\nPlease update to get the latest features and bug fixes.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Later'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.parse(
+                    release.apkDownloadUrl ?? release.htmlUrl,
                   );
-                }
-              }
-            },
-            child: const Text('Update'),
+                  if (!await launchUrl(
+                    uri,
+                    mode: LaunchMode.externalApplication,
+                  )) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not open update link'),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Update'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading || _destination == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return _destination!;
   }

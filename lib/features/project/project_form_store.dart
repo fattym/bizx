@@ -126,20 +126,21 @@ class ProjectFormStore {
     String? formNameFilter,
   }) async {
     final filter = formNameFilter?.trim() ?? '';
-    final data = filter.isEmpty
-        ? await _supabase
-              .from('project_form_responses')
-              .select(
-                'id, form_id, form_title, respondent_id, answers, submitted_at',
-              )
-              .order('submitted_at', ascending: false)
-        : await _supabase
-              .from('project_form_responses')
-              .select(
-                'id, form_id, form_title, respondent_id, answers, submitted_at',
-              )
-              .filter('form_title', 'ilike', '%$filter%')
-              .order('submitted_at', ascending: false);
+    final data =
+        filter.isEmpty
+            ? await _supabase
+                .from('project_form_responses')
+                .select(
+                  'id, form_id, form_title, respondent_id, answers, submitted_at',
+                )
+                .order('submitted_at', ascending: false)
+            : await _supabase
+                .from('project_form_responses')
+                .select(
+                  'id, form_id, form_title, respondent_id, answers, submitted_at',
+                )
+                .filter('form_title', 'ilike', '%$filter%')
+                .order('submitted_at', ascending: false);
 
     return (data as List<dynamic>).map((row) {
       final map = Map<String, dynamic>.from(row as Map);
@@ -155,22 +156,23 @@ class ProjectFormStore {
     final from = page * pageSize;
     final to = from + pageSize - 1;
     final filter = formNameFilter?.trim() ?? '';
-    final data = filter.isEmpty
-        ? await _supabase
-              .from('project_form_responses')
-              .select(
-                'id, form_id, form_title, respondent_id, answers, submitted_at',
-              )
-              .order('submitted_at', ascending: false)
-              .range(from, to)
-        : await _supabase
-              .from('project_form_responses')
-              .select(
-                'id, form_id, form_title, respondent_id, answers, submitted_at',
-              )
-              .filter('form_title', 'ilike', '%$filter%')
-              .order('submitted_at', ascending: false)
-              .range(from, to);
+    final data =
+        filter.isEmpty
+            ? await _supabase
+                .from('project_form_responses')
+                .select(
+                  'id, form_id, form_title, respondent_id, answers, submitted_at',
+                )
+                .order('submitted_at', ascending: false)
+                .range(from, to)
+            : await _supabase
+                .from('project_form_responses')
+                .select(
+                  'id, form_id, form_title, respondent_id, answers, submitted_at',
+                )
+                .filter('form_title', 'ilike', '%$filter%')
+                .order('submitted_at', ascending: false)
+                .range(from, to);
 
     return (data as List<dynamic>).map((row) {
       final map = Map<String, dynamic>.from(row as Map);
@@ -225,23 +227,27 @@ class ProjectFormStore {
       id: row['id']?.toString(),
       title: row['title']?.toString() ?? 'Untitled Project Form',
       description: row['description']?.toString() ?? '',
-      questions: rawQuestions
-          .map(
-            (item) => _questionFromMap(Map<String, dynamic>.from(item as Map)),
-          )
-          .toList(),
+      questions:
+          rawQuestions
+              .map(
+                (item) =>
+                    _questionFromMap(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList(),
       publishedAt:
           DateTime.tryParse(row['published_at']?.toString() ?? '') ??
           DateTime.now(),
       createdBy: row['created_by']?.toString(),
-      assignedUserIds: (row['assigned_user_ids'] as List<dynamic>? ?? <dynamic>[])
-          .map((id) => id.toString())
-          .toList(),
+      assignedUserIds:
+          (row['assigned_user_ids'] as List<dynamic>? ?? <dynamic>[])
+              .map((id) => id.toString())
+              .toList(),
     );
   }
 
   static ProjectFormQuestion _questionFromMap(Map<String, dynamic> map) {
-    final typeName = map['type']?.toString() ?? ProjectQuestionType.shortAnswer.name;
+    final typeName =
+        map['type']?.toString() ?? ProjectQuestionType.shortAnswer.name;
     final type = ProjectQuestionType.values.firstWhere(
       (t) => t.name == typeName,
       orElse: () => ProjectQuestionType.shortAnswer,
@@ -250,9 +256,10 @@ class ProjectFormStore {
       title: map['title']?.toString() ?? 'Untitled Question',
       type: type,
       required: map['required'] == true,
-      options: (map['options'] as List<dynamic>? ?? <dynamic>[])
-          .map((o) => o.toString())
-          .toList(),
+      options:
+          (map['options'] as List<dynamic>? ?? <dynamic>[])
+              .map((o) => o.toString())
+              .toList(),
     );
   }
 

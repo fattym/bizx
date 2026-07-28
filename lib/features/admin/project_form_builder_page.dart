@@ -82,7 +82,10 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
   void _addQuestion() {
     setState(() {
       _questions.add(
-        _FormQuestion(title: 'Untitled Question', type: _QuestionType.shortAnswer),
+        _FormQuestion(
+          title: 'Untitled Question',
+          type: _QuestionType.shortAnswer,
+        ),
       );
     });
   }
@@ -94,14 +97,16 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
           .select('id, full_name, email')
           .eq('role', 5)
           .order('full_name');
-      _role5Users = (res as List<dynamic>).map((row) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final id = map['id']?.toString() ?? '';
-        final name = (map['full_name']?.toString().trim().isNotEmpty ?? false)
-            ? map['full_name'].toString().trim()
-            : (map['email']?.toString() ?? 'Role 5 User');
-        return <String, String>{'id': id, 'name': name};
-      }).toList();
+      _role5Users =
+          (res as List<dynamic>).map((row) {
+            final map = Map<String, dynamic>.from(row as Map);
+            final id = map['id']?.toString() ?? '';
+            final name =
+                (map['full_name']?.toString().trim().isNotEmpty ?? false)
+                    ? map['full_name'].toString().trim()
+                    : (map['email']?.toString() ?? 'Role 5 User');
+            return <String, String>{'id': id, 'name': name};
+          }).toList();
     } catch (_) {
       _role5Users = <Map<String, String>>[];
     } finally {
@@ -176,9 +181,9 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
   Future<void> _publishForm() async {
     final title = _formTitleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add a form title.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please add a form title.')));
       return;
     }
     if (_selectedAssigneeIds.isEmpty) {
@@ -191,16 +196,20 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
     final form = ProjectForm(
       title: title,
       description: _formDescriptionController.text.trim(),
-      questions: _questions
-          .map(
-            (q) => ProjectFormQuestion(
-              title: q.title.trim().isEmpty ? 'Untitled Question' : q.title.trim(),
-              type: _toSharedType(q.type),
-              required: q.required,
-              options: List<String>.from(q.options),
-            ),
-          )
-          .toList(),
+      questions:
+          _questions
+              .map(
+                (q) => ProjectFormQuestion(
+                  title:
+                      q.title.trim().isEmpty
+                          ? 'Untitled Question'
+                          : q.title.trim(),
+                  type: _toSharedType(q.type),
+                  required: q.required,
+                  options: List<String>.from(q.options),
+                ),
+              )
+              .toList(),
       publishedAt: DateTime.now(),
       assignedUserIds: _selectedAssigneeIds.toList(),
     );
@@ -329,7 +338,9 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
                     children: [
                       TextField(
                         controller: _formTitleController,
-                        decoration: const InputDecoration(labelText: 'Form title'),
+                        decoration: const InputDecoration(
+                          labelText: 'Form title',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -356,9 +367,10 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
                   typeLabel: _typeLabel,
                   supportsOptions: _supportsOptions,
                   onChanged: () => setState(() {}),
-                  onDelete: _questions.length == 1
-                      ? null
-                      : () => setState(() => _questions.removeAt(i)),
+                  onDelete:
+                      _questions.length == 1
+                          ? null
+                          : () => setState(() => _questions.removeAt(i)),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -405,17 +417,19 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _role5Users
-                    .where((u) => _selectedAssigneeIds.contains(u['id']))
-                    .map(
-                      (u) => Chip(
-                        label: Text(u['name'] ?? 'User'),
-                        onDeleted: () => setState(
-                          () => _selectedAssigneeIds.remove(u['id']),
-                        ),
-                      ),
-                    )
-                    .toList(),
+                children:
+                    _role5Users
+                        .where((u) => _selectedAssigneeIds.contains(u['id']))
+                        .map(
+                          (u) => Chip(
+                            label: Text(u['name'] ?? 'User'),
+                            onDeleted:
+                                () => setState(
+                                  () => _selectedAssigneeIds.remove(u['id']),
+                                ),
+                          ),
+                        )
+                        .toList(),
               ),
           ],
         ),
@@ -440,7 +454,10 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
                   children: [
                     const Text(
                       'Select Role 5 Users',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -568,37 +585,42 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
         );
       case _QuestionType.multipleChoice:
         return Column(
-          children: question.options
-              .map(
-                (o) => RadioListTile<bool>(
-                  value: true,
-                  groupValue: null,
-                  onChanged: null,
-                  title: Text(o),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              )
-              .toList(),
+          children:
+              question.options
+                  .map(
+                    (o) => RadioListTile<bool>(
+                      value: true,
+                      groupValue: null,
+                      onChanged: null,
+                      title: Text(o),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  )
+                  .toList(),
         );
       case _QuestionType.checkboxes:
         return Column(
-          children: question.options
-              .map(
-                (o) => CheckboxListTile(
-                  value: false,
-                  onChanged: null,
-                  title: Text(o),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              )
-              .toList(),
+          children:
+              question.options
+                  .map(
+                    (o) => CheckboxListTile(
+                      value: false,
+                      onChanged: null,
+                      title: Text(o),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  )
+                  .toList(),
         );
       case _QuestionType.dropdown:
         return DropdownButtonFormField<String>(
           value: null,
-          items: question.options
-              .map((o) => DropdownMenuItem<String>(value: o, child: Text(o)))
-              .toList(),
+          items:
+              question.options
+                  .map(
+                    (o) => DropdownMenuItem<String>(value: o, child: Text(o)),
+                  )
+                  .toList(),
           onChanged: null,
           decoration: const InputDecoration(
             hintText: 'Choose',
@@ -696,15 +718,13 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
       case _QuestionType.linearScale:
         return Wrap(
           spacing: 8,
-          children: List.generate(
-            10,
-            (i) => Chip(label: Text('${i + 1}')),
-          ),
+          children: List.generate(10, (i) => Chip(label: Text('${i + 1}'))),
         );
       case _QuestionType.matrixGrid:
-        final options = question.options.isEmpty
-            ? <String>['Option 1', 'Option 2', 'Option 3']
-            : question.options;
+        final options =
+            question.options.isEmpty
+                ? <String>['Option 1', 'Option 2', 'Option 3']
+                : question.options;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -717,15 +737,18 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
                   const DataColumn(label: Text('Item')),
                   ...options.map((o) => DataColumn(label: Text(o))),
                 ],
-                rows: const [
-                  DataRow(cells: [DataCell(Text('Row 1'))]),
-                ].map((row) {
-                  final cells = List<DataCell>.from(row.cells);
-                  while (cells.length < options.length + 1) {
-                    cells.add(const DataCell(Icon(Icons.radio_button_unchecked)));
-                  }
-                  return DataRow(cells: cells);
-                }).toList(),
+                rows:
+                    const [
+                      DataRow(cells: [DataCell(Text('Row 1'))]),
+                    ].map((row) {
+                      final cells = List<DataCell>.from(row.cells);
+                      while (cells.length < options.length + 1) {
+                        cells.add(
+                          const DataCell(Icon(Icons.radio_button_unchecked)),
+                        );
+                      }
+                      return DataRow(cells: cells);
+                    }).toList(),
               ),
             ),
           ],
@@ -733,33 +756,37 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
       case _QuestionType.sectionBreak:
         return const Divider(thickness: 1.2);
       case _QuestionType.imageChoice:
-        final options = question.options.isEmpty ? <String>['Choice'] : question.options;
+        final options =
+            question.options.isEmpty ? <String>['Choice'] : question.options;
         return Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: options
-              .map(
-                (o) => Container(
-                  width: 120,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 60,
-                        color: Colors.grey.shade200,
-                        child: const Center(child: Icon(Icons.image_outlined)),
+          children:
+              options
+                  .map(
+                    (o) => Container(
+                      width: 120,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 6),
-                      Text(o, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-              )
-              .toList(),
+                      child: Column(
+                        children: [
+                          Container(
+                            height: 60,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Icon(Icons.image_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(o, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
         );
       case _QuestionType.signatureInput:
         return Container(
@@ -778,17 +805,16 @@ class _ProjectFormBuilderPageState extends State<ProjectFormBuilderPage> {
             borderRadius: BorderRadius.circular(8),
             color: Colors.grey.shade200,
           ),
-          child: const Center(
-            child: Text('Map / GPS picker preview'),
-          ),
+          child: const Center(child: Text('Map / GPS picker preview')),
         );
       case _QuestionType.autocompleteInput:
         return TextField(
           enabled: false,
           decoration: InputDecoration(
-            hintText: question.options.isEmpty
-                ? 'Start typing...'
-                : 'Suggestions: ${question.options.take(3).join(', ')}',
+            hintText:
+                question.options.isEmpty
+                    ? 'Start typing...'
+                    : 'Suggestions: ${question.options.take(3).join(', ')}',
             border: const OutlineInputBorder(),
           ),
         );
@@ -869,14 +895,15 @@ class _QuestionCard extends StatelessWidget {
             DropdownButtonFormField<_QuestionType>(
               value: question.type,
               decoration: const InputDecoration(labelText: 'Question type'),
-              items: _QuestionType.values
-                  .map(
-                    (type) => DropdownMenuItem<_QuestionType>(
-                      value: type,
-                      child: Text(typeLabel(type)),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  _QuestionType.values
+                      .map(
+                        (type) => DropdownMenuItem<_QuestionType>(
+                          value: type,
+                          child: Text(typeLabel(type)),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) {
                 if (value == null) return;
                 question.type = value;
@@ -903,9 +930,11 @@ class _QuestionCard extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              for (int optionIndex = 0;
-                  optionIndex < question.options.length;
-                  optionIndex++) ...[
+              for (
+                int optionIndex = 0;
+                optionIndex < question.options.length;
+                optionIndex++
+              ) ...[
                 Row(
                   children: [
                     Expanded(
@@ -921,12 +950,13 @@ class _QuestionCard extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      onPressed: question.options.length == 1
-                          ? null
-                          : () {
-                              question.options.removeAt(optionIndex);
-                              onChanged();
-                            },
+                      onPressed:
+                          question.options.length == 1
+                              ? null
+                              : () {
+                                question.options.removeAt(optionIndex);
+                                onChanged();
+                              },
                       icon: const Icon(Icons.remove_circle_outline),
                     ),
                   ],
@@ -937,7 +967,9 @@ class _QuestionCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: () {
-                    question.options.add('Option ${question.options.length + 1}');
+                    question.options.add(
+                      'Option ${question.options.length + 1}',
+                    );
                     onChanged();
                   },
                   icon: const Icon(Icons.add),
