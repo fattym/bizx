@@ -75,6 +75,26 @@ class _CrmSettingsPageState extends State<CrmSettingsPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Auto-update feature coming soon.'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.system_update_outlined),
+                    label: const Text('Check for Updates'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ],
               ),
     );
