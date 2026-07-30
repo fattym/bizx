@@ -44,6 +44,7 @@ create table if not exists public.users (
   phone text,
   role integer not null default 5,
   region text,
+  sub_region text,
   "isSynced" boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -2158,3 +2159,108 @@ for all
 to authenticated
 using (requested_by = auth.uid() or public.is_manager_or_admin())
 with check (requested_by = auth.uid() or public.is_manager_or_admin());
+
+create table if not exists public.regions (
+  id uuid primary key default gen_random_uuid(),
+  region text not null,
+  sub_region text not null,
+  counties text,
+  assigned_to uuid references public.users (id) on delete set null,
+  supervisor_id uuid references public.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'regions' and column_name = 'assigned_to') then
+    alter table public.regions add column assigned_to uuid references public.users (id) on delete set null;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'regions' and column_name = 'counties') then
+    alter table public.regions add column counties text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'regions' and column_name = 'supervisor_id') then
+    alter table public.regions add column supervisor_id uuid references public.users (id) on delete set null;
+  end if;
+end $$;
+
+drop trigger if exists touch_regions_updated_at on public.regions;
+create trigger touch_regions_updated_at
+before update on public.regions
+for each row execute procedure public.set_updated_at();
+
+alter table public.regions enable row level security;
+
+drop policy if exists "managers_can_manage_regions" on public.regions;
+create policy "managers_can_manage_regions"
+on public.regions
+for all
+to authenticated
+using (public.current_user_role_id() <= 2)
+with check (public.current_user_role_id() <= 2);
+
+drop policy if exists "authenticated_can_view_regions" on public.regions;
+create policy "authenticated_can_view_regions"
+on public.regions
+for select
+to authenticated
+using (true);
+
+drop policy if exists "agents_can_view_assigned_region" on public.regions;
+create policy "agents_can_view_assigned_region"
+on public.regions
+for select
+to authenticated
+using (
+  assigned_to = auth.uid()
+  or public.current_user_role_id() <= 2
+);
+
+create index if not exists idx_regions_region_sub_region
+  on public.regions (region, sub_region);
+
+create index if not exists idx_regions_assigned_to
+  on public.regions (assigned_to);
+
+do $$
+begin
+  if to_regclass('public.users') is not null then
+    if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'users' and column_name = 'region_id') then
+      alter table public.users add column region_id uuid references public.regions (id) on delete set null;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'users' and column_name = 'sub_region') then
+      alter table public.users add column sub_region text;
+    end if;
+  end if;
+end $$;
+
+create index if not exists idx_users_region_id
+  on public.users (region_id);
+
+insert into public.regions (region, sub_region, counties) values
+('Nairobi North', 'Nairobi North', 'Kasarani, Embakasi East, Embakasi West, Kiambu'),
+('Nairobi North', 'Embakasi', 'Embakasi North, Embakasi South, Embakasi Central'),
+('Nairobi North', 'Kiambu East', 'Gatundu North, Gatundu South, Juja, Thika Town, Ruiru'),
+('Nairobi North', 'Kiambu West', 'Kiambaa, Kikuyu, Kabete, Limuru, Lari, Githunguri'),
+('Nairobi North', 'Murang''a', 'Murang''a County'),
+('Nairobi South', 'Nairobi South', 'Starehe, Westlands, Dagoretti North, Dagoretti South'),
+('Nairobi South', 'Kajiado', 'Kajiado County'),
+('Nairobi South', 'Machakos', 'Machakos County'),
+('Nairobi South', 'Nairobi Central', 'Kamukunji, Makadara, Lang''ata'),
+('Lake', 'South Western', 'Bungoma, Busia'),
+('Lake', 'South Nyanza', 'Kisii, Nyamira, Migori'),
+('Lake', 'North Nyanza', 'Siaya, Homa Bay, Kisumu'),
+('Lake', 'North Western', 'Kakamega, Vihiga'),
+('South Rift', 'South Rift', 'Narok, Nyandarua, Laikipia, Samburu'),
+('South Rift', 'Central Rift', 'Nakuru, Baringo'),
+('South Rift', 'South Rift', 'Bomet, Kericho'),
+('North Rift', 'North Rift', 'Turkana, Uasin Gishu'),
+('North Rift', 'North Rift', 'Trans Nzoia, West Pokot'),
+('Coast', 'North Coast', 'Kilifi, Tana River, Lamu'),
+('Coast', 'South Coast', 'Taita Taveta, Kwale, Mombasa'),
+('Coast', 'Lower Eastern', 'Makueni, Kitui, Garissa'),
+('Mt Kenya', 'Mt Kenya East', 'Meru, Isiolo, Marsabit, Wajir'),
+('Mt Kenya', 'Mt Kenya West', 'Nyeri, Kirinyaga'),
+('Mt Kenya', 'Mt Kenya South', 'Embu, Tharaka Nithi'),
+('National', 'National', 'National')
+on conflict (id) do nothing;

@@ -6,6 +6,7 @@ class SchoolSaleModel {
   final String id;
   final String schoolId;
   final String? agentId;
+  final String? regionId;
   final String packageName;
   final double expectedValue;
   final String? notes;
@@ -22,6 +23,7 @@ class SchoolSaleModel {
     String? id,
     required this.schoolId,
     this.agentId,
+    this.regionId,
     required this.packageName,
     required this.expectedValue,
     this.notes,
@@ -40,6 +42,7 @@ class SchoolSaleModel {
       'id': id,
       'school_id': schoolId,
       'agent_id': agentId,
+      'region_id': regionId,
       'package_name': packageName,
       'expected_value': expectedValue,
       'notes': notes,
@@ -64,6 +67,7 @@ class SchoolSaleModel {
       id: map['id'],
       schoolId: map['school_id'] ?? map['schoolId'] ?? '',
       agentId: map['agent_id'] ?? map['agentId'],
+      regionId: map['region_id'] ?? map['regionId'],
       packageName: map['package_name'] ?? map['packageName'] ?? '',
       expectedValue: _toDouble(map['expected_value'] ?? map['expectedValue']),
       notes: map['notes'],

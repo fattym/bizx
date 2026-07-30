@@ -2808,1409 +2808,6 @@ commit;
 -- END FILE: supabase/schema_updates_tasks_pipeline.sql
 
 -- =========================================================
--- BEGIN FILE: supabase/seed.sql
--- =========================================================
--- ==========================================
--- Dummy Data Seed Script for Dehus App
--- Run this in your Supabase SQL Editor
--- ==========================================
-
--- 1. Insert Dummy Schools
-INSERT INTO public.schools (
-  id,
-  name,
-  phone,
-  county,
-  "focusAreas",
-  book_category,
-  latitude,
-  longitude,
-  photo_url,
-  photo_path,
-  capture_status,
-  captured_by,
-  captured_at,
-  "isSynced"
-)
-VALUES 
-  ('22222222-2222-2222-2222-222222222222', 'Nairobi Primary School', '0712345678', 'Nairobi', '["Mathematics", "Science"]'::jsonb, 'Book List', -1.2921, 36.8219, 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b', 'schools/nairobi-primary.jpg', 'GPS updated successfully', '11111111-1111-1111-1111-111111111111', now() - interval '1 day', true),
-  ('33333333-3333-3333-3333-333333333333', 'Mombasa High School', '0723456789', 'Mombasa', '["Languages", "Arts"]'::jsonb, 'Book Fund', -4.0435, 39.6682, 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1', 'schools/mombasa-high.jpg', 'Photo captured successfully', '11111111-1111-1111-1111-111111111111', now() - interval '1 day', true),
-  ('44444444-4444-4444-4444-444444444444', 'Kisumu Boys', '0734567890', 'Kisumu', '["Sports", "Science"]'::jsonb, NULL, -0.1022, 34.7617, NULL, NULL, 'Location not captured yet', '11111111-1111-1111-1111-111111111111', now() - interval '1 day', true),
-  ('55555555-5555-5555-5555-555555555555', 'Nakuru Girls', '0745678901', 'Nakuru', '["Mathematics", "Business"]'::jsonb, 'Book List', -0.3031, 36.0800, 'https://images.unsplash.com/photo-1497486751825-1233686d5d80', 'schools/nakuru-girls.jpg', 'GPS updated successfully', '11111111-1111-1111-1111-111111111111', now() - interval '1 day', true),
-  ('66666666-6666-6666-6666-666666666666', 'Eldoret Academy', '0756789012', 'Uasin Gishu', '["Agriculture", "Science"]'::jsonb, NULL, 0.5143, 35.2698, NULL, NULL, 'Photo captured successfully', '11111111-1111-1111-1111-111111111111', now() - interval '1 day', true)
-ON CONFLICT (id) DO UPDATE
-SET name = excluded.name,
-    phone = excluded.phone,
-    county = excluded.county,
-    "focusAreas" = excluded."focusAreas",
-    book_category = excluded.book_category,
-    latitude = excluded.latitude,
-    longitude = excluded.longitude,
-    photo_url = excluded.photo_url,
-    photo_path = excluded.photo_path,
-    capture_status = excluded.capture_status,
-    captured_by = excluded.captured_by,
-    captured_at = excluded.captured_at,
-    "isSynced" = excluded."isSynced";
-
--- 2. Insert Dummy Tasks
--- Note: We assign these to roles (e.g., target_role = 2, 3, or 4) so they show up for everyone in those roles
-INSERT INTO public.tasks (title, description, target_role, status, due_at, "isSynced")
-VALUES
-  ('Follow up with Nairobi Primary', 'Discuss the new curriculum books.', 2, 'open', now() + interval '2 days', true),
-  ('Deliver supplies to Mombasa High', 'Ensure all requested materials are delivered.', 3, 'open', now() + interval '5 days', true),
-  ('Check in on Kisumu Boys', 'Monthly routine check-in.', 3, 'in_progress', now() + interval '1 day', true),
-  ('Nakuru Girls Evaluation', 'Evaluate the newly introduced testing methods.', 2, 'open', now() + interval '7 days', true),
-  ('Eldoret Academy Proposal', 'Present the new business proposal to the principal.', 3, 'closed', now() - interval '1 day', true),
-  ('Quarterly Regional Review', 'Review quarterly numbers for all coastal schools.', 2, 'open', now() + interval '14 days', true);
-
--- 3. Insert Dummy Geofences
--- Coordinates are stored as a JSONB array of objects matching your flutter map data structure
-INSERT INTO public.geofences (name, description, region, coordinates)
-VALUES
-  ('Nairobi CBD Zone', 'Cover all schools within the central business district.', 'Nairobi', '[{"lat": -1.286389, "lng": 36.817223, "radius": 2000}]'::jsonb),
-  ('Mombasa Island Area', 'Target coastal schools.', 'Mombasa', '[{"lat": -4.043477, "lng": 39.668206, "radius": 3500}]'::jsonb),
-  ('Kisumu Lakefront', 'Schools near the lake area.', 'Kisumu', '[{"lat": -0.102210, "lng": 34.761713, "radius": 1500}]'::jsonb),
-  ('Nakuru Town Center', 'Coverage area for central Nakuru.', 'Nakuru', '[{"lat": -0.303099, "lng": 36.080025, "radius": 2500}]'::jsonb);
-
--- ==========================================
--- 4. Insert Dummy Users with Different Roles
--- ==========================================
--- We insert directly into Supabase's auth.users table so they can actually log in.
--- Your database triggers will automatically map them into the public.users table.
---
--- All generated users use the password: password123
--- Add "region" to raw_user_meta_data if you want the trigger to populate users.region.
-
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-VALUES
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'alice.manager@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Alice Manager", "role": 2, "region": "Nairobi"}', now(), now()),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bob.bas@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Bob BAS", "role": 3, "region": "Coast"}', now(), now()),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'charlie.agent@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Charlie Agent", "role": 4, "region": "Rift Valley"}', now(), now()),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'diana.sales@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Diana Sales", "role": 2, "region": "Western"}', now(), now()),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'edward.other@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Edward Grounds", "role": 5, "region": "Nyanza"}', now(), now())
-ON CONFLICT DO NOTHING;
-
--- 4b. Dedicated field-agent workload data
--- Fixed UUID keeps the agent-linked tasks and geofence references stable across reruns.
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-VALUES
-  ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'faith.agent@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Faith Agent", "role": 4, "region": "Nairobi"}', now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.tasks (title, description, target_role, assigned_to, status, due_at, "isSynced")
-VALUES
-  ('Visit Nairobi Primary School', 'Confirm the current book list and capture the headteacher feedback.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '1 day', true),
-  ('Follow up with Makueni High School', 'Call the school and confirm the book fund decision.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '2 days', true),
-  ('Sell book fund package to Bora Education Centre', 'Present the offer and record the response.', 4, '11111111-1111-1111-1111-111111111111', 'in_progress', now() + interval '3 days', true),
-  ('Check sample delivery for Green Pastures Academy', 'Make sure sample books were received and logged.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '4 days', true);
-
-INSERT INTO public.geofences (name, description, region, coordinates, assigned_to)
-VALUES
-  ('Nairobi Field Agent Zone', 'Primary school coverage for the Nairobi field agent.', 'Nairobi', '[{"lat": -1.2921, "lng": 36.8219, "radius": 4000}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('Kiambu Visit Corridor', 'Support schools along the Kiambu route.', 'Kiambu', '[{"lat": -1.1714, "lng": 36.8356, "radius": 2500}]'::jsonb, '11111111-1111-1111-1111-111111111111');
-
-INSERT INTO public.route_plans (
-  id,
-  title,
-  route_date,
-  assigned_to,
-  school_ids,
-  notes,
-  status,
-  created_by,
-  "isSynced"
-)
-VALUES
-  (
-    '77777777-7777-7777-7777-777777777777',
-    'Faith Agent Route Plan',
-    current_date,
-    '11111111-1111-1111-1111-111111111111',
-    '["22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333", "55555555-5555-5555-5555-555555555555"]'::jsonb,
-    'Morning route covering Nairobi Primary, Mombasa High and Nakuru Girls.',
-    'assigned',
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    '88888888-8888-8888-8888-888888888888',
-    'BAS Coastal Route Plan',
-    current_date + 1,
-    '11111111-1111-1111-1111-111111111111',
-    '["33333333-3333-3333-3333-333333333333", "44444444-4444-4444-4444-444444444444"]'::jsonb,
-    'Follow-up route with Mombasa and Kisumu school visits.',
-    'draft',
-    '11111111-1111-1111-1111-111111111111',
-    true
-  )
-ON CONFLICT (id) DO UPDATE
-SET title = excluded.title,
-    route_date = excluded.route_date,
-    assigned_to = excluded.assigned_to,
-    school_ids = excluded.school_ids,
-    notes = excluded.notes,
-    status = excluded.status,
-    "isSynced" = excluded."isSynced";
-
-INSERT INTO public.school_visits (
-  school_id,
-  agent_id,
-  outcome,
-  notes,
-  photo_url,
-  photo_path,
-  latitude,
-  longitude,
-  visit_status,
-  visited_at,
-  "isSynced"
-)
-VALUES
-  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Principal interested in book list', 'Reviewed the English and Mathematics book list and captured follow-up needs.', 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655', 'visits/nairobi-primary-2026-05-09.jpg', -1.292100, 36.821900, 'completed', now() - interval '1 day', true),
-  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Book fund discussed', 'The school requested a formal package presentation next week.', 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d', 'visits/mombasa-high-2026-05-08.jpg', -4.043500, 39.668200, 'completed', now() - interval '3 days', true),
-  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Sample delivery confirmed', 'Sample books delivered and logged by the librarian.', NULL, NULL, -0.303100, 36.080000, 'completed', now() - interval '5 days', true),
-  ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Initial introduction visit', 'Met the deputy principal and left a price list for the book list package.', 'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e', 'visits/kisumu-boys-2026-05-06.jpg', -0.102200, 34.761700, 'completed', now() - interval '7 days', true),
-  ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 'Follow-up visit on proposal', 'Reviewed the book fund quotation and answered questions about delivery timelines.', NULL, 'visits/eldoret-academy-2026-05-04.jpg', 0.514300, 35.269800, 'completed', now() - interval '9 days', true);
-
-INSERT INTO public.school_follow_ups (
-  school_id,
-  agent_id,
-  contact_person,
-  next_step,
-  due_at,
-  notes,
-  follow_up_status,
-  completed_at,
-  "isSynced"
-)
-VALUES
-  ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Deputy Principal', 'Confirm book list choice and pricing.', now() + interval '2 days', 'Left the school with a brochure and sample request form.', 'open', NULL, true),
-  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Procurement Lead', 'Send book fund proposal via email.', now() + interval '1 day', 'Awaiting budget approval.', 'open', NULL, true),
-  ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 'Head Teacher', 'Schedule a follow-up call after the staff meeting.', now() + interval '4 days', 'Initial visit was positive.', 'open', NULL, true),
-  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Head of Department', 'Confirm teacher sample feedback and next steps.', now() + interval '3 days', 'Waiting for the head teacher to approve the quote.', 'open', NULL, true),
-  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Library Assistant', 'Check if the book list order can be placed this week.', now() + interval '5 days', 'The library team asked for a revised package summary.', 'open', NULL, true);
-
-INSERT INTO public.school_sales (
-  school_id,
-  agent_id,
-  package_name,
-  expected_value,
-  notes,
-  sale_status,
-  stage_contact_person,
-  quotation_reference,
-  decision_owner,
-  closed_at,
-  "isSynced"
-)
-VALUES
-  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Book Fund Starter Package', 15000.00, 'Proposal shared during visit; awaiting confirmation.', 'decision_pending', 'Procurement Chair', NULL, 'Principal', NULL, true),
-  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Book List Bundle', 9800.00, 'Request received from the principal for a refined quote.', 'quotation_sent', 'Deputy Principal', 'QT-2026-0555', NULL, NULL, true),
-  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Core Reader Package', 7200.00, 'Sale agreed in principle, waiting on payment date.', 'won', 'HOD English', NULL, NULL, now() - interval '2 hours', true),
-  ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Starter School Bundle', 5600.00, 'Quoted during the first school visit and shared with the department head.', 'contacted', 'Deputy Principal', NULL, NULL, NULL, true),
-  ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 'Premium Book Fund Package', 22000.00, 'Proposal delivered after the follow-up meeting.', 'lead', NULL, NULL, NULL, NULL, true);
-
-INSERT INTO public.school_sample_distributions (
-  school_id,
-  agent_id,
-  sample_name,
-  sample_category,
-  quantity,
-  notes,
-  distributed_at,
-  "isSynced"
-)
-VALUES
-  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Grade 1 Reader Pack', 'Primary', 2, 'Handed to the English panel lead.', now() - interval '1 day', true),
-  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Teacher Guide Kit', 'Reference', 1, 'Left with the procurement desk.', now() - interval '3 days', true),
-  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Story Books Pack', 'Primary', 3, 'Sample set used for classroom demo.', now() - interval '5 days', true),
-  ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'Science Reader Sample', 'Secondary', 2, 'Used during the deputy principal demonstration.', now() - interval '7 days', true),
-  ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 'Book Fund Overview Pack', 'Proposal', 1, 'Left with the head teacher after the presentation.', now() - interval '9 days', true);
-
--- 4c. Role 5 / grounds person demo data
--- This lets the same alerts view render with real assignments for role 5 users too.
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-VALUES
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'grounds.role5@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Grounds Role5", "role": 5, "region": "Nyanza"}', now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.tasks (title, description, target_role, assigned_to, status, due_at, "isSynced")
-VALUES
-  ('Inspect Nyanza school route', 'Verify access roads and confirm the route timing for the day.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '1 day', true),
-  ('Check delivery point at Kisumu Boys', 'Confirm the unloading area and school contact point.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '2 days', true);
-
-INSERT INTO public.geofences (id, name, description, region, coordinates, assigned_to)
-VALUES
-  (
-    '99999999-9999-9999-9999-999999999999',
-    'Nyanza Grounds Coverage',
-    'Coverage area for the role 5 demo user.',
-    'Kisumu',
-    '[{"lat": -0.102210, "lng": 34.761713, "radius": 3000}]'::jsonb,
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
-  )
-ON CONFLICT (id) DO UPDATE
-SET name = excluded.name,
-    description = excluded.description,
-    region = excluded.region,
-    coordinates = excluded.coordinates,
-    assigned_to = excluded.assigned_to;
-
-INSERT INTO public.route_plans (
-  id,
-  title,
-  route_date,
-  assigned_to,
-  school_ids,
-  notes,
-  status,
-  created_by,
-  "isSynced"
-)
-VALUES
-  (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'Role 5 Daily Route',
-    current_date,
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    '["44444444-4444-4444-4444-444444444444", "55555555-5555-5555-5555-555555555555"]'::jsonb,
-    'Grounds run covering Kisumu Boys and Nakuru Girls.',
-    'assigned',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    true
-  )
-ON CONFLICT (id) DO UPDATE
-SET title = excluded.title,
-    route_date = excluded.route_date,
-    assigned_to = excluded.assigned_to,
-    school_ids = excluded.school_ids,
-    notes = excluded.notes,
-    status = excluded.status,
-    "isSynced" = excluded."isSynced";
-
-INSERT INTO public.school_visits (
-  school_id,
-  agent_id,
-  outcome,
-  notes,
-  photo_url,
-  photo_path,
-  latitude,
-  longitude,
-  visit_status,
-  visited_at,
-  "isSynced"
-)
-VALUES
-  (
-    '44444444-4444-4444-4444-444444444444',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Route checked and marked safe',
-    'Confirmed the road condition and left a message with the school contact.',
-    NULL,
-    'visits/kisumu-boys-route-check.jpg',
-    -0.102200,
-    34.761700,
-    'completed',
-    now() - interval '1 day',
-    true
-  );
-
--- Additional pipeline demo records for role-based viewing (roles 1, 2, and 5 dashboards)
-INSERT INTO public.school_sales (
-  school_id,
-  agent_id,
-  package_name,
-  expected_value,
-  notes,
-  sale_status,
-  stage_contact_person,
-  sample_quantity,
-  quotation_reference,
-  decision_owner,
-  negotiation_topic,
-  loss_reason,
-  dormant_reason,
-  stage_updated_at,
-  expected_close_date,
-  probability,
-  closed_at,
-  "isSynced"
-)
-VALUES
-  (
-    '33333333-3333-3333-3333-333333333333',
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Upper Primary Bundle',
-    18400.00,
-    'Manager review requested after quotation submission.',
-    'quotation_sent',
-    'Board Secretary',
-    NULL,
-    'QT-2026-0333',
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    now() - interval '4 days',
-    (current_date + 14),
-    65,
-    NULL,
-    true
-  ),
-  (
-    '44444444-4444-4444-4444-444444444444',
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Secondary Exam Pack',
-    26200.00,
-    'Budget committee requested a final discount pass.',
-    'negotiation',
-    'Bursar',
-    NULL,
-    NULL,
-    NULL,
-    'Final unit price and delivery terms',
-    NULL,
-    NULL,
-    now() - interval '2 days',
-    (current_date + 10),
-    85,
-    NULL,
-    true
-  ),
-  (
-    '55555555-5555-5555-5555-555555555555',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Grounds Delivery Companion Kit',
-    4200.00,
-    'Reactivated after dormancy for a new term cycle.',
-    'contacted',
-    'Grounds Supervisor',
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    now() - interval '1 day',
-    (current_date + 20),
-    20,
-    NULL,
-    true
-  ),
-  (
-    '66666666-6666-6666-6666-666666666666',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Operations Support Bundle',
-    3100.00,
-    'No response after multiple follow-ups.',
-    'dormant',
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    'No school response for 30+ days',
-    now() - interval '35 days',
-    NULL,
-    0,
-    NULL,
-    true
-  ),
-  (
-    '22222222-2222-2222-2222-222222222222',
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Literacy Expansion Package',
-    28900.00,
-    'Order confirmed and handover planned.',
-    'won',
-    'Head Teacher',
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    now() - interval '6 hours',
-    current_date,
-    100,
-    now() - interval '6 hours',
-    true
-  ),
-  (
-    '33333333-3333-3333-3333-333333333333',
-    '11111111-1111-1111-1111-111111111111',
-    'Teacher Demo Samples Pack',
-    6400.00,
-    'Samples issued to panel for review.',
-    'sample_issued',
-    'English HOD',
-    12,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    now() - interval '3 days',
-    (current_date + 18),
-    50,
-    NULL,
-    true
-  ),
-  (
-    '44444444-4444-4444-4444-444444444444',
-    '11111111-1111-1111-1111-111111111111',
-    'Budget Saver Bundle',
-    9300.00,
-    'Opportunity closed after budget freeze.',
-    'lost',
-    'Deputy Principal',
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    'Budget redirected to infrastructure repairs',
-    NULL,
-    now() - interval '20 days',
-    NULL,
-    0,
-    NULL,
-    true
-  );
-
-INSERT INTO public.school_follow_ups (
-  school_id,
-  agent_id,
-  contact_person,
-  next_step,
-  due_at,
-  notes,
-  follow_up_status,
-  completed_at,
-  "isSynced"
-)
-VALUES
-  (
-    '55555555-5555-5555-5555-555555555555',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Grounds Supervisor',
-    'Confirm the school gate opening time.',
-    now() + interval '2 days',
-    'Follow-up needed before the delivery truck leaves.',
-    'open',
-    NULL,
-    true
-  );
-
-INSERT INTO public.school_sales (
-  school_id,
-  agent_id,
-  package_name,
-  expected_value,
-  notes,
-  sale_status,
-  closed_at,
-  "isSynced"
-)
-VALUES
-  (
-    '44444444-4444-4444-4444-444444444444',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Grounds Support Log',
-    1500.00,
-    'Logged the route support cost for the day.',
-    'lead',
-    NULL,
-    true
-  );
-
--- Pipeline history demo records for timeline view
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  NULL,
-  'contacted',
-  s.agent_id,
-  now() - interval '10 days',
-  'Initial outreach completed with procurement office.'
-FROM public.school_sales s
-WHERE s.package_name = 'Upper Primary Bundle'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'contacted',
-  'meeting_scheduled',
-  s.agent_id,
-  now() - interval '8 days',
-  'School requested a formal meeting with board secretary.'
-FROM public.school_sales s
-WHERE s.package_name = 'Upper Primary Bundle'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'meeting_scheduled',
-  'quotation_sent',
-  s.agent_id,
-  now() - interval '4 days',
-  'Quotation QT-2026-0333 submitted by email and hard copy.'
-FROM public.school_sales s
-WHERE s.package_name = 'Upper Primary Bundle'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  NULL,
-  'quotation_sent',
-  s.agent_id,
-  now() - interval '6 days',
-  'Initial quote delivered after sample feedback.'
-FROM public.school_sales s
-WHERE s.package_name = 'Book List Bundle'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'quotation_sent',
-  'decision_pending',
-  s.agent_id,
-  now() - interval '3 days',
-  'Moved to decision pending awaiting principal sign-off.'
-FROM public.school_sales s
-WHERE s.package_name = 'Book Fund Starter Package'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'decision_pending',
-  'won',
-  s.agent_id,
-  now() - interval '6 hours',
-  'Order approved and ready for checkout.'
-FROM public.school_sales s
-WHERE s.package_name = 'Literacy Expansion Package'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'contacted',
-  'lost',
-  s.agent_id,
-  now() - interval '20 days',
-  'Budget redirected to infrastructure, deal closed lost.'
-FROM public.school_sales s
-WHERE s.package_name = 'Budget Saver Bundle'
-LIMIT 1;
-
-INSERT INTO public.pipeline_history (
-  pipeline_id,
-  old_stage,
-  new_stage,
-  changed_by,
-  changed_at,
-  notes
-)
-SELECT
-  s.id,
-  'contacted',
-  'dormant',
-  s.agent_id,
-  now() - interval '35 days',
-  'No response after repeated follow-ups.'
-FROM public.school_sales s
-WHERE s.package_name = 'Operations Support Bundle'
-LIMIT 1;
-
-INSERT INTO public.school_sample_distributions (
-  school_id,
-  agent_id,
-  sample_name,
-  sample_category,
-  quantity,
-  notes,
-  distributed_at,
-  "isSynced"
-)
-VALUES
-  (
-    '55555555-5555-5555-5555-555555555555',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Delivery Check Sheet',
-    'Operations',
-    1,
-    'Left with the school office for confirmation.',
-    now() - interval '2 days',
-    true
-  );
-
-INSERT INTO public.catalog_items (
-  id,
-  name,
-  category,
-  sku,
-  item_type,
-  unit_price,
-  stock_qty,
-  description,
-  is_active,
-  created_by,
-  "isSynced"
-)
-VALUES
-  (
-    'f1111111-1111-1111-1111-111111111111',
-    'Grade 1 Reader Pack',
-    'Primary',
-    'SL-PR-01',
-    'sale',
-    2850.00,
-    120,
-    'Core sale pack for lower primary.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f2222222-2222-2222-2222-222222222222',
-    'Teacher Guide Kit',
-    'Reference',
-    'SL-RF-02',
-    'sale',
-    2700.00,
-    60,
-    'Teacher support pack for school sale orders.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f3333333-3333-3333-3333-333333333333',
-    'Story Books Pack',
-    'Primary',
-    'SMPL-PR-01',
-    'sample',
-    0.00,
-    16,
-    'Starter reading sample for classroom demonstrations.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f4444444-4444-4444-4444-444444444444',
-    'Reference Handbook',
-    'Reference',
-    'SMPL-RF-02',
-    'sample',
-    0.00,
-    28,
-    'Quick reference sample for school sample distribution.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f5555555-5555-5555-5555-555555555555',
-    'CBC Mathematics Grade 4',
-    'Primary',
-    'SL-PR-05',
-    'sale',
-    850.00,
-    500,
-    'Approved CBC Mathematics course book for Grade 4.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f6666666-6666-6666-6666-666666666666',
-    'CBC English Grade 4',
-    'Primary',
-    'SL-PR-06',
-    'sale',
-    900.00,
-    450,
-    'Approved CBC English course book for Grade 4.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f7777777-7777-7777-7777-777777777777',
-    'High School Biology Form 1',
-    'Secondary',
-    'SL-SEC-01',
-    'sale',
-    1200.00,
-    300,
-    'Comprehensive Biology course book for Form 1.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f8888888-8888-8888-8888-888888888888',
-    'High School Chemistry Form 1',
-    'Secondary',
-    'SL-SEC-02',
-    'sale',
-    1250.00,
-    320,
-    'Comprehensive Chemistry course book for Form 1.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'f9999999-9999-9999-9999-999999999999',
-    'Kiswahili Mufti Grade 5',
-    'Primary',
-    'SL-PR-07',
-    'sale',
-    850.00,
-    600,
-    'Standard Kiswahili textbook for Grade 5.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  ),
-  (
-    'faaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'Secondary Science Sample Pack',
-    'Secondary',
-    'SMPL-SEC-01',
-    'sample',
-    0.00,
-    50,
-    'Sample pack containing excerpts from Biology, Chemistry, and Physics.',
-    true,
-    '11111111-1111-1111-1111-111111111111',
-    true
-  )
-ON CONFLICT (sku) DO UPDATE
-SET
-  name = excluded.name,
-  category = excluded.category,
-  item_type = excluded.item_type,
-  unit_price = excluded.unit_price,
-  stock_qty = excluded.stock_qty,
-  description = excluded.description,
-  is_active = excluded.is_active,
-  created_by = excluded.created_by,
-  "isSynced" = excluded."isSynced";
-
-INSERT INTO public.orders (
-  id,
-  school_id,
-  school_name,
-  school_phone,
-  agent_id,
-  order_number,
-  payment_method,
-  payment_reference,
-  checkout_amount,
-  status,
-  notes,
-  submitted_at,
-  approved_at
-)
-VALUES
-  (
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    '22222222-2222-2222-2222-222222222222',
-    'Nairobi Primary School',
-    '0712345678',
-    '11111111-1111-1111-1111-111111111111',
-    'ORD-20260509-FAITH-001',
-    'mpesa',
-    'QWERTY1234',
-    8400.00,
-    'pending',
-    'Package sold after school visit and WhatsApp follow-up.',
-    now() - interval '1 day',
-    NULL
-  ),
-  (
-    'd1111111-d111-d111-d111-d11111111111',
-    '55555555-5555-5555-5555-555555555555',
-    'Nakuru Girls',
-    '0745678901',
-    '11111111-1111-1111-1111-111111111111',
-    'ORD-20260509-FAITH-003',
-    'bank_transfer',
-    'BANK-REF-8888',
-    24500.00,
-    'approved',
-    'High school science books bulk order.',
-    now() - interval '4 days',
-    now() - interval '3 days'
-  ),
-  (
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-    '44444444-4444-4444-4444-444444444444',
-    'Kisumu Boys',
-    '0734567890',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'ORD-20260509-ROLE5-001',
-    'cash',
-    NULL,
-    1500.00,
-    'paid',
-    'Grounds support checkout completed in cash.',
-    now() - interval '2 days',
-    now() - interval '2 days'
-  )
-ON CONFLICT (id) DO UPDATE
-SET
-  school_id = excluded.school_id,
-  school_name = excluded.school_name,
-  school_phone = excluded.school_phone,
-  agent_id = excluded.agent_id,
-  order_number = excluded.order_number,
-  payment_method = excluded.payment_method,
-  payment_reference = excluded.payment_reference,
-  checkout_amount = excluded.checkout_amount,
-  status = excluded.status,
-  notes = excluded.notes,
-  submitted_at = excluded.submitted_at,
-  approved_at = excluded.approved_at;
-
-INSERT INTO public.order_items (
-  id,
-  order_id,
-  product_name,
-  category,
-  sku,
-  quantity,
-  unit_price,
-  line_total,
-  notes
-)
-VALUES
-  (
-    'ddddddd1-dddd-dddd-dddd-dddddddddddd',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    'Grade 1 Reader Pack',
-    'Primary',
-    'SET-PR-01',
-    2,
-    2850.00,
-    5700.00,
-    'Included in the school visit order.'
-  ),
-  (
-    'ddddddd2-dddd-dddd-dddd-dddddddddddd',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    'Teacher Guide Kit',
-    'Reference',
-    'SET-RF-03',
-    1,
-    2700.00,
-    2700.00,
-    'Support material for the head teacher.'
-  ),
-  (
-    'd1111112-d111-d111-d111-d11111111111',
-    'd1111111-d111-d111-d111-d11111111111',
-    'High School Biology Form 1',
-    'Secondary',
-    'SL-SEC-01',
-    10,
-    1200.00,
-    12000.00,
-    'Form 1 Biology Class Set'
-  ),
-  (
-    'd1111113-d111-d111-d111-d11111111111',
-    'd1111111-d111-d111-d111-d11111111111',
-    'High School Chemistry Form 1',
-    'Secondary',
-    'SL-SEC-02',
-    10,
-    1250.00,
-    12500.00,
-    'Form 1 Chemistry Class Set'
-  ),
-  (
-    'eeeeeee1-eeee-eeee-eeee-eeeeeeeeeeee',
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-    'Delivery Check Sheet',
-    'Operations',
-    'CUSTOM',
-    1,
-    1500.00,
-    1500.00,
-    'Grounds support order.'
-  )
-ON CONFLICT (id) DO UPDATE
-SET
-  order_id = excluded.order_id,
-  product_name = excluded.product_name,
-  category = excluded.category,
-  sku = excluded.sku,
-  quantity = excluded.quantity,
-  unit_price = excluded.unit_price,
-  line_total = excluded.line_total,
-  notes = excluded.notes;
-
-INSERT INTO public.messages (
-  id,
-  sender_id,
-  recipient_id,
-  subject,
-  body,
-  related_school_id,
-  related_task_id,
-  is_read
-)
-VALUES
-  (
-    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    '11111111-1111-1111-1111-111111111111',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Route plan ready',
-    'Your route plan for today is ready. Please check the route list and geofence coverage before departure.',
-    '44444444-4444-4444-4444-444444444444',
-    NULL,
-    false
-  ),
-  (
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    '11111111-1111-1111-1111-111111111111',
-    'Route check complete',
-    'I have confirmed the Kisumu Boys stop and the gate access point. The area is safe for the delivery team.',
-    '44444444-4444-4444-4444-444444444444',
-    NULL,
-    true
-  ),
-  (
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-    '11111111-1111-1111-1111-111111111111',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'Follow up reminder',
-    'Please remember to update me after the Nakuru Girls stop with the school feedback.',
-    '55555555-5555-5555-5555-555555555555',
-    NULL,
-    false
-  )
-ON CONFLICT (id) DO UPDATE
-SET sender_id = excluded.sender_id,
-    recipient_id = excluded.recipient_id,
-    subject = excluded.subject,
-    body = excluded.body,
-    related_school_id = excluded.related_school_id,
-    related_task_id = excluded.related_task_id,
-    is_read = excluded.is_read;
-
-UPDATE public.schools
-SET
-  captured_by = '11111111-1111-1111-1111-111111111111',
-  captured_at = now() - interval '1 day',
-  capture_status = coalesce(capture_status, 'GPS updated successfully')
-WHERE id IN (
-  '22222222-2222-2222-2222-222222222222',
-  '33333333-3333-3333-3333-333333333333',
-  '44444444-4444-4444-4444-444444444444',
-  '55555555-5555-5555-5555-555555555555',
-  '66666666-6666-6666-6666-666666666666'
-);
-
--- (Optional Failsafe) 
--- If your trigger does not automatically map the 'role' and 'full_name' 
--- from auth.users over to the public.users table, run this update manually:
-UPDATE public.users 
-SET full_name = auth.users.raw_user_meta_data->>'full_name',
-    role = (auth.users.raw_user_meta_data->>'role')::int,
-    region = auth.users.raw_user_meta_data->>'region'
-FROM auth.users 
-WHERE public.users.id = auth.users.id AND public.users.full_name IS NULL;
-
--- ==========================================
--- 4d. Role 2 / Sales Manager Demo Data
--- ==========================================
-
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-VALUES
-  ('22222222-aaaa-aaaa-aaaa-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'manager.role2@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name": "Demo Sales Manager", "role": 2, "region": "Nairobi"}', now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.tasks (title, description, target_role, assigned_to, status, due_at, "isSynced")
-VALUES
-  ('Approve pending field orders', 'Review and approve all pending orders submitted by agents this week.', 2, '22222222-aaaa-aaaa-aaaa-222222222222', 'open', now() + interval '1 day', true),
-  ('Review Nairobi route plans', 'Ensure all Nairobi schools have assigned agents for the upcoming week.', 2, '22222222-aaaa-aaaa-aaaa-222222222222', 'open', now() + interval '2 days', true);
-
--- Add an extra pending order for the manager to approve
-INSERT INTO public.orders (
-  id, school_id, school_name, school_phone, agent_id, order_number, payment_method, payment_reference, checkout_amount, status, notes, submitted_at, approved_at, "isSynced"
-)
-VALUES
-  (
-    'f0000000-f000-f000-f000-f00000000000',
-    '33333333-3333-3333-3333-333333333333',
-    'Mombasa High School',
-    '0723456789',
-    '11111111-1111-1111-1111-111111111111',
-    'ORD-20260510-FAITH-002',
-    'bank_transfer',
-    'BANK-REF-9999',
-    12500.00,
-    'pending',
-    'Large book fund order, pending manager approval.',
-    now() - interval '2 hours',
-    NULL,
-    true
-  )
-ON CONFLICT (id) DO UPDATE
-SET status = excluded.status,
-    "isSynced" = excluded."isSynced";
-
--- Add a message to the manager
-INSERT INTO public.messages (
-  id, sender_id, recipient_id, subject, body, related_school_id, is_read, "isSynced"
-)
-VALUES
-  (
-    'f1111111-f111-f111-f111-f11111111111',
-    '11111111-1111-1111-1111-111111111111',
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Order Approval Request',
-    'Hi Manager, I have submitted a large order for Mombasa High School. Please review and approve the bank slip when possible.',
-    '33333333-3333-3333-3333-333333333333',
-    false,
-    true
-  )
-ON CONFLICT (id) DO NOTHING;
-
--- Distribute some of the new dummy sample books
-INSERT INTO public.school_sample_distributions (
-  school_id, agent_id, sample_name, sample_category, quantity, notes, distributed_at, "isSynced"
-)
-VALUES
-  (
-    '55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Secondary Science Sample Pack', 'Secondary', 1, 'Dropped off by Grounds Personnel alongside the main delivery.', now() - interval '2 hours', true
-  )
-ON CONFLICT DO NOTHING;
-
-
--- After running this script:
--- Refresh your Admin Dashboard screen in the app.
--- You should now see 10 Tasks and 6 Geofences listed in the counters!
--- Your Agent Tracker and Assign Task dropdowns will now have 6 users in them!
-
-
--- ==========================================
--- 5. Additional Mock Data for Geofence Polygons & Filterable Tasks
--- ==========================================
-
--- Insert proper Polygon geofences (requires >= 3 points to render a shape on the map)
-INSERT INTO public.geofences (id, name, description, region, coordinates, assigned_to)
-VALUES
-  (gen_random_uuid(), 'Nairobi South Polygon', 'Detailed polygon mapping for southern Nairobi.', 'Nairobi', '[{"lat": -1.30, "lng": 36.80}, {"lat": -1.30, "lng": 36.85}, {"lat": -1.35, "lng": 36.85}, {"lat": -1.35, "lng": 36.80}]'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  (gen_random_uuid(), 'Mombasa North Coast', 'Polygon for northern coastal region coverage.', 'Mombasa', '[{"lat": -3.95, "lng": 39.70}, {"lat": -3.95, "lng": 39.75}, {"lat": -4.00, "lng": 39.75}, {"lat": -4.00, "lng": 39.70}]'::jsonb, '22222222-aaaa-aaaa-aaaa-222222222222'),
-  (gen_random_uuid(), 'Kisumu Central Grid', 'Triangular grid for Kisumu central field operations.', 'Kisumu', '[{"lat": -0.09, "lng": 34.75}, {"lat": -0.09, "lng": 34.77}, {"lat": -0.11, "lng": 34.76}]'::jsonb, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
-
--- Insert dummy tasks designed to test the Daily, Weekly, and Monthly dashboard filters
-INSERT INTO public.tasks (title, description, target_role, assigned_to, status, due_at, "isSynced")
-VALUES
-  -- Faith Agent (Role 4)
-  ('Daily: Submit EOD Report', 'Submit end-of-day sales report for Nairobi schools.', 4, '11111111-1111-1111-1111-111111111111', 'open', now(), true),
-  ('Weekly: Restock Samples', 'Pick up new sample books from the regional warehouse.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '3 days', true),
-  ('Monthly: School Inventory Check', 'Perform a full inventory check of sample distributions for the month.', 4, '11111111-1111-1111-1111-111111111111', 'open', now() + interval '20 days', true),
-  
-  -- Sales Manager (Role 2)
-  ('Daily: Morning Briefing', 'Quick sync with the sales team to review yesterday''s figures.', 2, '22222222-aaaa-aaaa-aaaa-222222222222', 'closed', now(), true),
-  ('Monthly: Pipeline Review', 'Review all pipeline sales for the month and close out drafts.', 2, '22222222-aaaa-aaaa-aaaa-222222222222', 'in_progress', now() + interval '14 days', true),
-
-  -- Grounds Person (Role 5)
-  ('Daily: Inspect Vehicle', 'Perform daily routine check on delivery vehicle.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now(), true),
-  ('Weekly: Service Route Validation', 'Validate newly added schools on the route map.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '4 days', true),
-  ('Monthly: Log Book Audit', 'Submit the monthly physical log book for audit.', 5, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'open', now() + interval '25 days', true);
-
--- ==========================================
--- 6. Role 3 Supervision Demo Data
--- ==========================================
-INSERT INTO public.supervisor_alerts (user_id, region, alert_type, severity, status, message, acked_at, resolved_at, ack_sla_met, resolve_sla_met, escalated_to_admin)
-VALUES
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'missed_checkin', 'red', 'open', 'Grounds user missed first check-in.', null, null, false, false, false),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'late_start', 'amber', 'resolved', 'Route start was delayed by 40 minutes.', now() - interval '5 hours', now() - interval '3 hours', true, true, false)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.geofence_events (user_id, geofence_id, event_type, region, lat, lng, reason, status, created_at)
-VALUES
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '99999999-9999-9999-9999-999999999999', 'breach', 'Kisumu', -0.0981, 34.7742, 'Detour due to road closure', 'open', now() - interval '2 hours')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.supervisor_incidents (user_id, region, incident_type, severity, status, notes, created_by)
-VALUES
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'boundary_breach', 'high', 'open', 'Repeated breach on western corridor.', '22222222-aaaa-aaaa-aaaa-222222222222')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.supervisor_notes (supervisor_id, user_id, region, context_type, note, follow_up_at)
-VALUES
-  ('22222222-aaaa-aaaa-aaaa-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Kisumu', 'weekly_review', 'Improve first check-in discipline and submit route evidence by 9 AM.', now() + interval '7 days')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO public.supervisor_notifications (
-  supervisor_id, region, notification_type, title, body, payload, scheduled_for, sent_at
-)
-VALUES
-  (
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Nairobi',
-    'daily_digest',
-    'Morning Supervision Digest',
-    'You have 2 open alerts and 3 overdue tasks in your region.',
-    '{"open_alerts": 2, "overdue_tasks": 3}'::jsonb,
-    now() - interval '2 hours',
-    now() - interval '2 hours'
-  ),
-  (
-    '22222222-aaaa-aaaa-aaaa-222222222222',
-    'Nairobi',
-    'escalation',
-    'Escalated Red Alert',
-    'A red alert has remained unresolved beyond SLA.',
-    '{"alert_type": "missed_checkin"}'::jsonb,
-    now() - interval '30 minutes',
-    now() - interval '30 minutes'
-  )
-ON CONFLICT DO NOTHING;
-
--- END FILE: supabase/seed.sql
-
--- =========================================================
--- BEGIN FILE: supabase/seed_sample_roi_dummy.sql
--- =========================================================
--- Dummy data for sample ROI testing (Role 5 + Admin)
--- Safe-ish rerun via fixed IDs + upserts where possible.
-
-begin;
-
--- 1) Ensure demo users exist (role 5 grounds + role 4 agent)
-insert into auth.users (
-  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-)
-values
-  (
-    '92000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'grounds.demo@dehus.com',
-    crypt('password123', gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Grounds Demo User","role":5,"region":"Nairobi"}',
-    now(),
-    now()
-  ),
-  (
-    '92000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'agent.demo@dehus.com',
-    crypt('password123', gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Agent Demo User","role":4,"region":"Nakuru"}',
-    now(),
-    now()
-  )
-on conflict (id) do nothing;
-
-insert into public.users (id, email, full_name, phone, role, region)
-values
-  ('92000000-0000-0000-0000-000000000001', 'grounds.demo@dehus.com', 'Grounds Demo User', '0711000001', 5, 'Nairobi'),
-  ('92000000-0000-0000-0000-000000000002', 'agent.demo@dehus.com', 'Agent Demo User', '0711000002', 4, 'Nakuru')
-on conflict (id) do update set
-  email = excluded.email,
-  full_name = excluded.full_name,
-  phone = excluded.phone,
-  role = excluded.role,
-  region = excluded.region;
-
--- 2) Pick up to 4 schools for linking data
-with s as (
-  select id, row_number() over (order by created_at desc nulls last, id) rn
-  from public.schools
-  limit 4
-)
-insert into public.school_sample_distributions (
-  id, school_id, agent_id, sample_name, sample_category, quantity,
-  stamped_receipt_url, stamped_receipt_path, notes, distributed_at, "isSynced"
-)
-select
-  ('93000000-0000-0000-0000-' || lpad(rn::text, 12, '0'))::uuid,
-  s.id,
-  case when s.rn % 2 = 0
-    then '92000000-0000-0000-0000-000000000002'::uuid
-    else '92000000-0000-0000-0000-000000000001'::uuid
-  end,
-  case when s.rn % 2 = 0 then 'Teacher Guide Kit' else 'Grade 1 Reader Pack' end,
-  case when s.rn % 2 = 0 then 'Reference' else 'Primary' end,
-  (s.rn % 3) + 1,
-  'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200',
-  'sample_receipts/demo_' || s.rn || '.jpg',
-  'Dummy ROI receipt seed',
-  now() - ((s.rn::text || ' days')::interval),
-  true
-from s
-on conflict (id) do update set
-  school_id = excluded.school_id,
-  agent_id = excluded.agent_id,
-  sample_name = excluded.sample_name,
-  sample_category = excluded.sample_category,
-  quantity = excluded.quantity,
-  stamped_receipt_url = excluded.stamped_receipt_url,
-  stamped_receipt_path = excluded.stamped_receipt_path,
-  notes = excluded.notes,
-  distributed_at = excluded.distributed_at,
-  "isSynced" = excluded."isSynced";
-
--- 3) Orders for revenue earned metric
-insert into public.orders (
-  id, school_id, school_name, school_phone, agent_id, order_number,
-  payment_method, payment_reference, checkout_amount, status, notes, submitted_at, approved_at, "isSynced"
-)
-select
-  ('94000000-0000-0000-0000-' || lpad(rn::text, 12, '0'))::uuid,
-  s.id,
-  coalesce(sc.name, 'School ' || s.rn),
-  coalesce(sc.phone, '0700000000'),
-  case when s.rn % 2 = 0
-    then '92000000-0000-0000-0000-000000000002'::uuid
-    else '92000000-0000-0000-0000-000000000001'::uuid
-  end,
-  'DEMO-ROI-' || s.rn,
-  'mpesa',
-  'MPESA-DEMO-' || s.rn,
-  (50000 + (s.rn * 10000))::numeric,
-  case when s.rn % 3 = 0 then 'pending' else 'approved' end,
-  'Dummy ROI order',
-  now() - ((s.rn::text || ' days')::interval),
-  now() - (((s.rn + 1)::text || ' days')::interval),
-  true
-from (
-  select id, row_number() over (order by created_at desc nulls last, id) rn
-  from public.schools
-  limit 4
-) s
-left join public.schools sc on sc.id = s.id
-on conflict (id) do update set
-  school_id = excluded.school_id,
-  school_name = excluded.school_name,
-  school_phone = excluded.school_phone,
-  agent_id = excluded.agent_id,
-  checkout_amount = excluded.checkout_amount,
-  status = excluded.status,
-  notes = excluded.notes,
-  submitted_at = excluded.submitted_at,
-  approved_at = excluded.approved_at,
-  "isSynced" = excluded."isSynced";
-
--- 4) School sales for won value metric
-insert into public.school_sales (
-  id, school_id, agent_id, package_name, expected_value, notes,
-  sale_status, stage_updated_at, probability, closed_at, "isSynced"
-)
-select
-  ('95000000-0000-0000-0000-' || lpad(rn::text, 12, '0'))::uuid,
-  s.id,
-  case when s.rn % 2 = 0
-    then '92000000-0000-0000-0000-000000000002'::uuid
-    else '92000000-0000-0000-0000-000000000001'::uuid
-  end,
-  'ROI Demo Package',
-  (90000 + (s.rn * 12000))::numeric,
-  'Dummy ROI pipeline',
-  case when s.rn % 2 = 0 then 'won' else 'negotiation' end,
-  now() - ((s.rn::text || ' days')::interval),
-  case when s.rn % 2 = 0 then 100 else 70 end,
-  case when s.rn % 2 = 0 then now() - ((s.rn::text || ' days')::interval) else null end,
-  true
-from (
-  select id, row_number() over (order by created_at desc nulls last, id) rn
-  from public.schools
-  limit 4
-) s
-on conflict (id) do update set
-  school_id = excluded.school_id,
-  agent_id = excluded.agent_id,
-  package_name = excluded.package_name,
-  expected_value = excluded.expected_value,
-  notes = excluded.notes,
-  sale_status = excluded.sale_status,
-  stage_updated_at = excluded.stage_updated_at,
-  probability = excluded.probability,
-  closed_at = excluded.closed_at,
-  "isSynced" = excluded."isSynced";
-
-commit;
-
--- END FILE: supabase/seed_sample_roi_dummy.sql
-
--- =========================================================
 -- BEGIN FILE: supabase/storage_policies_sample_receipts.sql
 -- =========================================================
 -- Enable storage for stamped sample receipt photos
@@ -4277,3 +2874,670 @@ with check (bucket_id = 'sample-receipts');
 commit;
 
 -- END FILE: supabase/storage_policies_sample_receipts.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_phase3.sql
+-- =================================================================
+-- Create table for supervisor coaching notes
+CREATE TABLE IF NOT EXISTS public.supervisor_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    supervisor_id UUID NOT NULL REFERENCES public.users(id),
+    user_id UUID NOT NULL REFERENCES public.users(id),
+    region TEXT,
+    context_type TEXT, -- e.g., 'task', 'route', 'general'
+    context_id UUID,
+    note TEXT NOT NULL,
+    follow_up_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on supervisor_notes
+ALTER TABLE public.supervisor_notes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supervisors_can_manage_notes" ON public.supervisor_notes;
+CREATE POLICY "supervisors_can_manage_notes"
+ON public.supervisor_notes
+FOR ALL
+TO authenticated
+USING (supervisor_id = auth.uid() OR public.is_manager_or_admin())
+WITH CHECK (supervisor_id = auth.uid() OR public.is_manager_or_admin());
+
+-- Create a view for Role 5 Performance Scorecard
+-- (This aggregates data to make the UI queries faster and simpler)
+CREATE OR REPLACE VIEW public.role5_performance_scorecard AS
+SELECT 
+    u.id AS user_id,
+    u.full_name,
+    u.region,
+    COUNT(DISTINCT t.id) AS total_tasks,
+    COUNT(DISTINCT CASE WHEN t.status = 'closed' THEN t.id END) AS completed_tasks,
+    COUNT(DISTINCT r.id) AS total_routes,
+    COUNT(DISTINCT CASE WHEN r.status = 'completed' THEN r.id END) AS completed_routes,
+    COUNT(DISTINCT sv.id) AS total_visits
+FROM public.users u
+LEFT JOIN public.tasks t ON t.assigned_to = u.id AND t.created_at >= NOW() - INTERVAL '30 days'
+LEFT JOIN public.route_plans r ON r.assigned_to = u.id AND r.created_at >= NOW() - INTERVAL '30 days'
+LEFT JOIN public.school_visits sv ON sv.agent_id = u.id AND sv.visited_at >= NOW() - INTERVAL '30 days'
+WHERE u.role = 5
+GROUP BY u.id, u.full_name, u.region;
+
+-- END FILE: supabase/schema_updates_phase3.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_dedup.sql
+-- =================================================================
+-- Create a function to find potential duplicates across the entire schools table
+create or replace function public.get_potential_duplicates()
+returns table (
+  id uuid,
+  name text,
+  phone text,
+  duplicate_id uuid,
+  duplicate_name text,
+  reason text
+)
+language plpgsql
+security definer
+as $$
+begin
+  return query
+  select 
+    s1.id, 
+    s1.name, 
+    s1.phone, 
+    s2.id as duplicate_id, 
+    s2.name as duplicate_name,
+    case 
+      when s1.phone = s2.phone then 'Matching Phone Number'
+      when lower(s1.name) = lower(s2.name) then 'Matching Name'
+      else 'High Similarity'
+    end as reason
+  from public.schools s1
+  join public.schools s2 on s1.id < s2.id
+  where s1.phone = s2.phone 
+     or lower(s1.name) = lower(s2.name);
+end;
+$$;
+
+-- END FILE: supabase/schema_updates_dedup.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_lead_scoring.sql
+-- =================================================================
+-- Add lead_score column to schools
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'schools' and column_name = 'lead_score') then
+    alter table public.schools add column lead_score integer not null default 0;
+  end if;
+end $$;
+
+-- Create lead scoring function
+create or replace function public.calculate_lead_score()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  v_score integer := 0;
+  v_pop integer := coalesce(new.school_population, 0);
+  v_cat text := lower(coalesce(new.book_category, ''));
+  v_focus_count integer := 0;
+begin
+  -- Population scoring
+  if v_pop > 1000 then
+    v_score := v_score + 40;
+  elsif v_pop >= 500 then
+    v_score := v_score + 20;
+  elsif v_pop > 0 then
+    v_score := v_score + 10;
+  end if;
+
+  -- Category scoring
+  if v_cat like '%book fund%' then
+    v_score := v_score + 30;
+  end if;
+
+  -- Focus Areas scoring
+  if new."focusAreas" is not null then
+    v_focus_count := jsonb_array_length(new."focusAreas");
+    v_score := v_score + least(v_focus_count * 10, 30);
+  end if;
+
+  new.lead_score := v_score;
+  return new;
+end;
+$$;
+
+-- Create trigger
+drop trigger if exists update_lead_score_trigger on public.schools;
+create trigger update_lead_score_trigger
+before insert or update on public.schools
+for each row execute procedure public.calculate_lead_score();
+
+-- Backfill existing schools
+update public.schools set updated_at = now();
+
+-- END FILE: supabase/schema_updates_lead_scoring.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_onboarding_region.sql
+-- =================================================================
+-- Migration: role 1 region dashboard additions + role 5 onboarding field updates
+-- Date: 2026-07-09
+
+-- =============================================================================
+-- 1. ROLE 5 ONBOARDING: Migrate existing Distributor records to Institution
+-- =============================================================================
+UPDATE public.schools
+SET dealer_type = 'Institution'
+WHERE lower(dealer_type) = 'distributor';
+
+UPDATE public.schools
+SET shop_category = 'Distributor'
+WHERE lower(shop_category) = 'independent';
+
+-- =============================================================================
+-- 2. ROLE 5 ONBOARDING: Add new columns for expanded onboarding fields
+-- =============================================================================
+-- samples_to_be_returned: new Yes/No indicator for sample returns
+ALTER TABLE public.schools
+  ADD COLUMN IF NOT EXISTS samples_to_be_returned text;
+
+-- learning_materials: multi-select stock for Bookshop / Institution (Course Books, ECD Books, Reference, Teacher Guides)
+ALTER TABLE public.schools
+  ADD COLUMN IF NOT EXISTS learning_materials jsonb DEFAULT '[]'::jsonb;
+
+-- institution_category_other: free-text subcategory when partner_subtype = 'Others' for Institutions
+ALTER TABLE public.schools
+  ADD COLUMN IF NOT EXISTS institution_category_other text;
+
+-- book_programs: expanded multi-select for School Book Program (Book List, Book Fund)
+ALTER TABLE public.schools
+  ADD COLUMN IF NOT EXISTS book_programs jsonb DEFAULT '[]'::jsonb;
+
+-- =============================================================================
+-- 3. ROLE 1 REGION SECTION: Index optimization for regional aggregation queries
+-- =============================================================================
+-- The new admin Regions page aggregates sales, visits, and schools by region.
+-- It derives region from users.region or schools.county. Add composite indexes
+-- to keep those queries fast as data grows.
+CREATE INDEX IF NOT EXISTS idx_schools_county_captured_at
+  ON public.schools (county, captured_at);
+
+CREATE INDEX IF NOT EXISTS idx_school_visits_school_visited_at
+  ON public.school_visits (school_id, visited_at);
+
+CREATE INDEX IF NOT EXISTS idx_school_sales_school_created
+  ON public.school_sales (school_id, created_at);
+
+-- =============================================================================
+-- 5. REGIONS TABLE: structured region/sub-region/county master data
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS public.regions (
+  id uuid primary key default gen_random_uuid(),
+  region text not null,
+  sub_region text not null,
+  counties text,
+  assigned_to uuid references public.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'regions' AND column_name = 'assigned_to') THEN
+    ALTER TABLE public.regions ADD COLUMN assigned_to uuid references public.users (id) on delete set null;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'regions' AND column_name = 'counties') THEN
+    ALTER TABLE public.regions ADD COLUMN counties text;
+  END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS touch_regions_updated_at ON public.regions;
+CREATE TRIGGER touch_regions_updated_at
+BEFORE UPDATE ON public.regions
+FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
+
+ALTER TABLE public.regions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "managers_can_manage_regions" ON public.regions;
+CREATE POLICY "managers_can_manage_regions"
+ON public.regions
+FOR ALL
+TO authenticated
+USING (public.current_user_role_id() <= 2)
+WITH CHECK (public.current_user_role_id() <= 2);
+
+DROP POLICY IF EXISTS "authenticated_can_view_regions" ON public.regions;
+CREATE POLICY "authenticated_can_view_regions"
+ON public.regions
+FOR SELECT
+TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS "agents_can_view_assigned_region" ON public.regions;
+CREATE POLICY "agents_can_view_assigned_region"
+ON public.regions
+FOR SELECT
+TO authenticated
+USING (
+  assigned_to = auth.uid()
+  OR public.current_user_role_id() <= 2
+);
+
+CREATE INDEX IF NOT EXISTS idx_regions_region_sub_region
+  ON public.regions (region, sub_region);
+
+CREATE INDEX IF NOT EXISTS idx_regions_assigned_to
+  ON public.regions (assigned_to);
+
+DO $$
+BEGIN
+  IF to_regclass('public.users') IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'region_id') THEN
+      ALTER TABLE public.users ADD COLUMN region_id uuid references public.regions (id) on delete set null;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'sub_region') THEN
+      ALTER TABLE public.users ADD COLUMN sub_region text;
+    END IF;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_users_region_id
+  ON public.users (region_id);
+
+INSERT INTO public.regions (region, sub_region, counties) VALUES
+('Nairobi North', 'Nairobi North', 'Kasarani, Embakasi East, Embakasi West, Kiambu'),
+('Nairobi North', 'Embakasi', 'Embakasi North, Embakasi South, Embakasi Central'),
+('Nairobi North', 'Kiambu East', 'Gatundu North, Gatundu South, Juja, Thika Town, Ruiru'),
+('Nairobi North', 'Kiambu West', 'Kiambaa, Kikuyu, Kabete, Limuru, Lari, Githunguri'),
+('Nairobi North', 'Murang''a', 'Murang''a County'),
+('Nairobi South', 'Nairobi South', 'Starehe, Westlands, Dagoretti North, Dagoretti South'),
+('Nairobi South', 'Kajiado', 'Kajiado County'),
+('Nairobi South', 'Machakos', 'Machakos County'),
+('Nairobi South', 'Nairobi Central', 'Kamukunji, Makadara, Lang''ata'),
+('Lake', 'South Western', 'Bungoma, Busia'),
+('Lake', 'South Nyanza', 'Kisii, Nyamira, Migori'),
+('Lake', 'North Nyanza', 'Siaya, Homa Bay, Kisumu'),
+('Lake', 'North Western', 'Kakamega, Vihiga'),
+('South Rift', 'South Rift', 'Narok, Nyandarua, Laikipia, Samburu'),
+('South Rift', 'Central Rift', 'Nakuru, Baringo'),
+('South Rift', 'South Rift', 'Bomet, Kericho'),
+('North Rift', 'North Rift', 'Turkana, Uasin Gishu'),
+('North Rift', 'North Rift', 'Trans Nzoia, West Pokot'),
+('Coast', 'North Coast', 'Kilifi, Tana River, Lamu'),
+('Coast', 'South Coast', 'Taita Taveta, Kwale, Mombasa'),
+('Coast', 'Lower Eastern', 'Makueni, Kitui, Garissa'),
+('Mt Kenya', 'Mt Kenya East', 'Meru, Isiolo, Marsabit, Wajir'),
+('Mt Kenya', 'Mt Kenya West', 'Nyeri, Kirinyaga'),
+('Mt Kenya', 'Mt Kenya South', 'Embu, Tharaka Nithi'),
+('National', 'National', 'National')
+ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
+-- 6. ROLE 5 ONBOARDING: Backfill / cleanup notes
+-- =============================================================================
+-- Reset free-text fields for fresh onboarding data shape
+UPDATE public.schools
+SET institution_category_other = NULL
+WHERE dealer_type = 'Institution';
+
+-- Ensure nullsafe for new columns on existing rows
+UPDATE public.schools
+SET samples_to_be_returned = NULL,
+    learning_materials = '[]'::jsonb,
+    book_programs = '[]'::jsonb
+WHERE samples_to_be_returned IS NULL
+   OR learning_materials IS NULL
+   OR book_programs IS NULL;
+
+-- END FILE: supabase/schema_updates_onboarding_region.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_region_assignments.sql
+-- =================================================================
+-- Migration: multi-region assignments + regions.supervisor_id
+-- Date: 2026-07-28
+
+-- =============================================================================
+-- 1. REGIONS: add supervisor_id for legacy single-supervisor assignment
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'regions'
+      AND column_name = 'supervisor_id'
+  ) THEN
+    ALTER TABLE public.regions
+      ADD COLUMN supervisor_id uuid references public.users (id) on delete set null;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_regions_supervisor_id
+  ON public.regions (supervisor_id);
+
+-- =============================================================================
+-- 2. REGION_ASSIGNMENTS: many-to-many region <-> user assignments
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS public.region_assignments (
+  region_id uuid not null references public.regions (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  role integer not null,
+  assigned_at timestamptz not null default now(),
+  PRIMARY KEY (region_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_region_assignments_user_id
+  ON public.region_assignments (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_region_assignments_region_role
+  ON public.region_assignments (region_id, role);
+
+ALTER TABLE public.region_assignments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "managers_can_manage_region_assignments" ON public.region_assignments;
+CREATE POLICY "managers_can_manage_region_assignments"
+ON public.region_assignments
+FOR ALL
+TO authenticated
+USING (public.current_user_role_id() <= 2)
+WITH CHECK (public.current_user_role_id() <= 2);
+
+DROP POLICY IF EXISTS "users_can_view_own_region_assignments" ON public.region_assignments;
+CREATE POLICY "users_can_view_own_region_assignments"
+ON public.region_assignments
+FOR SELECT
+TO authenticated
+USING (
+  user_id = auth.uid()
+  OR public.current_user_role_id() <= 2
+);
+
+-- =============================================================================
+-- 3. REGIONS RLS: allow supervisors/agents to view regions they are assigned to
+-- =============================================================================
+DROP POLICY IF EXISTS "agents_can_view_assigned_region" ON public.regions;
+CREATE POLICY "agents_can_view_assigned_region"
+ON public.regions
+FOR SELECT
+TO authenticated
+USING (
+  assigned_to = auth.uid()
+  OR supervisor_id = auth.uid()
+  OR EXISTS (
+    SELECT 1
+    FROM public.region_assignments ra
+    WHERE ra.region_id = regions.id
+      AND ra.user_id = auth.uid()
+  )
+  OR public.current_user_role_id() <= 2
+);
+
+-- END FILE: supabase/schema_updates_region_assignments.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_sample_trigger.sql
+-- =================================================================
+-- schema_updates_sample_trigger.sql
+-- Placeholder migration file. Intentionally empty.
+-- (Sample-distribution trigger logic lives in schema.sql / other migrations.)
+
+-- END FILE: supabase/schema_updates_sample_trigger.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_targets.sql
+-- =================================================================
+-- Migration: targets configuration for role 2 managers
+-- Date: 2026-07-28
+
+-- =============================================================================
+-- 1. TARGETS TABLE
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS public.targets (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null check (scope in ('regional', 'agent', 'business_advisor', 'sales_rep')),
+  region_id uuid references public.regions (id) on delete set null,
+  sub_region text,
+  assigned_to uuid references public.users (id) on delete set null,
+  target_type text not null check (target_type in (
+    'product_sales',
+    'customer_visits',
+    'collections',
+    'new_customers',
+    'sample_distribution',
+    'consignment'
+  )),
+  target_period text not null check (target_period in ('daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'ytd')),
+  target_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_targets_scope_type
+  ON public.targets (scope, target_type);
+
+CREATE INDEX IF NOT EXISTS idx_targets_assigned_to
+  ON public.targets (assigned_to);
+
+CREATE INDEX IF NOT EXISTS idx_targets_region_id
+  ON public.targets (region_id);
+
+ALTER TABLE public.targets ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "managers_can_manage_targets" ON public.targets;
+CREATE POLICY "managers_can_manage_targets"
+ON public.targets
+FOR ALL
+TO authenticated
+USING (public.current_user_role_id() <= 2)
+WITH CHECK (public.current_user_role_id() <= 2);
+
+DROP POLICY IF EXISTS "users_can_view_own_targets" ON public.targets;
+CREATE POLICY "users_can_view_own_targets"
+ON public.targets
+FOR SELECT
+TO authenticated
+USING (
+  assigned_to = auth.uid()
+  OR public.current_user_role_id() <= 2
+);
+
+-- END FILE: supabase/schema_updates_targets.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_region_enhancements.sql
+-- =================================================================
+-- Migration: region_id on orders/school_sales + role_ref on users
+-- Date: 2026-07-30
+
+-- =============================================================================
+-- 1. USERS: add role_ref for legacy assignment tracking
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'users'
+      AND column_name = 'role_ref'
+  ) THEN
+    ALTER TABLE public.users ADD COLUMN role_ref text;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_users_role_ref
+  ON public.users (role_ref);
+
+-- =============================================================================
+-- 2. ORDERS: add region_id for region-filtered order queries
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'orders'
+      AND column_name = 'region_id'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD COLUMN region_id uuid references public.regions (id) on delete set null;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_orders_region_id
+  ON public.orders (region_id);
+
+-- =============================================================================
+-- 3. SCHOOL_SALES: add region_id for region-filtered pipeline
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'school_sales'
+      AND column_name = 'region_id'
+  ) THEN
+    ALTER TABLE public.school_sales
+      ADD COLUMN region_id uuid references public.regions (id) on delete set null;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_school_sales_region_id
+  ON public.school_sales (region_id);
+
+-- =============================================================================
+-- 4. RLS: allow managers to update role_ref on users
+-- =============================================================================
+DROP POLICY IF EXISTS "managers_can_update_users" ON public.users;
+CREATE POLICY "managers_can_update_users"
+ON public.users
+FOR UPDATE
+TO authenticated
+USING (public.current_user_role_id() <= 2)
+WITH CHECK (public.current_user_role_id() <= 2);
+
+-- END FILE: supabase/schema_updates_region_enhancements.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/rpc_scorecard.sql
+-- =================================================================
+-- RPC to fetch dynamic Role 5 Performance Scorecard data based on a date range
+CREATE OR REPLACE FUNCTION public.get_role5_performance(p_start_date TIMESTAMPTZ, p_end_date TIMESTAMPTZ)
+RETURNS TABLE (
+    user_id UUID,
+    full_name TEXT,
+    region TEXT,
+    total_tasks BIGINT,
+    completed_tasks BIGINT,
+    total_routes BIGINT,
+    completed_routes BIGINT,
+    total_visits BIGINT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        u.id AS user_id,
+        u.full_name,
+        u.region,
+        COUNT(DISTINCT t.id) AS total_tasks,
+        COUNT(DISTINCT CASE WHEN t.status = 'closed' THEN t.id END) AS completed_tasks,
+        COUNT(DISTINCT r.id) AS total_routes,
+        COUNT(DISTINCT CASE WHEN r.status = 'completed' THEN r.id END) AS completed_routes,
+        COUNT(DISTINCT sv.id) AS total_visits
+    FROM public.users u
+    LEFT JOIN public.tasks t ON t.assigned_to = u.id AND t.created_at >= p_start_date AND t.created_at <= p_end_date
+    LEFT JOIN public.route_plans r ON r.assigned_to = u.id AND r.created_at >= p_start_date AND r.created_at <= p_end_date
+    LEFT JOIN public.school_visits sv ON sv.agent_id = u.id AND sv.visited_at >= p_start_date AND sv.visited_at <= p_end_date
+    WHERE u.role = 5
+    GROUP BY u.id, u.full_name, u.region;
+END;
+$$;
+-- END FILE: supabase/rpc_scorecard.sql
+
+-- =================================================================
+-- BEGIN FILE: supabase/schema_updates_outreach_report.sql
+-- =================================================================
+-- Migration: outreach report missing fields
+-- Date: 2026-07-30
+
+-- =============================================================================
+-- 1. SCHOOLS: add outreach report fields
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'schools'
+      AND column_name = 'competitor_analysis'
+  ) THEN
+    ALTER TABLE public.schools ADD COLUMN competitor_analysis text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'schools'
+      AND column_name = 'school_level'
+  ) THEN
+    ALTER TABLE public.schools ADD COLUMN school_level text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'schools'
+      AND column_name = 'designation'
+  ) THEN
+    ALTER TABLE public.schools ADD COLUMN designation text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'schools'
+      AND column_name = 'projected_quantity'
+  ) THEN
+    ALTER TABLE public.schools ADD COLUMN projected_quantity integer;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'schools'
+      AND column_name = 'contact_email'
+  ) THEN
+    ALTER TABLE public.schools ADD COLUMN contact_email text;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_schools_contact_email
+  ON public.schools (contact_email);
+
+-- =============================================================================
+-- 2. INDEXES for outreach filtering
+-- =============================================================================
+CREATE INDEX IF NOT EXISTS idx_schools_captured_by
+  ON public.schools (captured_by);
+
+CREATE INDEX IF NOT EXISTS idx_schools_competitor_analysis
+  ON public.schools (competitor_analysis);
+
+CREATE INDEX IF NOT EXISTS idx_schools_school_level
+  ON public.schools (school_level);
+
+CREATE INDEX IF NOT EXISTS idx_schools_designation
+  ON public.schools (designation);
+
+CREATE INDEX IF NOT EXISTS idx_schools_projected_quantity
+  ON public.schools (projected_quantity);
+
+-- END FILE: supabase/schema_updates_outreach_report.sql

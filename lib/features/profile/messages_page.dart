@@ -42,8 +42,30 @@ class _MessagesPageState extends State<MessagesPage> {
     setState(() => _isLoading = true);
     try {
       final currentUser = Supabase.instance.client.auth.currentUser;
-      final users = await _dbService.getAllUsers();
+      final allUsers = await _dbService.getAllUsers();
       final messages = await _dbService.getMessagesForCurrentUser();
+
+      List<UserModel> users;
+      if (currentUser != null) {
+        final currentUserModel = await _dbService.getUser(currentUser.id);
+        final role = currentUserModel?.role ?? 5;
+        if (role <= 2) {
+          users = allUsers;
+        } else {
+          final userRegion = (currentUserModel?.region ?? '').toLowerCase();
+          if (userRegion.isEmpty) {
+            users = allUsers.where((u) => u.id != currentUser.id).toList();
+          } else {
+            users = allUsers
+                .where((u) =>
+                    u.id != currentUser.id &&
+                    (u.region ?? '').toLowerCase() == userRegion)
+                .toList();
+          }
+        }
+      } else {
+        users = allUsers;
+      }
 
       if (!mounted) return;
       setState(() {
@@ -54,13 +76,12 @@ class _MessagesPageState extends State<MessagesPage> {
                   ? u.fullName!.trim()
                   : u.email;
         }
-        _users =
-            users.where((user) => user.id != currentUser?.id).toList()
-              ..sort((a, b) {
-                final left = (a.fullName ?? a.email).toLowerCase();
-                final right = (b.fullName ?? b.email).toLowerCase();
-                return left.compareTo(right);
-              });
+        _users = users
+          ..sort((a, b) {
+            final left = (a.fullName ?? a.email).toLowerCase();
+            final right = (b.fullName ?? b.email).toLowerCase();
+            return left.compareTo(right);
+          });
         _userDisplayById = userDisplayById;
         _messages = messages;
         _selectedRecipientId =

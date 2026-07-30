@@ -5,7 +5,9 @@ class UserModel {
   final String email;
   final String? fullName;
   final String? phone;
+  final String? regionId;
   final String? region;
+  final String? subRegion;
   final int
   role; // 1 = admin, 2 = sales manager, 3 = BAS, 4 = agent, 5 = grounds person
   final bool isSynced; // For local/remote sync status
@@ -15,7 +17,9 @@ class UserModel {
     required this.email,
     this.fullName,
     this.phone,
+    this.regionId,
     this.region,
+    this.subRegion,
     this.role = 5, // Default role is lowest tier
     this.isSynced = false,
   }) : id = id ?? const Uuid().v4();
@@ -30,8 +34,16 @@ class UserModel {
       'isSynced': isSynced,
     };
 
+    if (regionId != null) {
+      map['region_id'] = regionId;
+    }
+
     if (region != null) {
       map['region'] = region;
+    }
+
+    if (subRegion != null) {
+      map['sub_region'] = subRegion;
     }
 
     return map;
@@ -43,7 +55,9 @@ class UserModel {
       email: map['email'],
       fullName: map['full_name'],
       phone: map['phone'],
+      regionId: map['region_id']?.toString(),
       region: map['region'],
+      subRegion: map['sub_region'],
       role: _parseRole(map['role']),
       isSynced: map['isSynced'] ?? false,
     );
@@ -63,5 +77,29 @@ class UserModel {
       if (lower == 'grounds person') return 5;
     }
     return 5; // Default to lowest tier
+  }
+
+  UserModel copyWith({
+    String? id,
+    String? email,
+    String? fullName,
+    String? phone,
+    String? regionId,
+    String? region,
+    String? subRegion,
+    int? role,
+    bool? isSynced,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
+      phone: phone ?? this.phone,
+      regionId: regionId ?? this.regionId,
+      region: region ?? this.region,
+      subRegion: subRegion ?? this.subRegion,
+      role: role ?? this.role,
+      isSynced: isSynced ?? this.isSynced,
+    );
   }
 }

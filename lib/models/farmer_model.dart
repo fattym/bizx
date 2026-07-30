@@ -11,6 +11,14 @@ class SchoolModel {
   final String? shopCategory;
   final String? selectedProduct;
   final String? partnerSubtype;
+  final String? competitorAnalysis;
+  final String? schoolLevel;
+  final String? designation;
+  final int? projectedQuantity;
+  final String? samplesToBeReturned;
+  final List<String>? learningMaterials;
+  final List<String>? bookPrograms;
+  final String? institutionCategoryOther;
   final double? latitude;
   final double? longitude;
   final double? gpsAccuracyMeters;
@@ -49,6 +57,14 @@ class SchoolModel {
     this.shopCategory,
     this.selectedProduct,
     this.partnerSubtype,
+    this.competitorAnalysis,
+    this.schoolLevel,
+    this.designation,
+    this.projectedQuantity,
+    this.samplesToBeReturned,
+    this.learningMaterials,
+    this.bookPrograms,
+    this.institutionCategoryOther,
     this.latitude,
     this.longitude,
     this.gpsAccuracyMeters,
@@ -89,6 +105,14 @@ class SchoolModel {
       'shop_category': shopCategory,
       'selected_product': selectedProduct,
       'partner_subtype': partnerSubtype,
+      'competitor_analysis': competitorAnalysis,
+      'school_level': schoolLevel,
+      'designation': designation,
+      'projected_quantity': projectedQuantity,
+      'samples_to_be_returned': samplesToBeReturned,
+      'learning_materials': learningMaterials,
+      'book_programs': bookPrograms,
+      'institution_category_other': institutionCategoryOther,
       'latitude': latitude,
       'longitude': longitude,
       'gps_accuracy_meters': gpsAccuracyMeters,
@@ -135,6 +159,14 @@ class SchoolModel {
       shopCategory: map['shop_category'] ?? map['shopCategory'],
       selectedProduct: map['selected_product'] ?? map['selectedProduct'],
       partnerSubtype: map['partner_subtype'] ?? map['partnerSubtype'],
+      competitorAnalysis: map['competitor_analysis'],
+      schoolLevel: map['school_level'],
+      designation: map['designation'],
+      projectedQuantity: _toInt(map['projected_quantity']),
+      samplesToBeReturned: map['samples_to_be_returned'],
+      learningMaterials: map['learning_materials'] is List ? List<String>.from(map['learning_materials']) : null,
+      bookPrograms: map['book_programs'] is List ? List<String>.from(map['book_programs']) : null,
+      institutionCategoryOther: map['institution_category_other'],
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
       gpsAccuracyMeters: _parseDouble(
@@ -184,6 +216,14 @@ class SchoolModel {
     return null;
   }
 
+  static int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
   SchoolModel copyWithSynced(bool value) {
     return SchoolModel(
       id: id,
@@ -196,6 +236,14 @@ class SchoolModel {
       shopCategory: shopCategory,
       selectedProduct: selectedProduct,
       partnerSubtype: partnerSubtype,
+      competitorAnalysis: competitorAnalysis,
+      schoolLevel: schoolLevel,
+      designation: designation,
+      projectedQuantity: projectedQuantity,
+      samplesToBeReturned: samplesToBeReturned,
+      learningMaterials: learningMaterials,
+      bookPrograms: bookPrograms,
+      institutionCategoryOther: institutionCategoryOther,
       latitude: latitude,
       longitude: longitude,
       gpsAccuracyMeters: gpsAccuracyMeters,

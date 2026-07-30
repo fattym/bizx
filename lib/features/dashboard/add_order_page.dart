@@ -393,11 +393,13 @@ class _AddOrderPageState extends State<AddOrderPage> {
 
     setState(() => _saving = true);
 
+    final currentUser = await _databaseService.getUser(currentUserId);
     final order = OrderModel(
       schoolId: schoolId,
       schoolName: selectedSchool.name,
       schoolPhone: selectedSchool.phone,
       agentId: currentUserId,
+      regionId: currentUser?.regionId,
       paymentMethod: _paymentMethod!,
       paymentReference:
           _paymentMethod == 'cash' ? null : _referenceController.text.trim(),
@@ -434,6 +436,7 @@ class _AddOrderPageState extends State<AddOrderPage> {
                   id: widget.initialSaleId,
                   schoolId: schoolId ?? selectedSchool.id,
                   agentId: currentUserId,
+                  regionId: currentUser?.regionId,
                   packageName:
                       widget.initialPackageName?.trim().isEmpty ?? true
                           ? 'School Package'

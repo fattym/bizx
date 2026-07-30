@@ -340,10 +340,13 @@ class _SchoolSellPageState extends State<SchoolSellPage> {
           _notesController.text.trim(),
         if (contextNotes.isNotEmpty) contextNotes,
       ].join('\n');
+      final currentUserId = _databaseService.getCurrentUserId();
+      final currentUser = currentUserId == null ? null : await _databaseService.getUser(currentUserId);
       final sale = SchoolSaleModel(
         id: _saleId,
         schoolId: schoolId,
-        agentId: _databaseService.getCurrentUserId(),
+        agentId: currentUserId,
+        regionId: currentUser?.regionId,
         packageName:
             _packageController.text.trim().isEmpty
                 ? 'School Package'

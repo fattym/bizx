@@ -6,6 +6,8 @@ import '../../core/constants/colors.dart';
 import '../../features/admin/users_list_page.dart';
 import '../../features/admin/role3_supervision_dashboard_page.dart';
 import '../../features/profile/bas_alerts_page.dart';
+import '../../features/dashboard/my_shops_page.dart';
+import '../../features/admin/target_performance_page.dart';
 
 class BasDashboardPage extends StatelessWidget {
   const BasDashboardPage({super.key});
@@ -61,6 +63,13 @@ class BasDashboardPage extends StatelessWidget {
                 children: [
                   _buildDashboardCard(
                     context,
+                    Icons.school_outlined,
+                    'My Schools (100km)',
+                    AppColors.primaryGreen,
+                    const MyShopsPage(),
+                  ),
+                  _buildDashboardCard(
+                    context,
                     Icons.map_outlined,
                     'Regional Coverage',
                     AppColors.infoBlue,
@@ -100,6 +109,13 @@ class BasDashboardPage extends StatelessWidget {
                     'Assigned Tasks & Geofences',
                     AppColors.infoBlue,
                     const BasAlertsPage(),
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    Icons.insights,
+                    'Performance',
+                    AppColors.primaryDark,
+                    const TargetPerformancePage(),
                   ),
                 ],
               ),

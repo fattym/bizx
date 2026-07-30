@@ -299,7 +299,14 @@ class _SchoolOnboardingState extends State<SchoolOnboarding> {
               ? null
               : _notesController.text.trim(),
       samplesLeft: _samplesLeft,
+      samplesToBeReturned: _samplesToBeReturned,
       sampleBooks: _selectedSampleBooks.isEmpty ? null : _selectedSampleBooks,
+      learningMaterials: _selectedLearningMaterials.isEmpty ? null : _selectedLearningMaterials,
+      bookPrograms: _selectedBookPrograms.isEmpty ? null : _selectedBookPrograms,
+      institutionCategoryOther:
+          _dealerType == 'Institution'
+              ? _institutionCategoryOtherController.text.trim()
+              : null,
       sampleProofUrl: uploadedSampleProof['proofUrl'],
       sampleProofPath: uploadedSampleProof['proofPath'],
       schoolOwnership: _schoolOwnership,

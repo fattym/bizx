@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/agent_screens.dart';
 import '../../core/constants/colors.dart';
+import '../../features/dashboard/my_shops_page.dart';
+import '../../features/admin/target_performance_page.dart';
 
 class AgentDashboardPage extends StatelessWidget {
   const AgentDashboardPage({super.key});
@@ -58,6 +60,13 @@ class AgentDashboardPage extends StatelessWidget {
                 children: [
                   _buildDashboardCard(
                     context,
+                    Icons.school_outlined,
+                    'My Schools (100km)',
+                    AppColors.infoBlue,
+                    const MyShopsPage(),
+                  ),
+                  _buildDashboardCard(
+                    context,
                     Icons.directions_car_outlined,
                     'My Route Plan',
                     AppColors.primaryGreen,
@@ -83,6 +92,13 @@ class AgentDashboardPage extends StatelessWidget {
                     'Distribute Samples',
                     AppColors.softGold,
                     const AgentDistributeSamplesScreen(),
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    Icons.insights,
+                    'Performance',
+                    AppColors.primaryDark,
+                    const TargetPerformancePage(),
                   ),
                 ],
               ),

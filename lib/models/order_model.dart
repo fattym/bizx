@@ -6,6 +6,7 @@ class OrderModel {
   final String schoolName;
   final String? schoolPhone;
   final String? agentId;
+  final String? regionId;
   final String orderNumber;
   final String paymentMethod;
   final String? paymentReference;
@@ -24,6 +25,7 @@ class OrderModel {
     required this.schoolName,
     this.schoolPhone,
     this.agentId,
+    this.regionId,
     String? orderNumber,
     required this.paymentMethod,
     this.paymentReference,
@@ -36,7 +38,7 @@ class OrderModel {
     this.createdAt,
     this.updatedAt,
   }) : id = id ?? const Uuid().v4(),
-       orderNumber = orderNumber ?? _generateOrderNumber();
+     orderNumber = orderNumber ?? _generateOrderNumber();
 
   static String _generateOrderNumber() {
     final stamp = DateTime.now().millisecondsSinceEpoch;
@@ -51,6 +53,7 @@ class OrderModel {
       'school_name': schoolName,
       'school_phone': schoolPhone,
       'agent_id': agentId,
+      'region_id': regionId,
       'order_number': orderNumber,
       'payment_method': paymentMethod,
       'payment_reference': paymentReference,
@@ -77,6 +80,7 @@ class OrderModel {
       schoolName: map['school_name'] ?? map['schoolName'] ?? '',
       schoolPhone: map['school_phone'] ?? map['schoolPhone'],
       agentId: map['agent_id'] ?? map['agentId'],
+      regionId: map['region_id'] ?? map['regionId'],
       orderNumber: map['order_number'] ?? map['orderNumber'],
       paymentMethod: map['payment_method'] ?? map['paymentMethod'] ?? 'cash',
       paymentReference: map['payment_reference'] ?? map['paymentReference'],

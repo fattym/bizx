@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/colors.dart';
 import '../dashboard/agrovet_onboarding.dart';
+import '../dashboard/contacts_page.dart';
 import '../dashboard/my_orders_page.dart';
 import '../dashboard/sample_distribution_page.dart';
 import '../dashboard/grounds_quotation_page.dart';
 import '../dashboard/my_shops_page.dart';
-import '../dashboard/role5_school_profiles_page.dart';
+import '../dashboard/user_school_profiles_page.dart';
 import 'bas_alerts_page.dart';
 import 'crm_settings_page.dart';
 import 'user_profile_page.dart';
@@ -16,6 +17,8 @@ import '../../features/database/database_service.dart';
 import '../../models/task_model.dart';
 import '../project/role5_project_forms_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/region_model.dart';
+import '../../models/user_model.dart';
 
 class SalesDashboard extends StatefulWidget {
   const SalesDashboard({super.key});
@@ -29,16 +32,77 @@ class _SalesDashboardState extends State<SalesDashboard> {
   final PageController _performanceCarouselController = PageController(
     viewportFraction: 0.82,
   );
-  late final Future<Map<String, Map<String, dynamic>>>
-  _performanceMetricsFuture;
+  late final Future<Map<String, dynamic>> _performanceMetricsFuture;
+  Map<String, dynamic>? _cachedPerformanceData;
   bool _showAssignedTasks = false;
   bool _autoHideAssignedTasks = true;
   int _performanceCarouselIndex = 0;
+  String? _userName;
+  String? _userRegion;
+  String? _userSubRegion;
+  List<UserModel> _agents = [];
+  List<RegionModel> _regions = [];
 
   @override
   void initState() {
     super.initState();
-    _performanceMetricsFuture = _loadPerformanceMetrics();
+    _performanceMetricsFuture = _loadPerformanceMetrics().then((data) {
+      if (mounted) {
+        setState(() => _cachedPerformanceData = data);
+      }
+      return data;
+    });
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) return;
+      final user = await _dbService.getUser(currentUser.id);
+      if (!mounted) return;
+      if (user == null) return;
+      final users = await _dbService.getAllUsers();
+      final regions = await _dbService.getAllRegions();
+      if (!mounted) return;
+      setState(() {
+        _userName = user.fullName?.trim().isEmpty ?? true ? null : user.fullName;
+        _userRegion = user.region?.trim().isEmpty ?? true ? null : user.region;
+        _userSubRegion = user.subRegion?.trim().isEmpty ?? true ? null : user.subRegion;
+        _regions = regions;
+        _agents = users.where((u) => u.role == 4).toList();
+      });
+    } catch (e) {
+      debugPrint('Error loading user info: $e');
+    }
+  }
+
+  Future<void> _assignSupervisor(String? agentId) async {
+    if (agentId == null) return;
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) return;
+      final agentMatch = _agents.where((u) => u.id == agentId).toList();
+      if (agentMatch.isEmpty) return;
+      final agent = agentMatch.first;
+      final user = await _dbService.getUser(currentUser.id);
+      if (user == null) return;
+      final updated = user.copyWith(regionId: agent.regionId, region: agent.region, subRegion: agent.subRegion);
+      await _dbService.saveUser(updated);
+      if (!mounted) return;
+      setState(() {
+        _userRegion = agent.region;
+        _userSubRegion = agent.subRegion;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Supervisor assigned. Region set to ${agent.region}.${agent.subRegion != null ? ' ($agent.subRegion)' : ''}'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to assign supervisor: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -66,7 +130,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
             return SingleChildScrollView(
               child: Column(
                 children: [
-                  _buildSalesHeader(context),
+                  _buildSalesHeader(context, _cachedPerformanceData),
                   Align(
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
@@ -246,7 +310,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
               () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const Role5SchoolProfilesPage(),
+                  builder: (context) => const UserSchoolProfilesPage(),
                 ),
               ),
         ),
@@ -280,6 +344,16 @@ class _SalesDashboardState extends State<SalesDashboard> {
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const MessagesPage()),
+              ),
+        ),
+        _actionBtn(
+          "Contacts",
+          Icons.contacts_outlined,
+          AppColors.infoBlue,
+          onTap:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ContactsPage()),
               ),
         ),
         _actionBtn(
@@ -362,7 +436,10 @@ class _SalesDashboardState extends State<SalesDashboard> {
     );
   }
 
-  Widget _buildSalesHeader(BuildContext context) {
+  Widget _buildSalesHeader(BuildContext context, Map<String, dynamic>? performanceData) {
+    final monthly = (performanceData ?? _cachedPerformanceData ?? {})['monthly'] as Map<String, dynamic>? ?? {};
+    final monthlyVisits = monthly['visits']?.toString() ?? '0';
+    final totalMetric = (monthly['visitedSchools'] ?? 0) + (monthly['visits'] ?? 0) + (monthly['orders'] ?? 0);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
@@ -425,15 +502,42 @@ class _SalesDashboardState extends State<SalesDashboard> {
                               fontSize: isCompact ? 12 : 14,
                             ),
                           ),
-                          Text(
-                            "Agent",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isCompact ? 15 : 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                           Text(
+                             _userName ?? 'User',
+                             style: TextStyle(
+                               color: Colors.white,
+                               fontSize: isCompact ? 15 : 18,
+                               fontWeight: FontWeight.bold,
+                               letterSpacing: 0.5,
+                             ),
+                           ),
+                           if (_userRegion != null)
+                             Text(
+                               _userRegion!,
+                               style: TextStyle(
+                                 color: Colors.white.withValues(alpha: 0.85),
+                                 fontSize: isCompact ? 11 : 12,
+                               ),
+                             )
+                           else
+                             Container(
+                               margin: const EdgeInsets.only(top: 4),
+                               padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: isCompact ? 4 : 6),
+                               decoration: BoxDecoration(
+                                 color: Colors.white.withValues(alpha: 0.15),
+                                 borderRadius: BorderRadius.circular(8),
+                                 border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                               ),
+                               child: DropdownButtonHideUnderline(
+                                 child: DropdownButton<String>(
+                                   value: null,
+                                   hint: Text('Select Supervisor', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: isCompact ? 11 : 12)),
+                                   icon: Icon(Icons.arrow_drop_down, color: Colors.white.withValues(alpha: 0.9), size: isCompact ? 16 : 18),
+                                   items: _agents.map((a) => DropdownMenuItem(value: a.id, child: Text(a.fullName ?? a.email, style: TextStyle(fontSize: isCompact ? 11 : 12)))).toList(),
+                                   onChanged: _assignSupervisor,
+                                 ),
+                               ),
+                             ),
                         ],
                       ),
                     ],
@@ -581,14 +685,14 @@ class _SalesDashboardState extends State<SalesDashboard> {
                                 size: 14,
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                "12 Visits",
-                                style: TextStyle(
-                                  color: AppColors.surfaceWhite,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: isCompact ? 11 : 12,
-                                ),
-                              ),
+                               Text(
+                                 "$monthlyVisits Visits",
+                                 style: TextStyle(
+                                   color: AppColors.surfaceWhite,
+                                   fontWeight: FontWeight.bold,
+                                   fontSize: isCompact ? 11 : 12,
+                                 ),
+                               ),
                             ],
                           ),
                         ),
@@ -596,7 +700,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
                     ),
                     SizedBox(height: isCompact ? 12 : 16),
                     Text(
-                      "KES 45,250",
+                      "$totalMetric",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: isCompact ? 26 : 32,
@@ -604,6 +708,8 @@ class _SalesDashboardState extends State<SalesDashboard> {
                         letterSpacing: 0.5,
                       ),
                     ),
+                    SizedBox(height: isCompact ? 16 : 20),
+                    _buildProgressBarsSection(isCompact: isCompact),
                   ],
                 ),
               ),
@@ -622,7 +728,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
         final cardWidthFactor = isCompact ? 1.0 : (width < 700 ? 0.92 : 0.72);
         final cardHeight = isCompact ? 188.0 : 196.0;
 
-        return FutureBuilder<Map<String, Map<String, dynamic>>>(
+        return FutureBuilder<Map<String, dynamic>>(
           future: _performanceMetricsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -637,14 +743,29 @@ class _SalesDashboardState extends State<SalesDashboard> {
             final weekly = snapshot.data?['weekly'] ?? {};
             final monthly = snapshot.data?['monthly'] ?? {};
             final yearly = snapshot.data?['yearly'] ?? {};
+            final targetsByPeriod =
+                snapshot.data?['targetsByPeriod'] as Map<String, dynamic>? ??
+                {};
+            final dailyTargets =
+                targetsByPeriod['daily'] as Map<String, double>? ?? {};
+            final weeklyTargets =
+                targetsByPeriod['weekly'] as Map<String, double>? ?? {};
+            final monthlyTargets =
+                targetsByPeriod['monthly'] as Map<String, double>? ?? {};
+            final yearlyTargets =
+                targetsByPeriod['yearly'] as Map<String, double>? ?? {};
             final performanceCards = [
               (
                 "Daily Performance",
                 "${daily['percent'] ?? 0}%",
                 Icons.today_outlined,
                 AppColors.primaryGreen,
-                daily['target']?.toString() ?? '15',
-                daily['target']?.toString() ?? '15',
+                daily['target']?.toString() ??
+                    dailyTargets['customer_visits']?.round().toString() ??
+                    '0',
+                dailyTargets['product_sales']?.round().toString() ??
+                    daily['target']?.toString() ??
+                    '0',
                 daily['wonSales']?.toString() ?? '0',
                 daily['visits']?.toString() ?? '0',
               ),
@@ -653,8 +774,12 @@ class _SalesDashboardState extends State<SalesDashboard> {
                 "${weekly['percent'] ?? 0}%",
                 Icons.view_week_outlined,
                 AppColors.primaryDark,
-                weekly['target']?.toString() ?? '35',
-                weekly['target']?.toString() ?? '35',
+                weekly['target']?.toString() ??
+                    weeklyTargets['customer_visits']?.round().toString() ??
+                    '0',
+                weeklyTargets['product_sales']?.round().toString() ??
+                    weekly['target']?.toString() ??
+                    '0',
                 weekly['wonSales']?.toString() ?? '0',
                 weekly['visits']?.toString() ?? '0',
               ),
@@ -663,8 +788,12 @@ class _SalesDashboardState extends State<SalesDashboard> {
                 "${monthly['percent'] ?? 0}%",
                 Icons.calendar_month_outlined,
                 AppColors.secondaryOrange,
-                monthly['target']?.toString() ?? '60',
-                monthly['target']?.toString() ?? '60',
+                monthly['target']?.toString() ??
+                    monthlyTargets['customer_visits']?.round().toString() ??
+                    '0',
+                monthlyTargets['product_sales']?.round().toString() ??
+                    monthly['target']?.toString() ??
+                    '0',
                 monthly['wonSales']?.toString() ?? '0',
                 monthly['visits']?.toString() ?? '0',
               ),
@@ -673,8 +802,12 @@ class _SalesDashboardState extends State<SalesDashboard> {
                 "${yearly['percent'] ?? 0}%",
                 Icons.insights_outlined,
                 AppColors.primaryGreen,
-                yearly['target']?.toString() ?? '720',
-                yearly['target']?.toString() ?? '720',
+                yearly['target']?.toString() ??
+                    yearlyTargets['customer_visits']?.round().toString() ??
+                    '0',
+                yearlyTargets['product_sales']?.round().toString() ??
+                    yearly['target']?.toString() ??
+                    '0',
                 yearly['wonSales']?.toString() ?? '0',
                 yearly['visits']?.toString() ?? '0',
               ),
@@ -750,7 +883,7 @@ class _SalesDashboardState extends State<SalesDashboard> {
     );
   }
 
-  Future<Map<String, Map<String, dynamic>>> _loadPerformanceMetrics() async {
+  Future<Map<String, dynamic>> _loadPerformanceMetrics() async {
     final role = await _dbService.getCurrentUserRole();
     final daily = await _dbService.getPerformanceMetrics(
       period: 'daily',
@@ -768,11 +901,51 @@ class _SalesDashboardState extends State<SalesDashboard> {
       period: 'yearly',
       role: role,
     );
+
+    final dailyTargets = await _dbService.getTargetsForCurrentUser(period: 'daily');
+    final weeklyTargets = await _dbService.getTargetsForCurrentUser(period: 'weekly');
+    final monthlyTargets = await _dbService.getTargetsForCurrentUser(period: 'monthly');
+    final yearlyTargets = await _dbService.getTargetsForCurrentUser(period: 'yearly');
+    final targets = monthlyTargets;
+    final sampleReturnsData = await _dbService.getSampleDistributions(
+      agentId: _dbService.getCurrentUserId(),
+    );
+    final sampleReturns = sampleReturnsData.fold<int>(
+      0,
+      (sum, item) => sum + ((item['returned_qty'] as int?) ?? 0),
+    );
+
+    int consignments = 0;
+    final currentUserId = _dbService.getCurrentUserId();
+    if (currentUserId != null) {
+      try {
+        final consignmentData = await Supabase.instance.client
+            .from('orders')
+            .select('id')
+            .eq('agent_id', currentUserId)
+            .eq('order_type', 'consignment');
+        consignments = (consignmentData as List).length;
+      } catch (e) {
+        debugPrint('Error counting consignments: $e');
+      }
+    }
+
     return {
       'daily': daily,
       'weekly': weekly,
       'monthly': monthly,
       'yearly': yearly,
+      'targets': targets,
+      'targetsByPeriod': {
+        'daily': dailyTargets,
+        'weekly': weeklyTargets,
+        'monthly': monthlyTargets,
+        'yearly': yearlyTargets,
+      },
+      'sampleReturns': sampleReturns,
+      'sampleReturnsTarget': (monthlyTargets['sample_distribution'] ?? 0).toInt(),
+      'consignments': consignments,
+      'consignmentsTarget': (monthlyTargets['consignment'] ?? 0).toInt(),
     };
   }
 
@@ -825,6 +998,165 @@ class _SalesDashboardState extends State<SalesDashboard> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _progressBar(
+    String label,
+    String value,
+    double percent,
+    Color color, {
+    required bool compact,
+  }) {
+    final percentText = '${(percent * 100).round()}%';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: compact ? 11 : 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: compact ? 10 : 11,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 6 : 8,
+                    vertical: compact ? 2 : 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    percentText,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: compact ? 10 : 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        SizedBox(height: compact ? 4 : 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: compact ? 5 : 7,
+            value: percent.toDouble(),
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressBarsSection({required bool isCompact}) {
+    final data = _cachedPerformanceData ?? {};
+    final monthly = data['monthly'] ?? {};
+    final yearly = data['yearly'] ?? {};
+    final targets = data['targets'] ?? {};
+
+    final salesTarget = yearly['wonSales'] ?? 0;
+    final salesTargetMax = (targets['product_sales'] ?? 0).toDouble();
+    final salesPercent = salesTargetMax > 0 ? (salesTarget / salesTargetMax).clamp(0.0, 1.0) : 0.0;
+
+    final visits = monthly['visits'] ?? 0;
+    final visitsTarget = (targets['customer_visits'] ?? monthly['target'] ?? 0).toDouble();
+    final visitsPercent = visitsTarget > 0 ? (visits / visitsTarget).clamp(0.0, 1.0) : 0.0;
+
+    final collections = monthly['orders'] ?? 0;
+    final collectionsTarget = (targets['collections'] ?? 0).toDouble();
+    final collectionsPercent = collectionsTarget > 0
+        ? (collections / collectionsTarget).clamp(0.0, 1.0)
+        : 0.0;
+
+    final newCustomers = monthly['visitedSchools'] ?? 0;
+    final newCustomersTarget = (targets['new_customers'] ?? 0).toDouble();
+    final newCustomersPercent = newCustomersTarget > 0
+        ? (newCustomers / newCustomersTarget).clamp(0.0, 1.0)
+        : 0.0;
+
+    final sampleReturns = (data['sampleReturns'] ?? 0) as int;
+    final sampleReturnsTarget = (data['sampleReturnsTarget'] ?? 0) as int;
+    final sampleReturnsPercent = sampleReturnsTarget > 0
+        ? (sampleReturns / sampleReturnsTarget).clamp(0.0, 1.0)
+        : 0.0;
+
+    final consignments = (data['consignments'] ?? 0) as int;
+    final consignmentsTarget = (data['consignmentsTarget'] ?? 0) as int;
+    final consignmentsPercent = consignmentsTarget > 0
+        ? (consignments / consignmentsTarget).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Column(
+      children: [
+        _progressBar(
+          'Sales Target',
+          'KES $salesTarget / KES ${salesTargetMax.toInt()}',
+          salesPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+        SizedBox(height: isCompact ? 10 : 12),
+        _progressBar(
+          'Visits',
+          '$visits / ${visitsTarget.toInt()}',
+          visitsPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+        SizedBox(height: isCompact ? 10 : 12),
+        _progressBar(
+          'Collections',
+          '$collections / ${collectionsTarget.toInt()}',
+          collectionsPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+        SizedBox(height: isCompact ? 10 : 12),
+        _progressBar(
+          'New Customers',
+          '$newCustomers / ${newCustomersTarget.toInt()}',
+          newCustomersPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+        SizedBox(height: isCompact ? 10 : 12),
+        _progressBar(
+          'Sample Returns',
+          '$sampleReturns / $sampleReturnsTarget',
+          sampleReturnsPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+        SizedBox(height: isCompact ? 10 : 12),
+        _progressBar(
+          'Consignments',
+          '$consignments / $consignmentsTarget',
+          consignmentsPercent,
+          Colors.white,
+          compact: isCompact,
+        ),
+      ],
     );
   }
 

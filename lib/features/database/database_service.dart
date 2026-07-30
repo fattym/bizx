@@ -6,6 +6,7 @@ import '../../models/catalog_item_model.dart';
 import '../../models/order_item_model.dart';
 import '../../models/order_model.dart';
 import '../../models/school_sale_model.dart';
+import '../../models/region_model.dart';
 import '../../models/pipeline_stage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -105,6 +106,316 @@ class DatabaseService {
       debugPrint("User $uid role updated to $role.");
     } catch (e) {
       debugPrint("Error updating user role: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<RegionModel>> getAllRegions() async {
+    try {
+      final data = await _supabase
+          .from('regions')
+          .select()
+          .order('region')
+          .order('sub_region');
+      return (data as List)
+          .map((item) => RegionModel.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    } catch (e) {
+      debugPrint("Error getting regions: $e");
+      return <RegionModel>[];
+    }
+  }
+
+  Future<RegionModel?> getRegion(String id) async {
+    try {
+      final data = await _supabase
+          .from('regions')
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+      if (data != null) {
+        return RegionModel.fromMap(data);
+      }
+    } catch (e) {
+      debugPrint("Error getting region: $e");
+    }
+    return null;
+  }
+
+  Future<void> createRegion(RegionModel region) async {
+    try {
+      await _supabase.from('regions').insert(region.toMap());
+      debugPrint("Region created: ${region.region} - ${region.subRegion}");
+    } catch (e) {
+      debugPrint("Error creating region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateRegion(RegionModel region) async {
+    try {
+      await _supabase.from('regions').update(region.toMap()).eq('id', region.id!);
+      debugPrint("Region updated: ${region.region} - ${region.subRegion}");
+    } catch (e) {
+      debugPrint("Error updating region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deleteRegion(String id) async {
+    try {
+      await _supabase.from('region_assignments').delete().eq('region_id', id);
+      final region = await getRegion(id);
+      await _supabase.from('regions').delete().eq('id', id);
+      if (region != null) {
+        await _supabase.from('users').update({'region': null, 'region_id': null}).eq('region_id', id);
+        final regionName = region.region;
+        if (regionName.isNotEmpty) {
+          await _supabase.from('users').update({'region': null}).or('region.eq.$regionName,sub_region.eq.${region.subRegion}');
+        }
+      }
+      debugPrint("Region deleted: $id");
+    } catch (e) {
+      debugPrint("Error deleting region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> assignRegionToAgent(String regionId, String agentId) async {
+    try {
+      final region = await getRegion(regionId);
+      if (region == null) {
+        throw Exception('Region not found');
+      }
+      await _supabase.from('regions').update({'assigned_to': agentId}).eq('id', regionId);
+      await _supabase
+          .from('users')
+          .update({'role_ref': 'agent', 'region': region.region, 'region_id': regionId})
+          .eq('id', agentId);
+      try {
+        await _supabase.from('region_assignments').insert({
+          'region_id': regionId,
+          'user_id': agentId,
+          'role': 4,
+        });
+      } catch (e) {
+        debugPrint('region_assignments insert failed: $e');
+        throw Exception('Legacy assignment succeeded, but multi-region assignment failed: $e');
+      }
+      debugPrint("Region $regionId assigned to agent $agentId");
+    } catch (e) {
+      debugPrint("Error assigning region to agent: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> assignRegionSupervisor(String regionId, String supervisorId) async {
+    try {
+      final region = await getRegion(regionId);
+      if (region == null) {
+        throw Exception('Region not found');
+      }
+      await _supabase
+          .from('regions')
+          .update({'supervisor_id': supervisorId})
+          .eq('id', regionId);
+      await _supabase
+          .from('users')
+          .update({'role_ref': 'supervisor', 'region': region.region, 'region_id': regionId})
+          .eq('id', supervisorId);
+      try {
+        await _supabase.from('region_assignments').insert({
+          'region_id': regionId,
+          'user_id': supervisorId,
+          'role': 3,
+        });
+      } catch (e) {
+        debugPrint('region_assignments insert failed: $e');
+        throw Exception('Legacy assignment succeeded, but multi-region assignment failed: $e');
+      }
+      debugPrint("Region $regionId assigned to supervisor $supervisorId");
+    } catch (e) {
+      debugPrint("Error assigning region to supervisor: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> unassignRegionSupervisor(String regionId) async {
+    try {
+      final region = await getRegion(regionId);
+      final previousSupervisorId = region?.supervisorId;
+      await _supabase
+          .from('regions')
+          .update({'supervisor_id': null})
+          .eq('id', regionId);
+      if (previousSupervisorId != null) {
+        await _supabase
+            .from('users')
+            .update({'region': null, 'region_id': null})
+            .eq('id', previousSupervisorId);
+      }
+      try {
+        await _supabase
+            .from('region_assignments')
+            .delete()
+            .eq('region_id', regionId)
+            .eq('role', 3);
+      } catch (e) {
+        debugPrint('region_assignments delete failed: $e');
+        throw Exception('Legacy unassignment succeeded, but multi-region cleanup failed: $e');
+      }
+      debugPrint("Region $regionId unassigned from supervisor");
+    } catch (e) {
+      debugPrint("Error unassigning region from supervisor: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> addMemberToRegion(String regionId, String memberId) async {
+    try {
+      final region = await getRegion(regionId);
+      if (region == null) {
+        throw Exception('Region not found');
+      }
+      await _supabase
+          .from('users')
+          .update({'region': region.region, 'region_id': regionId})
+          .eq('id', memberId);
+      debugPrint("Member $memberId added to region $regionId");
+    } catch (e) {
+      debugPrint("Error adding member to region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> promoteRegionMemberToAgent(String regionId, String memberId, {int role = 4}) async {
+    try {
+      final region = await getRegion(regionId);
+      if (region == null) {
+        throw Exception('Region not found');
+      }
+      await _supabase
+          .from('users')
+          .update({
+            'role': role,
+            'region': region.region,
+            'region_id': regionId,
+          })
+          .eq('id', memberId);
+      debugPrint("Member $memberId promoted to role $role in region $regionId");
+    } catch (e) {
+      debugPrint("Error promoting member to agent: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> unassignRegionFromAgent(String regionId) async {
+    try {
+      final region = await getRegion(regionId);
+      final previousAgentId = region?.assignedTo;
+      await _supabase
+          .from('regions')
+          .update({'assigned_to': null})
+          .eq('id', regionId);
+      if (previousAgentId != null) {
+        await _supabase
+            .from('users')
+            .update({'region': null, 'region_id': null})
+            .eq('id', previousAgentId);
+      }
+      try {
+        await _supabase
+            .from('region_assignments')
+            .delete()
+            .eq('region_id', regionId)
+            .eq('role', 4);
+      } catch (e) {
+        debugPrint('region_assignments delete failed: $e');
+        throw Exception('Legacy unassignment succeeded, but multi-region cleanup failed: $e');
+      }
+      debugPrint("Region $regionId unassigned from agent");
+    } catch (e) {
+      debugPrint("Error unassigning region from agent: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<UserModel>> getRegionAssignments(String regionId) async {
+    try {
+      final data = await _supabase
+          .from('region_assignments')
+          .select('user_id, role')
+          .eq('region_id', regionId);
+      final userIds = (data as List)
+          .map((e) => (e['user_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      if (userIds.isEmpty) return <UserModel>[];
+      final users = <UserModel>[];
+      for (final id in userIds) {
+        final user = await getUser(id);
+        if (user != null) users.add(user);
+      }
+      return users;
+    } catch (e) {
+      debugPrint("Error getting region assignments: $e");
+      return <UserModel>[];
+    }
+  }
+
+  Future<void> assignUserToRegion(String regionId, String userId, int role) async {
+    try {
+      await _supabase.from('region_assignments').insert({
+        'region_id': regionId,
+        'user_id': userId,
+        'role': role,
+      });
+      debugPrint("User $userId assigned to region $regionId as role $role");
+    } catch (e) {
+      debugPrint("Error assigning user to region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> unassignUserFromRegion(String regionId, String userId) async {
+    try {
+      await _supabase
+          .from('region_assignments')
+          .delete()
+          .eq('region_id', regionId)
+          .eq('user_id', userId);
+      debugPrint("User $userId unassigned from region $regionId");
+    } catch (e) {
+      debugPrint("Error unassigning user from region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> addSupervisorToRegion(String regionId, String supervisorId) async {
+    try {
+      await _supabase.from('region_assignments').insert({
+        'region_id': regionId,
+        'user_id': supervisorId,
+        'role': 3,
+      });
+      debugPrint("Supervisor $supervisorId added to region $regionId");
+    } catch (e) {
+      debugPrint("Error adding supervisor to region: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> addAgentToRegion(String regionId, String agentId) async {
+    try {
+      await _supabase.from('region_assignments').insert({
+        'region_id': regionId,
+        'user_id': agentId,
+        'role': 4,
+      });
+      debugPrint("Agent $agentId added to region $regionId");
+    } catch (e) {
+      debugPrint("Error adding agent to region: $e");
       rethrow;
     }
   }
@@ -446,6 +757,62 @@ class DatabaseService {
     }
   }
 
+  Future<Map<String, double>> getTargetsForCurrentUser({
+    required String period,
+    String? targetType,
+  }) async {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null) return {};
+
+    try {
+      final periodMap = {
+        'daily': 'daily',
+        'weekly': 'weekly',
+        'monthly': 'monthly',
+        'yearly': 'yearly',
+      };
+      final dbPeriod = periodMap[period] ?? period;
+
+      var query = _supabase
+          .from('targets')
+          .select('target_type, target_period, target_data')
+          .or('assigned_to.eq.$currentUserId,assigned_to.is.null')
+          .eq('target_period', dbPeriod);
+
+      if (targetType != null) {
+        query = query.eq('target_type', targetType);
+      }
+
+      final data = await query;
+      final targets = <String, double>{};
+
+      for (final item in data as List) {
+        final type = (item['target_type'] ?? '').toString();
+        final targetData = item['target_data'];
+        if (targetData is! Map) continue;
+
+        double value = 0.0;
+        final product = targetData['product'];
+        final total = targetData['total'];
+        if (product is num) value = product.toDouble();
+        else if (total is num) value = total.toDouble();
+        else if (product is String) value = double.tryParse(product) ?? 0.0;
+        else if (total is String) value = double.tryParse(total) ?? 0.0;
+
+        if (targetType != null) {
+          targets[targetType] = value;
+        } else {
+          targets[type] = value;
+        }
+      }
+
+      return targets;
+    } catch (e) {
+      debugPrint("Error loading targets: $e");
+      return {};
+    }
+  }
+
   Future<Map<String, dynamic>> getPerformanceMetrics({
     required String period,
     int? role,
@@ -459,14 +826,8 @@ class DatabaseService {
             : period == 'monthly'
             ? DateTime(now.year, now.month, 1)
             : DateTime(now.year, 1, 1);
-    final target =
-        period == 'daily'
-            ? 15.0
-            : period == 'weekly'
-            ? 35.0
-            : period == 'monthly'
-            ? 60.0
-            : 720.0;
+    final target = await getTargetsForCurrentUser(period: period);
+    final targetValue = target['product_sales'] ?? target['total'] ?? 0.0;
     final currentUserId = _supabase.auth.currentUser?.id;
     final agentId = role == 1 ? null : currentUserId;
     // Align the window to UTC so it matches the database's stored
@@ -522,12 +883,12 @@ class DatabaseService {
     );
     final visitedSchools = await countVisitedSchools();
     final percent =
-        visits == 0 ? 0 : ((visits / target) * 100).clamp(0, 100).round();
+        visits == 0 ? 0 : ((visits / targetValue) * 100).clamp(0, 100).round();
 
     return {
       'period': period,
       'percent': percent,
-      'target': target.round(),
+      'target': targetValue.round(),
       'visits': visits,
       'orders': orders,
       'wonSales': wonSales,

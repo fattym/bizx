@@ -6,15 +6,15 @@ import '../admin/school_profile_page.dart';
 import '../database/database_service.dart';
 import 'agrovet_onboarding.dart';
 
-class Role5SchoolProfilesPage extends StatefulWidget {
-  const Role5SchoolProfilesPage({super.key});
+class UserSchoolProfilesPage extends StatefulWidget {
+  const UserSchoolProfilesPage({super.key});
 
   @override
-  State<Role5SchoolProfilesPage> createState() =>
-      _Role5SchoolProfilesPageState();
+  State<UserSchoolProfilesPage> createState() =>
+      _UserSchoolProfilesPageState();
 }
 
-class _Role5SchoolProfilesPageState extends State<Role5SchoolProfilesPage> {
+class _UserSchoolProfilesPageState extends State<UserSchoolProfilesPage> {
   final _supabase = Supabase.instance.client;
   final _dbService = DatabaseService();
   final _searchController = TextEditingController();

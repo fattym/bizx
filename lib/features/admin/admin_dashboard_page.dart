@@ -9,6 +9,9 @@ import '../../../models/task_model.dart';
 import '../../../models/user_model.dart';
 import 'analytics_page.dart';
 import 'regions_page.dart';
+import 'regions_management_page.dart';
+import 'targets_page.dart';
+import 'target_performance_page.dart';
 import 'catalog_import_page.dart';
 import '../dashboard/my_orders_page.dart';
 import '../profile/messages_page.dart';
@@ -29,6 +32,9 @@ import 'role2_route_plan_page.dart';
 import '../dashboard/sample_distribution_page.dart';
 import 'school_profile_page.dart';
 import 'admin_individual_performance_page.dart';
+import '../../../core/constants/agent_dashboard_page.dart';
+import '../../../features/profile/profile_page.dart';
+import '../../../core/constants/bas_dashboard_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -56,6 +62,40 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _dashboardFuture = Future.value(const _AdminDashboardData(
+      users: <UserModel>[],
+      schools: <SchoolModel>[],
+      tasks: <TaskModel>[],
+      routePlans: <Map<String, dynamic>>[],
+      geofences: <Map<String, dynamic>>[],
+    ));
+    _enforceRoleAndLoad();
+  }
+
+  Future<void> _enforceRoleAndLoad() async {
+    final role = await _dbService.getCurrentUserRole();
+    if (role > 2 && mounted) {
+      Widget destination;
+      switch (role) {
+        case 3:
+          destination = const BasDashboardPage();
+          break;
+        case 4:
+          destination = const AgentDashboardPage();
+          break;
+        case 5:
+          destination = const SalesDashboard();
+          break;
+        default:
+          destination = const AgentDashboardPage();
+      }
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+        (route) => false,
+      );
+      return;
+    }
     _dashboardFuture = _loadDashboard();
   }
 
@@ -905,6 +945,39 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const RegionsPage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
+                _buildSidebarItem(context, Icons.manage_accounts, 'Manage Regions', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RegionsManagementPage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
+                _buildSidebarItem(context, Icons.track_changes, 'Targets', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TargetsPage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
+                _buildSidebarItem(context, Icons.insights, 'Performance', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TargetPerformancePage(),
                     ),
                   );
                 }, isCollapsed: isCollapsed),
