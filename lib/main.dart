@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'core/constants/colors.dart';
 import 'package:flutter/material.dart';
 import 'core/config/supabase_config.dart';
@@ -12,8 +13,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/bas_dashboard_page.dart';
 import 'core/constants/agent_dashboard_page.dart';
 import 'features/profile/profile_page.dart';
+import 'features/welcome/auth/reset_password_page.dart';
+import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'services/github_release_service.dart';
+import 'dart:async';
+
+// Event module pages
+import 'features/events/events_list_page.dart';
+import 'features/events/event_create_page.dart';
+import 'features/events/event_detail_page.dart';
+import 'features/events/event_assignments_page.dart';
+import 'features/events/event_checkin_page.dart';
+import 'features/events/event_tasks_page.dart';
+import 'features/events/event_leads_page.dart';
+import 'features/events/event_photos_page.dart';
+import 'features/events/event_expenses_page.dart';
+import 'features/events/event_reports_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +37,44 @@ Future<void> main() async {
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
+    authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
   );
   runApp(const DeHeusApp());
+}
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+bool _isPasswordResetLink(Uri uri) {
+  if (kIsWeb) {
+    return uri.path == '/reset-password';
+  }
+  return uri.scheme == 'dehus' && uri.host == 'reset-password';
+}
+
+Route<dynamic>? _onGenerateRoute(RouteSettings settings) {
+  final uri = Uri.tryParse(settings.name ?? '');
+  if (uri != null && _isPasswordResetLink(uri)) {
+    String? code = uri.queryParameters['code'];
+    String? accessToken = uri.queryParameters['access_token'];
+    String? refreshToken = uri.queryParameters['refresh_token'];
+    
+    if (uri.fragment.isNotEmpty) {
+      final fragmentParams = Uri.splitQueryString(uri.fragment);
+      code ??= fragmentParams['code'];
+      accessToken ??= fragmentParams['access_token'];
+      refreshToken ??= fragmentParams['refresh_token'];
+    }
+
+    return MaterialPageRoute(
+      builder: (_) => ResetPasswordPage(
+        code: code,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      ),
+      settings: settings,
+    );
+  }
+  return null;
 }
 
 class DeHeusApp extends StatelessWidget {
@@ -36,13 +88,27 @@ class DeHeusApp extends StatelessWidget {
     return MaterialApp(
       title: 'Longhorn Publishers PLC',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       initialRoute: ui.PlatformDispatcher.instance.defaultRouteName,
       routes: {
         '/': (_) => const _SessionEntryPage(),
         '/login': (_) => const DeHeusLogin(),
         '/admin-login': (_) => const AdminLoginPage(),
         '/admin': (_) => const AdminDashboardPage(),
+        // Event module
+        '/events': (_) => const EventsListPage(),
+        '/events/create': (_) => const EventCreatePage(),
+        '/events/detail': (_) => const EventDetailPage(),
+        '/events/assignments': (_) => const EventAssignmentsPage(),
+        '/events/checkin': (_) => const EventCheckinPage(),
+        '/events/tasks': (_) => const EventTasksPage(),
+        '/events/leads': (_) => const EventLeadsPage(),
+        '/events/photos': (_) => const EventPhotosPage(),
+        '/events/expenses': (_) => const EventExpensesPage(),
+        '/events/reports': (_) => const EventReportsPage(),
       },
+
+      onGenerateRoute: _onGenerateRoute,
 
       theme: ThemeData(
         useMaterial3: true,
@@ -79,6 +145,8 @@ class _SessionEntryPage extends StatefulWidget {
 
 class _SessionEntryPageState extends State<_SessionEntryPage> {
   final _supabase = Supabase.instance.client;
+  final _appLinks = AppLinks();
+  StreamSubscription<Uri>? _deepLinkSubscription;
   bool _loading = true;
   Widget? _destination;
 
@@ -86,9 +154,71 @@ class _SessionEntryPageState extends State<_SessionEntryPage> {
   void initState() {
     super.initState();
     _resolveStartupDestination();
+    _setupDeepLinkListener();
+  }
+
+  void _setupDeepLinkListener() {
+    _deepLinkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      if (!_isPasswordResetLink(uri)) return;
+      
+      String? code = uri.queryParameters['code'];
+      String? accessToken = uri.queryParameters['access_token'];
+      String? refreshToken = uri.queryParameters['refresh_token'];
+      
+      if (uri.fragment.isNotEmpty) {
+        final fragmentParams = Uri.splitQueryString(uri.fragment);
+        code ??= fragmentParams['code'];
+        accessToken ??= fragmentParams['access_token'];
+        refreshToken ??= fragmentParams['refresh_token'];
+      }
+
+      if (mounted) {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => ResetPasswordPage(
+              code: code,
+              accessToken: accessToken,
+              refreshToken: refreshToken,
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _deepLinkSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _resolveStartupDestination() async {
+    final initialUri = await _appLinks.getInitialLink();
+    if (initialUri != null && _isPasswordResetLink(initialUri)) {
+      String? code = initialUri.queryParameters['code'];
+      String? accessToken = initialUri.queryParameters['access_token'];
+      String? refreshToken = initialUri.queryParameters['refresh_token'];
+      
+      if (initialUri.fragment.isNotEmpty) {
+        final fragmentParams = Uri.splitQueryString(initialUri.fragment);
+        code ??= fragmentParams['code'];
+        accessToken ??= fragmentParams['access_token'];
+        refreshToken ??= fragmentParams['refresh_token'];
+      }
+
+      if (mounted) {
+        setState(() {
+          _destination = ResetPasswordPage(
+            code: code,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+          );
+          _loading = false;
+        });
+      }
+      return;
+    }
+
     final session = _supabase.auth.currentSession;
     if (session == null || session.user.id.isEmpty) {
       if (!mounted) return;
@@ -117,25 +247,11 @@ class _SessionEntryPageState extends State<_SessionEntryPage> {
           5;
 
       Widget destination;
-      switch (resolvedRole) {
-        case 1:
-          destination = const AdminDashboardPage();
-          break;
-        case 2:
-          destination = const AdminDashboardScreen();
-          break;
-        case 3:
-          destination = const BasDashboardPage();
-          break;
-        case 4:
-          destination = const AgentDashboardPage();
-          break;
-        case 5:
-          destination = const SalesDashboard();
-          break;
-        default:
-          destination = const SalesDashboard();
-          break;
+      // Roles 1-4 are admin area, role 5 is field agent
+      if (resolvedRole == 5) {
+        destination = const AgentDashboardPage();
+      } else {
+        destination = const AdminDashboardPage();
       }
 
       if (!mounted) return;

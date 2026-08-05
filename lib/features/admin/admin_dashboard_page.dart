@@ -74,24 +74,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _enforceRoleAndLoad() async {
     final role = await _dbService.getCurrentUserRole();
-    if (role > 2 && mounted) {
-      Widget destination;
-      switch (role) {
-        case 3:
-          destination = const BasDashboardPage();
-          break;
-        case 4:
-          destination = const AgentDashboardPage();
-          break;
-        case 5:
-          destination = const SalesDashboard();
-          break;
-        default:
-          destination = const AgentDashboardPage();
-      }
+    // Roles 1-4 can access admin area; role 5 is field agent
+    if (role == 5 && mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => destination),
+        MaterialPageRoute(builder: (_) => const AgentDashboardPage()),
         (route) => false,
       );
       return;

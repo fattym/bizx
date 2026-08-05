@@ -5,6 +5,7 @@ import '../../core/constants/agent_screens.dart';
 import '../../core/constants/colors.dart';
 import '../../features/dashboard/my_shops_page.dart';
 import '../../features/admin/target_performance_page.dart';
+import '../../features/events/events_list_page.dart';
 
 class AgentDashboardPage extends StatelessWidget {
   const AgentDashboardPage({super.key});
@@ -92,6 +93,13 @@ class AgentDashboardPage extends StatelessWidget {
                     'Distribute Samples',
                     AppColors.softGold,
                     const AgentDistributeSamplesScreen(),
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    Icons.event,
+                    'Events',
+                    AppColors.infoBlue,
+                    const EventsListPage(),
                   ),
                   _buildDashboardCard(
                     context,

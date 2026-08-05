@@ -15,6 +15,7 @@ import 'project_form_builder_page.dart';
 import 'role3_supervision_dashboard_page.dart';
 import 'role2_route_plan_page.dart';
 import 'role2_schools_outreach_page.dart';
+import 'role2_manager_dashboard_page.dart';
 import '../dashboard/agrovet_onboarding.dart';
 import '../profile/messages_page.dart';
 import '../welcome/auth/login_page.dart';
@@ -46,24 +47,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _enforceRoleAndLoad() async {
     final role = await _dbService.getCurrentUserRole();
-    if (role > 2 && mounted) {
-      Widget destination;
-      switch (role) {
-        case 3:
-          destination = const BasDashboardPage();
-          break;
-        case 4:
-          destination = const AgentDashboardPage();
-          break;
-        case 5:
-          destination = const SalesDashboard();
-          break;
-        default:
-          destination = const AgentDashboardPage();
-      }
+    // Roles 1-4 are admin; redirect only when field agent (5)
+    if (role == 5 && mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => destination),
+        MaterialPageRoute(builder: (_) => const AgentDashboardPage()),
         (route) => false,
       );
       return;
@@ -123,6 +111,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   tooltip: 'Refresh Data',
                 ),
                 IconButton(
+                  icon: const Icon(Icons.event),
+                  onPressed: () => Navigator.pushNamed(context, '/events'),
+                  tooltip: 'Events',
+                ),
+                IconButton(
                   icon: const Icon(Icons.logout),
                   onPressed: _signOut,
                   tooltip: 'Sign Out',
@@ -146,6 +139,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: const Icon(Icons.refresh),
                           onPressed: _refreshData,
                           tooltip: 'Refresh Data',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.event),
+                          onPressed: () => Navigator.pushNamed(context, '/events'),
+                          tooltip: 'Events',
                         ),
                         IconButton(
                           icon: const Icon(Icons.logout),
@@ -355,6 +353,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const AnalyticsPage(),
+                    ),
+                  );
+                }),
+                _buildNavItem(Icons.dashboard, 'Manager Dashboard', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const Role2ManagerDashboardPage(),
                     ),
                   );
                 }),
@@ -591,6 +597,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const AnalyticsPage(),
+                    ),
+                  );
+                }),
+                _buildNavItem(Icons.dashboard, 'Manager Dashboard', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const Role2ManagerDashboardPage(),
                     ),
                   );
                 }),

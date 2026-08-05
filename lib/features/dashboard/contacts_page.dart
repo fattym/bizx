@@ -69,8 +69,7 @@ class _ContactsPageState extends State<ContactsPage> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         setState(() {
-          _locationError =
-              'Location permission is required to show distances.';
+          _locationError = 'Location permission is required to show distances.';
           _isLocating = false;
         });
         return;
@@ -102,37 +101,25 @@ class _ContactsPageState extends State<ContactsPage> {
     final withDistance =
         userLat == null || userLng == null
             ? contacts
-                .map(
-                  (c) => _ContactWithDistance(
-                    contact: c,
-                    distanceKm: null,
-                  ),
-                )
+                .map((c) => _ContactWithDistance(contact: c, distanceKm: null))
                 .toList()
-            : contacts
-                .map(
-                  (c) {
-                    final lat = c.latitude;
-                    final lng = c.longitude;
-                    if (lat == null || lng == null) {
-                      return _ContactWithDistance(
-                        contact: c,
-                        distanceKm: null,
-                      );
-                    }
-                    final distanceMeters = Geolocator.distanceBetween(
-                      userLat,
-                      userLng,
-                      lat,
-                      lng,
-                    );
-                    return _ContactWithDistance(
-                      contact: c,
-                      distanceKm: distanceMeters / 1000,
-                    );
-                  },
-                )
-                .toList();
+            : contacts.map((c) {
+              final lat = c.latitude;
+              final lng = c.longitude;
+              if (lat == null || lng == null) {
+                return _ContactWithDistance(contact: c, distanceKm: null);
+              }
+              final distanceMeters = Geolocator.distanceBetween(
+                userLat,
+                userLng,
+                lat,
+                lng,
+              );
+              return _ContactWithDistance(
+                contact: c,
+                distanceKm: distanceMeters / 1000,
+              );
+            }).toList();
 
     withDistance.sort((a, b) {
       if (a.distanceKm == null && b.distanceKm == null) return 0;
@@ -146,15 +133,16 @@ class _ContactsPageState extends State<ContactsPage> {
       return withDistance.map((e) => e.contact).toList();
     }
 
-    final filtered = withDistance.where((e) {
-      final c = e.contact;
-      return c.name.toLowerCase().contains(q) ||
-          c.phone.toLowerCase().contains(q) ||
-          c.county.toLowerCase().contains(q) ||
-          (c.contactName ?? '').toLowerCase().contains(q) ||
-          (c.contactPhone ?? '').toLowerCase().contains(q) ||
-          (c.dealerType ?? '').toLowerCase().contains(q);
-    }).toList();
+    final filtered =
+        withDistance.where((e) {
+          final c = e.contact;
+          return c.name.toLowerCase().contains(q) ||
+              c.phone.toLowerCase().contains(q) ||
+              c.county.toLowerCase().contains(q) ||
+              (c.contactName ?? '').toLowerCase().contains(q) ||
+              (c.contactPhone ?? '').toLowerCase().contains(q) ||
+              (c.dealerType ?? '').toLowerCase().contains(q);
+        }).toList();
 
     return filtered.map((e) => e.contact).toList();
   }
@@ -173,6 +161,66 @@ class _ContactsPageState extends State<ContactsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Could not open the phone dialer.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String? _normalizePhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.isEmpty) return null;
+    if (digits.startsWith('+')) {
+      return digits.substring(1);
+    }
+    if (digits.startsWith('0')) {
+      return '254${digits.substring(1)}';
+    }
+    if (digits.startsWith('254')) {
+      return digits;
+    }
+    return digits;
+  }
+
+  Future<void> _openWhatsApp(SchoolModel contact) async {
+    final phone = _normalizePhone(contact.phone);
+    if (phone == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No valid phone number found for WhatsApp.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final schoolName = contact.name;
+    final message =
+        'Hello $schoolName, I am reaching out from Longhorn. '
+        'Could we discuss how we can support your institution? '
+        'Looking forward to hearing from you.';
+    final encodedMessage = Uri.encodeComponent(message);
+
+    final deepLink = Uri.parse(
+      'whatsapp://send?phone=$phone&text=$encodedMessage',
+    );
+    final webFallback = Uri.parse('https://wa.me/$phone?text=$encodedMessage');
+
+    final openedDeepLink = await launchUrl(
+      deepLink,
+      mode: LaunchMode.externalApplication,
+    );
+    if (openedDeepLink) return;
+
+    final openedWeb = await launchUrl(
+      webFallback,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!openedWeb && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open WhatsApp.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -283,17 +331,20 @@ class _ContactsPageState extends State<ContactsPage> {
   }
 
   Widget _buildContactTile(SchoolModel contact) {
-    final dealerType = (contact.dealerType ?? '').trim().isNotEmpty
-        ? contact.dealerType!.trim()
-        : 'School';
+    final dealerType =
+        (contact.dealerType ?? '').trim().isNotEmpty
+            ? contact.dealerType!.trim()
+            : 'School';
     final typeColor = _dealerTypeColor(contact.dealerType);
     final primaryPhone = contact.phone.trim();
-    final contactName = contact.contactName?.trim().isNotEmpty ?? false
-        ? contact.contactName!.trim()
-        : null;
-    final contactPhone = contact.contactPhone?.trim().isNotEmpty ?? false
-        ? contact.contactPhone!.trim()
-        : null;
+    final contactName =
+        contact.contactName?.trim().isNotEmpty ?? false
+            ? contact.contactName!.trim()
+            : null;
+    final contactPhone =
+        contact.contactPhone?.trim().isNotEmpty ?? false
+            ? contact.contactPhone!.trim()
+            : null;
     final hasSecondaryPhone =
         contactPhone != null && contactPhone != primaryPhone;
 
@@ -318,8 +369,8 @@ class _ContactsPageState extends State<ContactsPage> {
                   dealerType.toLowerCase() == 'bookshop'
                       ? Icons.storefront_outlined
                       : dealerType.toLowerCase() == 'institution'
-                          ? Icons.account_balance_outlined
-                          : Icons.school_outlined,
+                      ? Icons.account_balance_outlined
+                      : Icons.school_outlined,
                   color: typeColor,
                 ),
               ),
@@ -432,19 +483,37 @@ class _ContactsPageState extends State<ContactsPage> {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Call',
-                onPressed: () => _makePhoneCall(primaryPhone),
-                icon: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'WhatsApp',
+                    onPressed: () => _openWhatsApp(contact),
+                    icon: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF25D369).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: Color(0xFF25D369),
+                      ),
+                    ),
                   ),
-                  child: Icon(
-                    Icons.call_rounded,
-                    color: AppColors.primaryGreen,
+                  IconButton(
+                    tooltip: 'Call',
+                    onPressed: () => _makePhoneCall(primaryPhone),
+                    icon: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.call_rounded,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

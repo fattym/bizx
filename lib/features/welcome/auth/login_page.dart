@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/bas_dashboard_page.dart';
 import '../../../core/constants/agent_dashboard_page.dart';
 import '../../profile/profile_page.dart';
+import 'reset_password_page.dart';
 
 class DeHeusLogin extends StatefulWidget {
   const DeHeusLogin({super.key});
@@ -25,6 +26,7 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -44,6 +46,9 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
   }
 
   Future<void> _loginUser() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
       final authResponse = await supabase.auth.signInWithPassword(
@@ -121,6 +126,10 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -346,20 +355,32 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              "Forgot Password?",
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+            child: TextButton(
+              onPressed:
+                  _isLoading
+                      ? null
+                      : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ResetPasswordPage(),
+                          ),
+                        );
+                      },
+              child: const Text(
+                "Forgot Password?",
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 30),
 
-          // The Login Button
           ElevatedButton(
-            onPressed: _loginUser,
+            onPressed: _isLoading ? null : _loginUser,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accentOrange,
               foregroundColor: AppColors.surfaceWhite,
@@ -369,10 +390,23 @@ class _DeHeusLoginState extends State<DeHeusLogin> {
               ),
               elevation: 0,
             ),
-            child: const Text(
-              "SIGN IN",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text(
+                      "SIGN IN",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
           ),
         ],
       ),

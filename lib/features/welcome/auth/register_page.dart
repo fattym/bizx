@@ -251,6 +251,8 @@ class _DeHeusRegisterState extends State<DeHeusRegister> {
   }
 
   Future<void> _registerUser() async {
+    if (_isLoading) return;
+
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
