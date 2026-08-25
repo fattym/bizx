@@ -26,6 +26,37 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nlikgeqoocimbbqyaegq.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_7GsRwLNjTPaUpulq5GrLfg_4HbEkq3Z';
+
+async function supabaseRestQuery(table, options = {}) {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  if (options.select) url.searchParams.set('select', options.select);
+  if (options.limit) url.searchParams.set('limit', String(options.limit));
+  if (options.offset) url.searchParams.set('offset', String(options.offset));
+  if (options.order) url.searchParams.set('order', options.order);
+  if (options.filter) {
+    for (const [key, value] of Object.entries(options.filter)) {
+      url.searchParams.set(key, value);
+    }
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Supabase query failed: ${response.status} ${text}`);
+  }
+
+  return response.json();
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -89,70 +120,274 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', database: 'mysql', timestamp: new Date().toISOString() });
 });
 
-async function safeQuery(sql, params = []) {
-  try {
-    const [rows] = await pool.query(sql, params);
-    return rows;
-  } catch (error) {
-    if (error.code === 'ER_NO_SUCH_TABLE') {
-      return [];
-    }
-    throw error;
-  }
-}
-
-// Report data fetchers using MySQL
+// Report data fetchers using Supabase REST API
 const REPORT_QUERIES = {
   sales_summary: async () => {
-    const [schools] = await safeQuery('SELECT COUNT(*) AS count FROM schools');
-    const [users] = await safeQuery('SELECT COUNT(*) AS count FROM users');
-    const [orders] = await safeQuery('SELECT COUNT(*) AS count FROM orders');
-    const [orderStats] = await safeQuery(`SELECT status, COUNT(*) AS count, SUM(CAST(checkout_amount AS DECIMAL(12,2))) AS total_amount FROM orders GROUP BY status`);
-    const [pipelineSummary] = await safeQuery(`SELECT sale_status, COUNT(*) AS count, SUM(CAST(expected_value AS DECIMAL(12,2))) AS total_value FROM school_sales GROUP BY sale_status ORDER BY total_value DESC`);
-    const [revenueWon] = await safeQuery(`SELECT SUM(CAST(expected_value AS DECIMAL(12,2))) AS won_value FROM school_sales WHERE sale_status = 'won'`);
-    const [topProducts] = await safeQuery(`SELECT product_name, SUM(quantity) AS total_qty, SUM(CAST(line_total AS DECIMAL(12,2))) AS total_value FROM order_items GROUP BY product_name ORDER BY total_value DESC LIMIT 10`);
+    const [schools, users, orders, schoolSales, orderItems] = await Promise.all([
+      supabaseRestQuery('schools', { select: '*' }),
+      supabaseRestQuery('users', { select: '*' }),
+      supabaseRestQuery('orders', { select: '*' }),
+      supabaseRestQuery('school_sales', { select: '*' }),
+      supabaseRestQuery('order_items', { select: '*' })
+    ]);
+
+    const orderStats = {};
+    orders?.forEach(order => {
+      orderStats[order.status] = (orderStats[order.status] || 0) + 1;
+    });
+
+    const pipelineSummary = {};
+    schoolSales?.forEach(sale => {
+      pipelineSummary[sale.sale_status] = pipelineSummary[sale.sale_status] || { count: 0, total_value: 0 };
+      pipelineSummary[sale.sale_status].count += 1;
+      pipelineSummary[sale.sale_status].total_value += parseFloat(sale.expected_value || 0);
+    });
+
+    const revenueWon = schoolSales?.filter(s => s.sale_status === 'won')
+      .reduce((sum, s) => sum + parseFloat(s.expected_value || 0), 0) || 0;
+
+    const productMap = {};
+    orderItems?.forEach(item => {
+      if (!productMap[item.product_name]) {
+        productMap[item.product_name] = { total_qty: 0, total_value: 0 };
+      }
+      productMap[item.product_name].total_qty += item.quantity || 0;
+      productMap[item.product_name].total_value += parseFloat(item.line_total || 0);
+    });
+    const topProducts = Object.entries(productMap)
+      .map(([name, stats]) => ({ product_name: name, ...stats }))
+      .sort((a, b) => b.total_value - a.total_value)
+      .slice(0, 10);
+
     return {
-      total_schools: (schools && schools[0]?.count) || 0,
-      total_users: (users && users[0]?.count) || 0,
-      total_orders: (orders && orders[0]?.count) || 0,
-      order_status_breakdown: orderStats || [],
-      pipeline_summary: pipelineSummary || [],
-      won_revenue: (revenueWon && revenueWon[0]?.won_value) || 0,
-      top_products: topProducts || []
+      total_schools: schools?.length || 0,
+      total_users: users?.length || 0,
+      total_orders: orders?.length || 0,
+      order_status_breakdown: orderStats,
+      pipeline_summary: pipelineSummary,
+      won_revenue: revenueWon,
+      top_products: topProducts
     };
   },
 
   pipeline_analysis: async () => {
-    const [byStage] = await safeQuery(`SELECT sale_status, COUNT(*) AS opportunities, SUM(CAST(expected_value AS DECIMAL(12,2))) AS total_value, AVG(probability) AS avg_probability, SUM(CAST(weighted_forecast AS DECIMAL(12,2))) AS weighted_forecast FROM school_sales GROUP BY sale_status ORDER BY weighted_forecast DESC`);
-    const [byAgent] = await safeQuery(`SELECT u.full_name, u.role, COUNT(s.id) AS opportunities, SUM(CAST(s.expected_value AS DECIMAL(12,2))) AS total_value, SUM(CAST(s.weighted_forecast AS DECIMAL(12,2))) AS weighted_forecast FROM school_sales s JOIN users u ON s.agent_id = u.id GROUP BY s.agent_id, u.full_name, u.role ORDER BY total_value DESC`);
-    const [staleOpps] = await safeQuery(`SELECT s.id, u.full_name, sch.name AS school_name, s.sale_status, s.next_action, s.next_action_date, s.stage_sla_due_at, s.risk_level FROM school_sales s JOIN users u ON s.agent_id = u.id JOIN schools sch ON s.school_id = sch.id WHERE s.sale_status NOT IN ('won', 'lost', 'dormant') AND (s.next_action_date < CURDATE() OR s.stage_sla_due_at < NOW()) ORDER BY s.risk_level DESC, s.stage_sla_due_at ASC LIMIT 50`);
-    return { by_stage: byStage || [], by_agent: byAgent || [], stale_opportunities: staleOpps || [] };
+    const [schoolSales, users, schools] = await Promise.all([
+      supabaseRestQuery('school_sales', { select: '*' }),
+      supabaseRestQuery('users', { select: 'id, full_name, role' }),
+      supabaseRestQuery('schools', { select: 'id, name' })
+    ]);
+
+    const userMap = Object.fromEntries(users?.map(u => [u.id, u]) || []);
+    const schoolMap = Object.fromEntries(schools?.map(s => [s.id, s]) || []);
+
+    const byStage = {};
+    schoolSales?.forEach(sale => {
+      if (!byStage[sale.sale_status]) {
+        byStage[sale.sale_status] = { count: 0, total_value: 0, total_probability: 0, weighted_forecast: 0 };
+      }
+      byStage[sale.sale_status].count += 1;
+      byStage[sale.sale_status].total_value += parseFloat(sale.expected_value || 0);
+      byStage[sale.sale_status].total_probability += sale.probability || 0;
+      byStage[sale.sale_status].weighted_forecast += parseFloat(sale.weighted_forecast || 0);
+    });
+
+    const byAgent = {};
+    schoolSales?.forEach(sale => {
+      const agentId = sale.agent_id;
+      if (!byAgent[agentId]) {
+        byAgent[agentId] = { full_name: userMap[agentId]?.full_name || 'Unknown', role: userMap[agentId]?.role, opportunities: 0, total_value: 0, weighted_forecast: 0 };
+      }
+      byAgent[agentId].opportunities += 1;
+      byAgent[agentId].total_value += parseFloat(sale.expected_value || 0);
+      byAgent[agentId].weighted_forecast += parseFloat(sale.weighted_forecast || 0);
+    });
+
+    const staleOpps = schoolSales?.filter(s =>
+      !['won', 'lost', 'dormant'].includes(s.sale_status) &&
+      (s.next_action_date && new Date(s.next_action_date) < new Date() ||
+       s.stage_sla_due_at && new Date(s.stage_sla_due_at) < new Date())
+    ).slice(0, 50).map(s => ({
+      id: s.id,
+      agent_name: userMap[s.agent_id]?.full_name || 'Unknown',
+      school_name: schoolMap[s.school_id]?.name || 'Unknown',
+      sale_status: s.sale_status,
+      next_action: s.next_action,
+      next_action_date: s.next_action_date,
+      stage_sla_due_at: s.stage_sla_due_at,
+      risk_level: s.risk_level
+    })) || [];
+
+    return {
+      by_stage: Object.entries(byStage).map(([stage, data]) => ({ sale_status: stage, ...data })),
+      by_agent: Object.entries(byAgent).map(([agent_id, data]) => ({ agent_id, ...data })).sort((a, b) => b.total_value - a.total_value),
+      stale_opportunities: staleOpps
+    };
   },
 
   agent_performance: async () => {
-    const [agents] = await safeQuery(`SELECT u.id, u.full_name, u.role, u.region, COUNT(DISTINCT t.id) AS total_tasks, SUM(t.status = 'closed') AS completed_tasks, COUNT(DISTINCT rp.id) AS total_routes, SUM(rp.status = 'completed') AS completed_routes, COUNT(DISTINCT sv.id) AS total_visits FROM users u LEFT JOIN tasks t ON t.assigned_to = u.id LEFT JOIN route_plans rp ON rp.assigned_to = u.id LEFT JOIN school_visits sv ON sv.agent_id = u.id WHERE u.role IN (4, 5) GROUP BY u.id, u.full_name, u.role, u.region ORDER BY completed_tasks DESC`);
-    const [topSchools] = await safeQuery(`SELECT u.full_name, sch.name AS school_name, COUNT(*) AS visits FROM school_visits sv JOIN users u ON sv.agent_id = u.id JOIN schools sch ON sv.school_id = sch.id GROUP BY sv.agent_id, sch.id, u.full_name, sch.name ORDER BY visits DESC LIMIT 20`);
-    return { agents: agents || [], most_visited_schools: topSchools || [] };
+    const [users, tasks, routePlans, visits, schools] = await Promise.all([
+      supabaseRestQuery('users', { select: '*' }),
+      supabaseRestQuery('tasks', { select: '*' }),
+      supabaseRestQuery('route_plans', { select: '*' }),
+      supabaseRestQuery('school_visits', { select: '*' }),
+      supabaseRestQuery('schools', { select: 'id, name' })
+    ]);
+
+    const schoolMap = Object.fromEntries(schools?.map(s => [s.id, s]) || []);
+
+    const agents = users?.filter(u => u.role === 4 || u.role === 5).map(u => {
+      const userTasks = tasks?.filter(t => t.assigned_to === u.id) || [];
+      const userRoutes = routePlans?.filter(r => r.assigned_to === u.id) || [];
+      const userVisits = visits?.filter(v => v.agent_id === u.id) || [];
+      return {
+        id: u.id,
+        full_name: u.full_name,
+        role: u.role,
+        region: u.region,
+        total_tasks: userTasks.length,
+        completed_tasks: userTasks.filter(t => t.status === 'closed').length,
+        total_routes: userRoutes.length,
+        completed_routes: userRoutes.filter(r => r.status === 'completed').length,
+        total_visits: userVisits.length
+      };
+    }) || [];
+
+    const visitCounts = {};
+    visits?.forEach(v => {
+      const key = `${v.agent_id}-${v.school_id}`;
+      visitCounts[key] = (visitCounts[key] || 0) + 1;
+    });
+    const topSchools = Object.entries(visitCounts)
+      .map(([key, count]) => {
+        const [agentId, schoolId] = key.split('-');
+        return {
+          agent_name: users?.find(u => u.id === agentId)?.full_name || 'Unknown',
+          school_name: schoolMap[schoolId]?.name || 'Unknown',
+          visits: count
+        };
+      })
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 20);
+
+    return { agents, most_visited_schools: topSchools };
   },
 
   regional_summary: async () => {
-    const [byRegion] = await safeQuery(`SELECT r.region, r.sub_region, COUNT(DISTINCT u.id) AS user_count, COUNT(DISTINCT sch.id) AS school_count, COUNT(DISTINCT s.id) AS opportunity_count, COALESCE(SUM(CAST(s.expected_value AS DECIMAL(12,2))), 0) AS pipeline_value, COALESCE(SUM(CASE WHEN s.sale_status = 'won' THEN CAST(s.expected_value AS DECIMAL(12,2)) ELSE 0 END), 0) AS won_value FROM regions r LEFT JOIN users u ON u.region_id = r.id LEFT JOIN schools sch ON sch.region_id = r.id LEFT JOIN school_sales s ON s.region_id = r.id GROUP BY r.id, r.region, r.sub_region ORDER BY pipeline_value DESC`);
-    return { by_region: byRegion || [] };
+    const [regions, users, schools, sales] = await Promise.all([
+      supabaseRestQuery('regions', { select: '*' }),
+      supabaseRestQuery('users', { select: '*' }),
+      supabaseRestQuery('schools', { select: '*' }),
+      supabaseRestQuery('school_sales', { select: '*' })
+    ]);
+
+    const byRegion = regions?.map(r => {
+      const regionUsers = users?.filter(u => u.region_id === r.id) || [];
+      const regionSchools = schools?.filter(s => s.region_id === r.id) || [];
+      const regionSales = sales?.filter(s => s.region_id === r.id) || [];
+      const pipelineValue = regionSales.reduce((sum, s) => sum + parseFloat(s.expected_value || 0), 0);
+      const wonValue = regionSales.filter(s => s.sale_status === 'won').reduce((sum, s) => sum + parseFloat(s.expected_value || 0), 0);
+      return {
+        region: r.region,
+        sub_region: r.sub_region,
+        user_count: regionUsers.length,
+        school_count: regionSchools.length,
+        opportunity_count: regionSales.length,
+        pipeline_value: pipelineValue,
+        won_value: wonValue
+      };
+    }) || [];
+
+    return { by_region: byRegion };
   },
 
   event_summary: async () => {
-    const [events] = await safeQuery(`SELECT e.id, e.name, e.event_type, e.region, e.start_at, e.end_at, e.expected_attendance, e.budget, e.status, COUNT(DISTINCT ea.agent_id) AS assigned_agents, COUNT(DISTINCT ec.id) AS checkins, COUNT(DISTINCT el.id) AS leads, COUNT(DISTINCT es.id) AS samples, COALESCE(SUM(CAST(ee.amount AS DECIMAL(12,2))), 0) AS total_expenses FROM events e LEFT JOIN event_assignments ea ON ea.event_id = e.id LEFT JOIN event_checkins ec ON ec.event_id = e.id LEFT JOIN event_leads el ON el.event_id = e.id LEFT JOIN event_samples es ON es.event_id = e.id LEFT JOIN event_expenses ee ON ee.event_id = e.id GROUP BY e.id ORDER BY e.start_at DESC`);
-    return { events: events || [] };
+    const [events, assignments, checkins, leads, samples, expenses] = await Promise.all([
+      supabaseRestQuery('events', { select: '*' }),
+      supabaseRestQuery('event_assignments', { select: '*' }),
+      supabaseRestQuery('event_checkins', { select: '*' }),
+      supabaseRestQuery('event_leads', { select: '*' }),
+      supabaseRestQuery('event_samples', { select: '*' }),
+      supabaseRestQuery('event_expenses', { select: '*' })
+    ]);
+
+    const eventSummaries = events?.map(e => {
+      const eventAssignments = assignments?.filter(a => a.event_id === e.id) || [];
+      const eventCheckins = checkins?.filter(c => c.event_id === e.id) || [];
+      const eventLeads = leads?.filter(l => l.event_id === e.id) || [];
+      const eventSamples = samples?.filter(s => s.event_id === e.id) || [];
+      const eventExpenses = expenses?.filter(ex => ex.event_id === e.id) || [];
+      return {
+        id: e.id,
+        name: e.name,
+        event_type: e.event_type,
+        region: e.region,
+        start_at: e.start_at,
+        end_at: e.end_at,
+        expected_attendance: e.expected_attendance,
+        budget: e.budget,
+        status: e.status,
+        assigned_agents: new Set(eventAssignments.map(a => a.agent_id)).size,
+        checkins: eventCheckins.length,
+        leads: eventLeads.length,
+        samples: eventSamples.length,
+        total_expenses: eventExpenses.reduce((sum, ex) => sum + parseFloat(ex.amount || 0), 0)
+      };
+    }) || [];
+
+    return { events: eventSummaries };
   },
 
   sample_roi: async () => {
-    const [roi] = await safeQuery(`SELECT u.full_name, u.role, COUNT(DISTINCT ssd.id) AS samples_given, COUNT(DISTINCT ssd.school_id) AS schools_reached, COALESCE(SUM(CASE WHEN o.status IN ('approved', 'paid', 'completed') THEN CAST(o.checkout_amount AS DECIMAL(12,2)) ELSE 0 END), 0) AS revenue_earned, COALESCE(SUM(CASE WHEN ss.sale_status = 'won' THEN CAST(ss.expected_value AS DECIMAL(12,2)) ELSE 0 END), 0) AS won_value FROM users u LEFT JOIN school_sample_distributions ssd ON ssd.agent_id = u.id LEFT JOIN orders o ON o.agent_id = u.id LEFT JOIN school_sales ss ON ss.agent_id = u.id WHERE u.role IN (4, 5) GROUP BY u.id, u.full_name, u.role ORDER BY revenue_earned DESC`);
-    return { roi: roi || [] };
+    const [users, distributions, orders, sales] = await Promise.all([
+      supabaseRestQuery('users', { select: '*' }),
+      supabaseRestQuery('school_sample_distributions', { select: '*' }),
+      supabaseRestQuery('orders', { select: '*' }),
+      supabaseRestQuery('school_sales', { select: '*' })
+    ]);
+
+    const roi = users?.filter(u => u.role === 4 || u.role === 5).map(u => {
+      const userDists = distributions?.filter(d => d.agent_id === u.id) || [];
+      const userOrders = orders?.filter(o => o.agent_id === u.id) || [];
+      const userSales = sales?.filter(s => s.agent_id === u.id) || [];
+      const schoolsReached = new Set(userDists.map(d => d.school_id)).size;
+      const revenueEarned = userOrders
+        .filter(o => ['approved', 'paid', 'completed'].includes(o.status))
+        .reduce((sum, o) => sum + parseFloat(o.checkout_amount || 0), 0);
+      const wonValue = userSales.filter(s => s.sale_status === 'won').reduce((sum, s) => sum + parseFloat(s.expected_value || 0), 0);
+      return {
+        full_name: u.full_name,
+        role: u.role,
+        samples_given: userDists.length,
+        schools_reached: schoolsReached,
+        revenue_earned: revenueEarned,
+        won_value: wonValue
+      };
+    }) || [];
+
+    return { roi };
   },
 
   targets_analysis: async () => {
-    const [targets] = await safeQuery(`SELECT t.scope, t.target_type, t.target_period, r.region, r.sub_region, u.full_name AS assigned_to_name, t.target_data FROM targets t LEFT JOIN regions r ON r.id = t.region_id LEFT JOIN users u ON u.id = t.assigned_to ORDER BY t.scope, t.target_type, t.target_period`);
-    return { targets: targets || [] };
+    const [targets, regions, users] = await Promise.all([
+      supabaseRestQuery('targets', { select: '*' }),
+      supabaseRestQuery('regions', { select: '*' }),
+      supabaseRestQuery('users', { select: 'id, full_name' })
+    ]);
+
+    const regionMap = Object.fromEntries(regions?.map(r => [r.id, r]) || []);
+    const userMap = Object.fromEntries(users?.map(u => [u.id, u]) || []);
+
+    const formatted = targets?.map(t => ({
+      scope: t.scope,
+      target_type: t.target_type,
+      target_period: t.target_period,
+      region: regionMap[t.region_id]?.region,
+      sub_region: regionMap[t.region_id]?.sub_region,
+      assigned_to_name: userMap[t.assigned_to]?.full_name,
+      target_data: t.target_data
+    })) || [];
+
+    return { targets: formatted };
   }
 };
 
@@ -285,7 +520,7 @@ app.get('/api/ai/data/:table', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
     const offset = parseInt(req.query.offset || '0', 10);
 
-    const [rows] = await safeQuery(`SELECT * FROM ${table} LIMIT ? OFFSET ?`, [limit, offset]);
+    const [rows] = await pool.query(`SELECT * FROM ${table} LIMIT ? OFFSET ?`, [limit, offset]);
     res.json({ table, count: rows.length, data: rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
