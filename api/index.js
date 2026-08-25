@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+const { DB_SCHEMA_PROMPT } = require('./schema_context');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -104,8 +105,8 @@ app.post('/api/ai/chat', async (req, res) => {
     }
 
     const systemPrompt = context 
-      ? `You are an AI assistant for DeHeus sales performance analytics. Help analyze the following performance data and answer questions about it.\n\nPerformance Context:\n${context}`
-      : 'You are an AI assistant for DeHeus sales performance analytics. Help answer questions about sales performance, targets, and metrics.';
+      ? `${DB_SCHEMA_PROMPT}\n\nYou are analyzing the following performance data. Answer questions about it accurately using your schema knowledge.\n\nPerformance Context:\n${context}`
+      : DB_SCHEMA_PROMPT;
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
