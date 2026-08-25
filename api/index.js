@@ -6,12 +6,20 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// MySQL configuration
+const dbHost = process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost';
+const dbUser = process.env.DB_USER || process.env.MYSQL_USER || 'root';
+const dbPassword = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '';
+const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || '';
+
+if (!dbPassword || !dbName) {
+  console.warn('Warning: Database credentials not fully configured. Set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME or Railway MySQL variables.');
+}
+
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: dbHost,
+  user: dbUser,
+  password: dbPassword,
+  database: dbName,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
