@@ -18,6 +18,17 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   final List<Map<String, String>> _messages = [];
   bool _isWaiting = false;
   int _currentUserRole = 5;
+  String? _selectedReportType;
+
+  final List<Map<String, String>> _reportTypes = const [
+    {'value': 'sales_summary', 'label': 'Sales Summary'},
+    {'value': 'pipeline_analysis', 'label': 'Pipeline Analysis'},
+    {'value': 'agent_performance', 'label': 'Agent Performance'},
+    {'value': 'regional_summary', 'label': 'Regional Summary'},
+    {'value': 'event_summary', 'label': 'Event Summary'},
+    {'value': 'sample_roi', 'label': 'Sample ROI'},
+    {'value': 'targets_analysis', 'label': 'Targets Analysis'},
+  ];
 
   @override
   void initState() {
@@ -65,6 +76,51 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       } else {
         setState(() {
           _messages.add({'role': 'assistant', 'content': 'Error: ${response.statusCode}'});
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isWaiting = false;
+        _messages.add({'role': 'assistant', 'content': 'Error: $e'});
+      });
+    }
+  }
+
+  Future<void> _generateReport() async {
+    final reportType = _selectedReportType;
+    if (reportType == null || _isWaiting) return;
+
+    final label = _reportTypes.firstWhere((r) => r['value'] == reportType, orElse: () => const {'label': 'Report'})['label']!;
+
+    setState(() {
+      _messages.add({'role': 'user', 'content': 'Generate report: $label'});
+      _isWaiting = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/ai/report'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'report_type': reportType,
+          'prompt': 'Generate a comprehensive report with insights and recommendations.',
+        }),
+      );
+
+      if (!mounted) return;
+      setState(() => _isWaiting = false);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final report = data['report'] as String? ?? 'No report generated.';
+        setState(() {
+          _messages.add({'role': 'assistant', 'content': report});
+        });
+      } else {
+        final error = jsonDecode(response.body) as Map<String, dynamic>?;
+        setState(() {
+          _messages.add({'role': 'assistant', 'content': 'Report error: ${error?['error'] ?? response.statusCode}'});
         });
       }
     } catch (e) {
@@ -151,6 +207,38 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                 IconButton(
                   icon: const Icon(Icons.send),
                   onPressed: _isWaiting ? null : _sendMessage,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      hint: const Text('Generate Report'),
+                      isExpanded: true,
+                      value: _selectedReportType,
+                      items: _reportTypes
+                          .map((r) => DropdownMenuItem<String>(
+                                value: r['value'],
+                                child: Text(r['label']!),
+                              ))
+                          .toList(),
+                      onChanged: _isWaiting ? null : (value) {
+                        setState(() {
+                          _selectedReportType = value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.analytics),
+                  onPressed: _isWaiting ? null : _generateReport,
                 ),
               ],
             ),
