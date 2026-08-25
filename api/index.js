@@ -216,7 +216,6 @@ ${reportContext}`;
     res.json({
       report_type,
       generated_at: new Date().toISOString(),
-      data,
       report: result.choices[0]?.message?.content || 'No report generated.'
     });
   } catch (error) {

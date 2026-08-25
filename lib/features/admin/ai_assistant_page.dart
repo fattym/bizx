@@ -18,17 +18,6 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   final List<Map<String, String>> _messages = [];
   bool _isWaiting = false;
   int _currentUserRole = 5;
-  String? _selectedReportType;
-
-  final List<Map<String, String>> _reportTypes = const [
-    {'value': 'sales_summary', 'label': 'Sales Summary'},
-    {'value': 'pipeline_analysis', 'label': 'Pipeline Analysis'},
-    {'value': 'agent_performance', 'label': 'Agent Performance'},
-    {'value': 'regional_summary', 'label': 'Regional Summary'},
-    {'value': 'event_summary', 'label': 'Event Summary'},
-    {'value': 'sample_roi', 'label': 'Sample ROI'},
-    {'value': 'targets_analysis', 'label': 'Targets Analysis'},
-  ];
 
   @override
   void initState() {
@@ -87,14 +76,11 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     }
   }
 
-  Future<void> _generateReport() async {
-    final reportType = _selectedReportType;
-    if (reportType == null || _isWaiting) return;
-
-    final label = _reportTypes.firstWhere((r) => r['value'] == reportType, orElse: () => const {'label': 'Report'})['label']!;
+  Future<void> _generateReport(String reportType, String label) async {
+    if (_isWaiting) return;
 
     setState(() {
-      _messages.add({'role': 'user', 'content': 'Generate report: $label'});
+      _messages.add({'role': 'user', 'content': 'Generate $label report'});
       _isWaiting = true;
     });
 
@@ -211,35 +197,24 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               ],
             ),
           ),
-          Container(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      hint: const Text('Generate Report'),
-                      isExpanded: true,
-                      value: _selectedReportType,
-                      items: _reportTypes
-                          .map((r) => DropdownMenuItem<String>(
-                                value: r['value'],
-                                child: Text(r['label']!),
-                              ))
-                          .toList(),
-                      onChanged: _isWaiting ? null : (value) {
-                        setState(() {
-                          _selectedReportType = value;
-                        });
-                      },
-                    ),
-                  ),
-                ),
+                _ReportChip(label: 'Sales', onTap: () => _generateReport('sales_summary', 'Sales Summary')),
                 const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.analytics),
-                  onPressed: _isWaiting ? null : _generateReport,
-                ),
+                _ReportChip(label: 'Pipeline', onTap: () => _generateReport('pipeline_analysis', 'Pipeline Analysis')),
+                const SizedBox(width: 8),
+                _ReportChip(label: 'Agents', onTap: () => _generateReport('agent_performance', 'Agent Performance')),
+                const SizedBox(width: 8),
+                _ReportChip(label: 'Regions', onTap: () => _generateReport('regional_summary', 'Regional Summary')),
+                const SizedBox(width: 8),
+                _ReportChip(label: 'Events', onTap: () => _generateReport('event_summary', 'Event Summary')),
+                const SizedBox(width: 8),
+                _ReportChip(label: 'Samples', onTap: () => _generateReport('sample_roi', 'Sample ROI')),
+                const SizedBox(width: 8),
+                _ReportChip(label: 'Targets', onTap: () => _generateReport('targets_analysis', 'Targets Analysis')),
               ],
             ),
           ),
@@ -252,5 +227,22 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+}
+
+class _ReportChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _ReportChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      backgroundColor: AppColors.primaryPale,
+      labelStyle: const TextStyle(color: AppColors.primaryDark),
+      onPressed: onTap,
+    );
   }
 }
