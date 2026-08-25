@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/colors.dart';
+import '../../core/config/api_config.dart';
 import '../../models/target_model.dart';
 import '../../models/region_model.dart';
 import '../../models/user_model.dart';
@@ -779,7 +780,7 @@ class _TargetPerformancePageState extends State<TargetPerformancePage> with Sing
     try {
       setWaiting(true);
       final response = await http.post(
-        Uri.parse('http://localhost:3000/api/ai/chat'),
+        Uri.parse(ApiConfig.aiChatUrl()),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'messages': messages.map((m) => {'role': m['role'], 'content': m['content']}).toList(),

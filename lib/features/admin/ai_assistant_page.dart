@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/colors.dart';
+import '../../core/config/api_config.dart';
 import '../database/database_service.dart';
 
 class AiAssistantPage extends StatefulWidget {
@@ -44,7 +45,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/api/ai/chat'),
+        Uri.parse(ApiConfig.aiChatUrl()),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'messages': _messages.map((m) => {'role': m['role'], 'content': m['content']}).toList(),
