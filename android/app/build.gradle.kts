@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.dehus"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -42,4 +42,18 @@ android {
 
 flutter {
     source = "../.."
+}
+
+afterEvaluate {
+    tasks.findByName("compileReleaseJavaWithJavac")?.let {
+        (it as JavaCompile).exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
+    }
+
+    val filePicker = project(":file_picker")
+    filePicker.pluginManager.apply("org.jetbrains.kotlin.android")
+    filePicker.afterEvaluate {
+        filePicker.tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
 }

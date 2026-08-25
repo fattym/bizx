@@ -30,6 +30,7 @@ import 'features/events/event_leads_page.dart';
 import 'features/events/event_photos_page.dart';
 import 'features/events/event_expenses_page.dart';
 import 'features/events/event_reports_page.dart';
+import 'features/events/event_samples_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,6 +107,7 @@ class DeHeusApp extends StatelessWidget {
         '/events/photos': (_) => const EventPhotosPage(),
         '/events/expenses': (_) => const EventExpensesPage(),
         '/events/reports': (_) => const EventReportsPage(),
+        '/events/samples': (_) => const EventSamplesPage(),
       },
 
       onGenerateRoute: _onGenerateRoute,

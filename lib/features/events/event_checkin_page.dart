@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EventCheckinPage extends StatefulWidget {
   const EventCheckinPage({super.key});
@@ -34,10 +36,60 @@ class _EventCheckinPageState extends State<EventCheckinPage> {
     }
   }
 
+  Future<void> _performCheckin() async {
+    final id = _eventId;
+    if (id == null) return;
+    
+    setState(() => _loading = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled.');
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions are denied');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions are permanently denied, we cannot request permissions.');
+      } 
+
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      await _supabase.from('event_checkins').insert({
+        'event_id': id,
+        'agent_id': currentUser?.id,
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Successfully checked in!')));
+      _load();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Check-in failed: $e')));
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Check-ins')),
+      appBar: AppBar(
+        title: const Text('Check-ins'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.location_on),
+            tooltip: 'Check In (GPS)',
+            onPressed: _performCheckin,
+          )
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(

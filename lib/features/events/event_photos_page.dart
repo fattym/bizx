@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class EventPhotosPage extends StatefulWidget {
   const EventPhotosPage({super.key});
@@ -34,6 +36,42 @@ class _EventPhotosPageState extends State<EventPhotosPage> {
     }
   }
 
+  Future<void> _uploadPhoto() async {
+    final id = _eventId;
+    if (id == null) return;
+    
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.camera);
+      
+      if (image == null) return;
+
+      setState(() => _loading = true);
+      
+      final file = File(image.path);
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+      
+      // Assumes there's an 'event_photos' storage bucket created in Supabase
+      await _supabase.storage.from('event_photos').upload(fileName, file);
+      
+      final imageUrl = _supabase.storage.from('event_photos').getPublicUrl(fileName);
+      
+      final currentUser = _supabase.auth.currentUser;
+      await _supabase.from('event_photos').insert({
+        'event_id': id,
+        'agent_id': currentUser?.id,
+        'photo_url': imageUrl,
+        'category': 'General',
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo uploaded successfully!')));
+      _load();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,6 +90,11 @@ class _EventPhotosPageState extends State<EventPhotosPage> {
                 );
               },
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _uploadPhoto,
+        tooltip: 'Take Photo',
+        child: const Icon(Icons.camera_alt),
+      ),
     );
   }
 }

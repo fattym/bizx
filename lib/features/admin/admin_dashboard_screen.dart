@@ -1,6 +1,7 @@
 import 'regions_management_page.dart';
 import 'targets_page.dart';
 import 'target_performance_page.dart';
+import 'ai_assistant_page.dart';
 import 'package:flutter/material.dart';
 import 'analytics_page.dart';
 import 'import_schools_page.dart';
@@ -18,6 +19,7 @@ import 'role2_schools_outreach_page.dart';
 import 'role2_manager_dashboard_page.dart';
 import '../dashboard/agrovet_onboarding.dart';
 import '../profile/messages_page.dart';
+import '../events/events_list_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/agent_dashboard_page.dart';
@@ -224,6 +226,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   );
                 }),
+                _buildNavItem(Icons.smart_toy, 'AI Assistant', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AiAssistantPage(),
+                    ),
+                  );
+                }),
                 _buildNavItem(Icons.person_pin_circle, 'Agent Tracker', () {
                   Navigator.push(
                     context,
@@ -237,6 +247,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const MessagesPage(),
+                    ),
+                  );
+                }),
+                _buildNavItem(Icons.event, 'Events', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EventsListPage(),
                     ),
                   );
                 }),
@@ -468,6 +486,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   );
                 }),
+                _buildNavItem(Icons.smart_toy, 'AI Assistant', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AiAssistantPage(),
+                    ),
+                  );
+                }),
                 _buildNavItem(Icons.person_pin_circle, 'Agent Tracker', () {
                   Navigator.push(
                     context,
@@ -481,6 +507,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const MessagesPage(),
+                    ),
+                  );
+                }),
+                _buildNavItem(Icons.event, 'Events', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EventsListPage(),
                     ),
                   );
                 }),

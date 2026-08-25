@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/colors.dart';
@@ -312,6 +314,11 @@ class _TargetPerformancePageState extends State<TargetPerformancePage> with Sing
         backgroundColor: AppColors.primaryDark,
         foregroundColor: AppColors.surfaceWhite,
         actions: [
+          if (_currentUserRole <= 2)
+            IconButton(
+              icon: const Icon(Icons.smart_toy),
+              onPressed: _showAiAssistant,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadPerformance,
@@ -653,6 +660,178 @@ class _TargetPerformancePageState extends State<TargetPerformancePage> with Sing
         ],
       ),
     );
+  }
+
+  Future<void> _showAiAssistant() async {
+    final messages = <Map<String, String>>[];
+    final controller = TextEditingController();
+    final contextSummary = _buildPerformanceContext();
+    bool isWaiting = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.smart_toy, color: AppColors.primaryDark),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('AI Assistant')),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          final isUser = msg['role'] == 'user';
+                          return Align(
+                            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isUser ? AppColors.primaryDark : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                msg['content'] ?? '',
+                                style: TextStyle(color: isUser ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (isWaiting)
+                      const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          hintText: 'Ask about performance...',
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: (value) {
+                          if (value.trim().isEmpty || isWaiting) return;
+                          _sendAiMessage(controller, messages, setState, contextSummary, (v) {
+                            setState(() => isWaiting = v);
+                          }).then((_) {
+                            controller.clear();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: isWaiting
+                          ? null
+                          : () {
+                              if (controller.text.trim().isEmpty) return;
+                              _sendAiMessage(controller, messages, setState, contextSummary, (v) {
+                                setState(() => isWaiting = v);
+                              }).then((_) {
+                                controller.clear();
+                              });
+                            },
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _sendAiMessage(
+    TextEditingController controller,
+    List<Map<String, String>> messages,
+    StateSetter setState,
+    String contextSummary,
+    void Function(bool) setWaiting,
+  ) async {
+    final userMessage = controller.text.trim();
+    if (userMessage.isEmpty) return;
+
+    setState(() {
+      messages.add({'role': 'user', 'content': userMessage});
+    });
+
+    try {
+      setWaiting(true);
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/api/ai/chat'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'messages': messages.map((m) => {'role': m['role'], 'content': m['content']}).toList(),
+          'context': contextSummary,
+        }),
+      );
+
+      setWaiting(false);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final assistantMessage = data['choices']?[0]?['message']?['content'] ?? 'Sorry, I could not generate a response.';
+        setState(() {
+          messages.add({'role': 'assistant', 'content': assistantMessage});
+        });
+      } else {
+        setState(() {
+          messages.add({'role': 'assistant', 'content': 'Error: ${response.statusCode}'});
+        });
+      }
+    } catch (e) {
+      setWaiting(false);
+      setState(() {
+        messages.add({'role': 'assistant', 'content': 'Error: $e'});
+      });
+    }
+  }
+
+  String _buildPerformanceContext() {
+    final buffer = StringBuffer();
+    buffer.writeln('Current Scope: $_selectedScope');
+    if (_selectedScope == 'regional' && _selectedRegionId != null) {
+      final region = _regions.firstWhere((r) => r.id == _selectedRegionId, orElse: () => _regions.first);
+      buffer.writeln('Region: ${region.region}');
+      if (_selectedSubRegion != null) {
+        buffer.writeln('Sub Region: $_selectedSubRegion');
+      }
+    }
+    if (_selectedAssigneeId != null) {
+      final assignee = _getAssigneeList().firstWhere((u) => u.id == _selectedAssigneeId, orElse: () => _getAssigneeList().first);
+      buffer.writeln('Assignee: ${assignee.fullName ?? _selectedAssigneeId}');
+    }
+    buffer.writeln('\nPerformance Summary:');
+    for (final row in _rows) {
+      buffer.writeln('\n- ${row.user.fullName ?? row.user.email} (${_roleLabel(row.user.role)}):');
+      for (final period in ['daily', 'weekly', 'monthly', 'ytd']) {
+        final pProduct = row.percentages['$period-products'] ?? 0.0;
+        final pVisit = row.percentages['$period-visits'] ?? 0.0;
+        final pCollection = row.percentages['$period-collections'] ?? 0.0;
+        buffer.writeln('  $period: Products ${pProduct.toStringAsFixed(1)}%, Visits ${pVisit.toStringAsFixed(1)}%, Collections ${pCollection.toStringAsFixed(1)}%');
+      }
+    }
+    return buffer.toString();
   }
 
   String _roleLabel(int role) {

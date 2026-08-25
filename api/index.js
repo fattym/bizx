@@ -85,6 +85,47 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', database: 'mysql', timestamp: new Date().toISOString() });
 });
 
+// AI Chat proxy - forwards requests to OpenRouter API
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { messages, context } = req.body;
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    
+    if (!openRouterKey) {
+      return res.status(500).json({ error: 'OpenRouter API key not configured on server' });
+    }
+
+    const systemPrompt = context 
+      ? `You are an AI assistant for DeHeus sales performance analytics. Help analyze the following performance data and answer questions about it.\n\nPerformance Context:\n${context}`
+      : 'You are an AI assistant for DeHeus sales performance analytics. Help answer questions about sales performance, targets, and metrics.';
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openRouterKey}`,
+        'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'https://deheus.app',
+        'X-OpenRouter-Title': process.env.OPENROUTER_APP_TITLE || 'DeHeus Sales App',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json(data);
+    }
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Register routes for main tables
 const tables = [
   'users',

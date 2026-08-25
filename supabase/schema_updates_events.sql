@@ -218,4 +218,28 @@ END$$;
 
 -- Optional: basic privilege guidance (owners may ALTER as needed)
 
+-- Dummy event for testing (safe to rerun)
+INSERT INTO public.events (
+  id, name, event_type, organization, venue, region, subregion,
+  start_at, end_at, expected_attendance, budget, objectives, products, notes, status, "isSynced", created_at, updated_at
+) VALUES (
+  '11111111-1111-4111-8111-111111111111',
+  'Back to School Activation (Dummy)',
+  'Activation',
+  'ACME Books',
+  'Green Valley School',
+  'Nairobi',
+  'West',
+  '2026-08-20T09:00:00+03:00'::timestamptz,
+  '2026-08-20T15:00:00+03:00'::timestamptz,
+  300,
+  50000.00,
+  'Promote textbooks',
+  '[{"product":"Mathematics Books","qty":40},{"product":"English Books","qty":20}]'::jsonb,
+  'Dummy event for testing',
+  'scheduled',
+  false,
+  now(), now()
+) ON CONFLICT (id) DO NOTHING;
+
 -- End of event module schema updates

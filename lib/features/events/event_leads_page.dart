@@ -15,7 +15,12 @@ class _EventLeadsPageState extends State<EventLeadsPage> {
   String? get _eventId => ModalRoute.of(context)?.settings.arguments is Map ? (ModalRoute.of(context)!.settings.arguments as Map)['id'] as String? : null;
 
   final _name = TextEditingController();
+  final _school = TextEditingController();
   final _phone = TextEditingController();
+  final _email = TextEditingController();
+  final _products = TextEditingController();
+  final _timeline = TextEditingController();
+  final _notes = TextEditingController();
 
   @override
   void initState() {
@@ -44,10 +49,20 @@ class _EventLeadsPageState extends State<EventLeadsPage> {
       await _supabase.from('event_leads').insert({
         'event_id': id,
         'lead_name': _name.text.trim(),
+        'school_name': _school.text.trim(),
         'phone': _phone.text.trim(),
+        'email': _email.text.trim(),
+        'interested_products': _products.text.trim(),
+        'purchase_timeline': _timeline.text.trim(),
+        'notes': _notes.text.trim(),
       });
       _name.clear();
+      _school.clear();
       _phone.clear();
+      _email.clear();
+      _products.clear();
+      _timeline.clear();
+      _notes.clear();
       _load();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create failed: $e')));
@@ -57,7 +72,12 @@ class _EventLeadsPageState extends State<EventLeadsPage> {
   @override
   void dispose() {
     _name.dispose();
+    _school.dispose();
     _phone.dispose();
+    _email.dispose();
+    _products.dispose();
+    _timeline.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -68,12 +88,20 @@ class _EventLeadsPageState extends State<EventLeadsPage> {
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Row(children: [
-            Expanded(child: TextField(controller: _name, decoration: const InputDecoration(hintText: 'Name'))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: _phone, decoration: const InputDecoration(hintText: 'Phone'))),
-            IconButton(icon: const Icon(Icons.add), onPressed: _createLead)
-          ]),
+          child: ExpansionTile(
+            title: const Text('Add New Lead'),
+            children: [
+              TextField(controller: _name, decoration: const InputDecoration(hintText: 'Lead Name')),
+              TextField(controller: _school, decoration: const InputDecoration(hintText: 'School Name')),
+              TextField(controller: _phone, decoration: const InputDecoration(hintText: 'Phone')),
+              TextField(controller: _email, decoration: const InputDecoration(hintText: 'Email')),
+              TextField(controller: _products, decoration: const InputDecoration(hintText: 'Interested Products')),
+              TextField(controller: _timeline, decoration: const InputDecoration(hintText: 'Purchase Timeline')),
+              TextField(controller: _notes, decoration: const InputDecoration(hintText: 'Notes'), maxLines: 2),
+              const SizedBox(height: 8),
+              ElevatedButton(onPressed: _createLead, child: const Text('Save Lead'))
+            ],
+          ),
         ),
         Expanded(
           child: _loading

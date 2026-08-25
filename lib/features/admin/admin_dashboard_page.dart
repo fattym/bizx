@@ -12,9 +12,11 @@ import 'regions_page.dart';
 import 'regions_management_page.dart';
 import 'targets_page.dart';
 import 'target_performance_page.dart';
+import 'ai_assistant_page.dart';
 import 'catalog_import_page.dart';
 import '../dashboard/my_orders_page.dart';
 import '../profile/messages_page.dart';
+import '../events/events_list_page.dart';
 import '../welcome/auth/login_page.dart';
 import 'users_list_page.dart';
 import 'assign_books_page.dart';
@@ -965,6 +967,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const TargetPerformancePage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
+                _buildSidebarItem(context, Icons.smart_toy, 'AI Assistant', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AiAssistantPage(),
+                    ),
+                  );
+                }, isCollapsed: isCollapsed),
+                _buildSidebarItem(context, Icons.event, 'Events', () {
+                  if (MediaQuery.of(context).size.width < 800) {
+                    Navigator.pop(context);
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EventsListPage(),
                     ),
                   );
                 }, isCollapsed: isCollapsed),
