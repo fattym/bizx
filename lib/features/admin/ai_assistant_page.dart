@@ -63,15 +63,17 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
           _messages.add({'role': 'assistant', 'content': assistantMessage});
         });
       } else {
+        final error = jsonDecode(response.body) as Map<String, dynamic>?;
+        final errorMessage = error?['error']?.toString() ?? 'AI assistant is temporarily unavailable. Please try again later.';
         setState(() {
-          _messages.add({'role': 'assistant', 'content': 'Error: ${response.statusCode}'});
+          _messages.add({'role': 'assistant', 'content': 'Error: $errorMessage'});
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isWaiting = false;
-        _messages.add({'role': 'assistant', 'content': 'Error: $e'});
+        _messages.add({'role': 'assistant', 'content': 'Error: Unable to reach the AI assistant. Please check your connection and try again.'});
       });
     }
   }
@@ -85,12 +87,23 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     });
 
     try {
+      final cacheKey = 'report_${reportType}_${_currentUserRole}';
+      final cachedReport = await _dbService.getCachedReport(cacheKey);
+      if (cachedReport != null) {
+        setState(() {
+          _messages.add({'role': 'assistant', 'content': cachedReport['report']?.toString() ?? 'No report content.'});
+          _isWaiting = false;
+        });
+        return;
+      }
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/ai/report'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'report_type': reportType,
           'prompt': 'Generate a comprehensive report with insights and recommendations.',
+          'filters': {},
         }),
       );
 
@@ -100,20 +113,22 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final report = data['report'] as String? ?? 'No report generated.';
+        await _dbService.cacheReport(cacheKey, data);
         setState(() {
           _messages.add({'role': 'assistant', 'content': report});
         });
       } else {
         final error = jsonDecode(response.body) as Map<String, dynamic>?;
+        final errorMessage = error?['error']?.toString() ?? 'Report generation is temporarily unavailable. Please try again later.';
         setState(() {
-          _messages.add({'role': 'assistant', 'content': 'Report error: ${error?['error'] ?? response.statusCode}'});
+          _messages.add({'role': 'assistant', 'content': 'Report error: $errorMessage'});
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isWaiting = false;
-        _messages.add({'role': 'assistant', 'content': 'Error: $e'});
+        _messages.add({'role': 'assistant', 'content': 'Error: Unable to generate report. Please check your connection and try again.'});
       });
     }
   }

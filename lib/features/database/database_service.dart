@@ -17,10 +17,12 @@ class DatabaseService {
   static Future<Box<dynamic>>? _schoolBoxFuture;
   static Future<Box<dynamic>>? _catalogBoxFuture;
   static Future<Box<dynamic>>? _pendingOpsBoxFuture;
+  static Future<Box<dynamic>>? _reportsCacheBoxFuture;
   final Future<List<ConnectivityResult>> Function()? _connectivityCheck;
   final Future<Box<dynamic>> Function()? _schoolBoxProvider;
   final Future<Box<dynamic>> Function()? _catalogBoxProvider;
   final Future<Box<dynamic>> Function()? _pendingOpsBoxProvider;
+  final Future<Box<dynamic>> Function()? _reportsCacheBoxProvider;
   final Future<void> Function(Map<String, dynamic>)? _upsertSchoolOverride;
   final Future<void> Function(SchoolModel)? _syncEngagementOverride;
   final Future<void> Function(Map<String, dynamic>)? _upsertCatalogOverride;
@@ -31,6 +33,7 @@ class DatabaseService {
     Future<Box<dynamic>> Function()? schoolBoxProvider,
     Future<Box<dynamic>> Function()? catalogBoxProvider,
     Future<Box<dynamic>> Function()? pendingOpsBoxProvider,
+    Future<Box<dynamic>> Function()? reportsCacheBoxProvider,
     Future<void> Function(Map<String, dynamic>)? upsertSchoolOverride,
     Future<void> Function(SchoolModel)? syncEngagementOverride,
     Future<void> Function(Map<String, dynamic>)? upsertCatalogOverride,
@@ -39,6 +42,7 @@ class DatabaseService {
        _schoolBoxProvider = schoolBoxProvider,
        _catalogBoxProvider = catalogBoxProvider,
        _pendingOpsBoxProvider = pendingOpsBoxProvider,
+       _reportsCacheBoxProvider = reportsCacheBoxProvider,
        _upsertSchoolOverride = upsertSchoolOverride,
        _syncEngagementOverride = syncEngagementOverride,
        _upsertCatalogOverride = upsertCatalogOverride,
@@ -62,6 +66,41 @@ class DatabaseService {
     if (_pendingOpsBoxProvider != null) return _pendingOpsBoxProvider();
     _pendingOpsBoxFuture ??= Hive.openBox('pending_ops_box');
     return _pendingOpsBoxFuture!;
+  }
+
+  Future<Box<dynamic>> get _reportsCacheBox async {
+    if (_reportsCacheBoxProvider != null) return _reportsCacheBoxProvider();
+    _reportsCacheBoxFuture ??= Hive.openBox('reports_cache_box');
+    return _reportsCacheBoxFuture!;
+  }
+
+  Future<void> cacheReport(String key, Map<String, dynamic> report) async {
+    try {
+      final box = await _reportsCacheBox;
+      await box.put(key, {
+        'report': report,
+        'cached_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error caching report: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getCachedReport(String key) async {
+    try {
+      final box = await _reportsCacheBox;
+      final entry = box.get(key);
+      if (entry is Map) {
+        final cachedAt = DateTime.tryParse(entry['cached_at']?.toString() ?? '');
+        if (cachedAt != null && DateTime.now().difference(cachedAt).inHours < 24) {
+          return Map<String, dynamic>.from(entry['report'] ?? {});
+        }
+        await box.delete(key);
+      }
+    } catch (e) {
+      debugPrint('Error reading cached report: $e');
+    }
+    return null;
   }
 
   // User management methods

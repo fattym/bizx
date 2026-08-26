@@ -129,14 +129,23 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       // Fetch Visits for Leaderboard
       final visitsRes = await _supabase
           .from('school_visits')
-          .select('agent_id, visited_at');
+          .select('agent_id, school_id, visited_at');
       final visitsByRep = <String, int>{};
-      final lastVisitBySchool =
-          <String, DateTime>{}; // Simplified churn detection
+      final lastVisitBySchool = <String, DateTime>{};
 
       for (var v in visitsRes) {
         final agentId = (v['agent_id'] as String?) ?? 'unassigned';
         visitsByRep[agentId] = (visitsByRep[agentId] ?? 0) + 1;
+        final schoolId = (v['school_id'] as String?) ?? '';
+        if (schoolId.isNotEmpty) {
+          final visitedAt = DateTime.tryParse(v['visited_at']?.toString() ?? '');
+          if (visitedAt != null) {
+            final existing = lastVisitBySchool[schoolId];
+            if (existing == null || visitedAt.isAfter(existing)) {
+              lastVisitBySchool[schoolId] = visitedAt;
+            }
+          }
+        }
       }
 
       // Fetch Global counts and User Growth
@@ -232,7 +241,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               .toList()
             ..sort((a, b) => b.value.compareTo(a.value));
 
-      // Calculate Churn Buckets using school created_at as a fallback for activity
+      // Calculate Churn Buckets using actual last visit date instead of createdAt
       final now = DateTime.now();
       Map<String, int> churnBuckets = {
         'Active (<30d)': 0,
@@ -241,10 +250,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         'Inactive (>90d)': 0,
       };
       for (var school in schoolsRes) {
-        // Ideally we join with last visit date, but for now we use createdAt or mock
-        final createdAt =
-            DateTime.tryParse(school['created_at']?.toString() ?? '') ?? now;
-        final daysDiff = now.difference(createdAt).inDays;
+        final lastVisit = lastVisitBySchool[school['id'].toString()];
+        final activityDate = lastVisit ?? DateTime.tryParse(school['created_at']?.toString() ?? '') ?? now;
+        final daysDiff = now.difference(activityDate).inDays;
         if (daysDiff < 30)
           churnBuckets['Active (<30d)'] = churnBuckets['Active (<30d)']! + 1;
         else if (daysDiff < 60)

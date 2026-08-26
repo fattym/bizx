@@ -57,6 +57,33 @@ async function supabaseRestQuery(table, options = {}) {
   return response.json();
 }
 
+function buildSupabaseFilter(filters) {
+  const filter = {};
+  if (!filters || typeof filters !== 'object') return filter;
+
+  if (filters.startDate && filters.endDate) {
+    filter.created_at = `gte.${filters.startDate},lte.${filters.endDate}`;
+  } else if (filters.startDate) {
+    filter.created_at = `gte.${filters.startDate}`;
+  } else if (filters.endDate) {
+    filter.created_at = `lte.${filters.endDate}`;
+  }
+
+  if (filters.regionId) {
+    filter.region_id = `eq.${filters.regionId}`;
+  }
+  if (filters.agentId) {
+    filter.agent_id = `eq.${filters.agentId}`;
+  }
+  if (filters.status) {
+    filter.status = `eq.${filters.status}`;
+  }
+  if (filters.saleStatus) {
+    filter.sale_status = `eq.${filters.saleStatus}`;
+  }
+  return filter;
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -122,12 +149,13 @@ app.get('/health', (req, res) => {
 
 // Report data fetchers using Supabase REST API
 const REPORT_QUERIES = {
-  sales_summary: async () => {
+  sales_summary: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [schools, users, orders, schoolSales, orderItems] = await Promise.all([
-      supabaseRestQuery('schools', { select: '*' }),
+      supabaseRestQuery('schools', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('users', { select: '*' }),
-      supabaseRestQuery('orders', { select: '*' }),
-      supabaseRestQuery('school_sales', { select: '*' }),
+      supabaseRestQuery('orders', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('school_sales', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('order_items', { select: '*' })
     ]);
 
@@ -170,9 +198,10 @@ const REPORT_QUERIES = {
     };
   },
 
-  pipeline_analysis: async () => {
+  pipeline_analysis: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [schoolSales, users, schools] = await Promise.all([
-      supabaseRestQuery('school_sales', { select: '*' }),
+      supabaseRestQuery('school_sales', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('users', { select: 'id, full_name, role' }),
       supabaseRestQuery('schools', { select: 'id, name' })
     ]);
@@ -224,12 +253,13 @@ const REPORT_QUERIES = {
     };
   },
 
-  agent_performance: async () => {
+  agent_performance: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [users, tasks, routePlans, visits, schools] = await Promise.all([
       supabaseRestQuery('users', { select: '*' }),
-      supabaseRestQuery('tasks', { select: '*' }),
-      supabaseRestQuery('route_plans', { select: '*' }),
-      supabaseRestQuery('school_visits', { select: '*' }),
+      supabaseRestQuery('tasks', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('route_plans', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('school_visits', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('schools', { select: 'id, name' })
     ]);
 
@@ -272,12 +302,13 @@ const REPORT_QUERIES = {
     return { agents, most_visited_schools: topSchools };
   },
 
-  regional_summary: async () => {
+  regional_summary: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [regions, users, schools, sales] = await Promise.all([
       supabaseRestQuery('regions', { select: '*' }),
       supabaseRestQuery('users', { select: '*' }),
-      supabaseRestQuery('schools', { select: '*' }),
-      supabaseRestQuery('school_sales', { select: '*' })
+      supabaseRestQuery('schools', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('school_sales', { select: '*', filter: supabaseFilter })
     ]);
 
     const byRegion = regions?.map(r => {
@@ -300,14 +331,15 @@ const REPORT_QUERIES = {
     return { by_region: byRegion };
   },
 
-  event_summary: async () => {
+  event_summary: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [events, assignments, checkins, leads, samples, expenses] = await Promise.all([
-      supabaseRestQuery('events', { select: '*' }),
+      supabaseRestQuery('events', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('event_assignments', { select: '*' }),
-      supabaseRestQuery('event_checkins', { select: '*' }),
-      supabaseRestQuery('event_leads', { select: '*' }),
-      supabaseRestQuery('event_samples', { select: '*' }),
-      supabaseRestQuery('event_expenses', { select: '*' })
+      supabaseRestQuery('event_checkins', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('event_leads', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('event_samples', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('event_expenses', { select: '*', filter: supabaseFilter })
     ]);
 
     const eventSummaries = events?.map(e => {
@@ -337,12 +369,13 @@ const REPORT_QUERIES = {
     return { events: eventSummaries };
   },
 
-  sample_roi: async () => {
+  sample_roi: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [users, distributions, orders, sales] = await Promise.all([
       supabaseRestQuery('users', { select: '*' }),
-      supabaseRestQuery('school_sample_distributions', { select: '*' }),
-      supabaseRestQuery('orders', { select: '*' }),
-      supabaseRestQuery('school_sales', { select: '*' })
+      supabaseRestQuery('school_sample_distributions', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('orders', { select: '*', filter: supabaseFilter }),
+      supabaseRestQuery('school_sales', { select: '*', filter: supabaseFilter })
     ]);
 
     const roi = users?.filter(u => u.role === 4 || u.role === 5).map(u => {
@@ -367,9 +400,10 @@ const REPORT_QUERIES = {
     return { roi };
   },
 
-  targets_analysis: async () => {
+  targets_analysis: async (filters = {}) => {
+    const supabaseFilter = buildSupabaseFilter(filters);
     const [targets, regions, users] = await Promise.all([
-      supabaseRestQuery('targets', { select: '*' }),
+      supabaseRestQuery('targets', { select: '*', filter: supabaseFilter }),
       supabaseRestQuery('regions', { select: '*' }),
       supabaseRestQuery('users', { select: 'id, full_name' })
     ]);

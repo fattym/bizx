@@ -67,7 +67,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final geofenceCount = await _supabase
           .from('geofences')
           .count(CountOption.exact);
-      final schoolCount = await _supabase.from('schools').count(CountOption.exact);
+      final schoolCount = await _supabase
+          .from('schools')
+          .count(CountOption.exact);
       if (mounted) {
         setState(() {
           _totalTasks = taskCount;
@@ -102,28 +104,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final isDesktop = MediaQuery.of(context).size.width >= 800;
 
     return Scaffold(
-      appBar: isDesktop
-          ? null
-          : AppBar(
-              title: const Text('Sales Manager Dashboard'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _refreshData,
-                  tooltip: 'Refresh Data',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.event),
-                  onPressed: () => Navigator.pushNamed(context, '/events'),
-                  tooltip: 'Events',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: _signOut,
-                  tooltip: 'Sign Out',
-                ),
-              ],
-            ),
+      appBar:
+          isDesktop
+              ? null
+              : AppBar(
+                title: const Text('Sales Manager Dashboard'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _refreshData,
+                    tooltip: 'Refresh Data',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.event),
+                    onPressed: () => Navigator.pushNamed(context, '/events'),
+                    tooltip: 'Events',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: _signOut,
+                    tooltip: 'Sign Out',
+                  ),
+                ],
+              ),
       drawer: isDesktop ? null : _buildMobileDrawer(),
       body: Row(
         children: [
@@ -132,31 +135,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const VerticalDivider(thickness: 1, width: 1),
           ],
           Expanded(
-            child: isDesktop
-                ? Scaffold(
-                    appBar: AppBar(
-                      title: const Text('Sales Manager Dashboard'),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          onPressed: _refreshData,
-                          tooltip: 'Refresh Data',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.event),
-                          onPressed: () => Navigator.pushNamed(context, '/events'),
-                          tooltip: 'Events',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.logout),
-                          onPressed: _signOut,
-                          tooltip: 'Sign Out',
-                        ),
-                      ],
-                    ),
-                    body: _buildDashboardContent(),
-                  )
-                : _buildDashboardContent(),
+            child:
+                isDesktop
+                    ? Scaffold(
+                      appBar: AppBar(
+                        title: const Text('Sales Manager Dashboard'),
+                        actions: [
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            onPressed: _refreshData,
+                            tooltip: 'Refresh Data',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.event),
+                            onPressed:
+                                () => Navigator.pushNamed(context, '/events'),
+                            tooltip: 'Events',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.logout),
+                            onPressed: _signOut,
+                            tooltip: 'Sign Out',
+                          ),
+                        ],
+                      ),
+                      body: _buildDashboardContent(),
+                    )
+                    : _buildDashboardContent(),
           ),
         ],
       ),
@@ -294,14 +299,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.local_shipping_outlined, 'Assign Books', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AssignBooksPage(),
-                    ),
-                  );
-                }),
+                  Icons.local_shipping_outlined,
+                  'Assign Books',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AssignBooksPage(),
+                      ),
+                    );
+                  },
+                ),
                 _buildNavItem(Icons.map, 'Assign Geofence', () {
                   Navigator.push(
                     context,
@@ -346,15 +354,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.supervisor_account_outlined, 'Role 3 Command', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const Role3SupervisionDashboardPage(),
-                    ),
-                  );
-                }),
+                  Icons.supervisor_account_outlined,
+                  'Role 3 Command',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => const Role3SupervisionDashboardPage(),
+                      ),
+                    );
+                  },
+                ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(
@@ -399,14 +410,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.receipt_long_outlined, 'Sample Receipts', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SampleReceiptsPage(),
-                    ),
-                  );
-                }),
+                  Icons.receipt_long_outlined,
+                  'Sample Receipts',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SampleReceiptsPage(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -554,14 +568,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.local_shipping_outlined, 'Assign Books', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AssignBooksPage(),
-                    ),
-                  );
-                }),
+                  Icons.local_shipping_outlined,
+                  'Assign Books',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AssignBooksPage(),
+                      ),
+                    );
+                  },
+                ),
                 _buildNavItem(Icons.map, 'Assign Geofence', () {
                   Navigator.push(
                     context,
@@ -606,15 +623,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.supervisor_account_outlined, 'Role 3 Command', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const Role3SupervisionDashboardPage(),
-                    ),
-                  );
-                }),
+                  Icons.supervisor_account_outlined,
+                  'Role 3 Command',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => const Role3SupervisionDashboardPage(),
+                      ),
+                    );
+                  },
+                ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(
@@ -659,14 +679,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 }),
                 _buildNavItem(
-                    Icons.receipt_long_outlined, 'Sample Receipts', () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SampleReceiptsPage(),
-                    ),
-                  );
-                }),
+                  Icons.receipt_long_outlined,
+                  'Sample Receipts',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SampleReceiptsPage(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -685,13 +708,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildNavItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       leading: Icon(icon, color: Theme.of(context).primaryColor, size: 22),
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 14),
-      ),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
       selected: false,
-      selectedTileColor:
-          Theme.of(context).primaryColor.withValues(alpha: 0.1),
+      selectedTileColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
       onTap: () {
         _closeDrawerIfOpen();
         onTap();
@@ -724,9 +743,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Card(
       elevation: 0,
       color: Theme.of(context).colorScheme.primaryContainer,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         leading: CircleAvatar(
           radius: 28,
@@ -798,9 +815,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(10.0),
         child: Column(
